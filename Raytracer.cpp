@@ -19,6 +19,7 @@ Raytracer::~Raytracer()
     vector<vector<vector<int > > >().swap(this->Nhit);
     vector<vector<vector<int > > >().swap(this->Nmiss);
     vector<vector<vector<int > > >().swap(this->Nocc);
+    /*
     vector<double >().swap(this->X);
     vector<double >().swap(this->Y);
     vector<double >().swap(this->Z);
@@ -26,6 +27,7 @@ Raytracer::~Raytracer()
     vector<double >().swap(this->SensorY);
     vector<double >().swap(this->SensorZ);
     vector<double >().swap(this->GPSTime);
+    */
 
 }
 
@@ -86,6 +88,82 @@ static inline void loadbar(unsigned int x, unsigned int n, unsigned int w = 50)
     for (int x=0; x<c; x++) cout << "=";
     for (int x=c; x<w; x++) cout << " ";
     cout << "]\r" << flush;
+}
+
+void Raytracer::addPointData(vector<double> X, vector<double> Y, vector<double> Z,
+                             vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z,
+                             vector<double> gps_time, vector<int> return_number, vector<int> number_of_returns){
+
+
+    for (int i = 0; i < gps_time.size(); i++) {
+
+        map<double,boost::shared_ptr<Pulse> >::iterator it;
+
+        this->storedPoints++; //TODO: this variable should probably be changed and maybe added as a parameter of the Pulse dataset?
+
+        double gps = gps_time.at(i);
+
+        it = this->incompletePulses.find(gps);
+
+        if (it != this->incompletePulses.end()) {
+            // pulse is already in pulsedataset and echo can be added. -> extract laser return information
+            boost::shared_ptr<Echo> e = boost::make_shared<Echo>();
+
+            e->setX(X.at(i));
+            e->setY(Y.at(i));
+            e->setZ(Z.at(i));
+            e->setReturnNumber(return_number.at(i));
+
+            // Check if an echoe with this return number already exists for this pulse (There are cases where there are duplicate returns (the same ones)
+            if (it->second->getEchoes().count(e->getReturnNumber())==1){
+                this->duplicateReturns++;
+            }
+
+            it->second->addEcho( e );
+
+            if (it->second->iscomplete()) {
+
+                this->pulsedataset.insert( std::make_pair(it->second->getGPSTime(), it->second) );
+                this->incompletePulses.erase(it);
+
+            }
+        } else {
+            // Pulse is not yet within the pulsedataset and should be added, before adding the echo
+
+            // extract general pulse information
+            boost::shared_ptr<Pulse> p = boost::make_shared<Pulse>();
+
+            p->addGPSTime(gps_time.at(i));
+            p->addNumberOfReturns(number_of_returns.at(i));
+
+            // extract laser return information
+            boost::shared_ptr<Echo> e = boost::make_shared<Echo>();
+
+            e->setX(X.at(i));
+            e->setY(Y.at(i));
+            e->setZ(Z.at(i));
+            e->setReturnNumber(return_number.at(i));
+
+            p->addEcho( e );
+
+            if (p->iscomplete()) {
+                this->pulsedataset.insert(std::make_pair(p->getGPSTime(),p));
+            } else {
+                this->incompletePulses.insert( std::make_pair(p->getGPSTime(), p) );
+            }
+
+        }
+
+
+    }
+
+}
+
+void Raytracer::getPulseDatasetReport(){
+    cout << "#### Pulse Dataset Report ####" << endl;
+    cout << "### " << this->storedPoints << " Returns have been read and stored! " << endl;
+    cout << "### " << this->duplicateReturns << " duplicate returns have been recognized! " << endl;
+    cout << "### " << this->incompletePulses.size() << " incomplete pulses are not going to be analysed! " << endl;
 }
 
 void Raytracer::doRaytracing(vector<double> X, vector<double> Y, vector<double> Z,

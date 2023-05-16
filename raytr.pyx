@@ -19,6 +19,8 @@ cdef extern from "Raytracer.hpp":
 
         void defineGrid(vector[int], vector[int], int, int, int, float)
 
+        void addPointData(vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[int], vector[int])
+
         void doRaytracing(vector[double] x, vector[double] y, vector[double] z, vector[double] sensor_x, vector[double] sensor_y, vector[double] sensor_z, vector[double] gps_time)
 
         void rayBoxIntersection(vector[double], vector[double], vector[int], vector[int], int &, double &);
@@ -28,6 +30,7 @@ cdef extern from "Raytracer.hpp":
         vector[vector[vector[int]]]& getNmiss()
         vector[vector[vector[int]]]& getNocc()
         vector[int]& getGridDimensions()
+        void getPulseDatasetReport()
 
 
 # creating a cython wrapper class
@@ -41,6 +44,8 @@ cdef class PyRaytracer:
         self.thisptr.rayBoxIntersection(origin, direction, vmin, vmax, flag, tmin)
     def defineGrid(self, minBound, maxBound, nx, ny, nz, voxSize):
         self.thisptr.defineGrid(minBound, maxBound, nx, ny, nz, voxSize)
+    def addPointData(self, X, Y, Z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns):
+        self.thisptr.addPointData(X, Y, Z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)
     def doRaytracing(self, X, Y, Z, sensor_x, sensor_y, sensor_z, gps_time):
         self.thisptr.doRaytracing(X, Y, Z, sensor_x, sensor_y, sensor_z, gps_time)
     def getNhit(self):
@@ -51,3 +56,5 @@ cdef class PyRaytracer:
         return self.thisptr.getNocc()
     def getGridDimensions(self):
         return self.thisptr.getGridDimensions()
+    def getPulseDatasetReport(self):
+        self.thisptr.getPulseDatasetReport()

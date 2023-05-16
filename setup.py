@@ -24,13 +24,15 @@ for root, dirs, files in os.walk(".", topdown=False):
 extensions = [
     Extension("raytr",
                   sources=["raytr.pyx",
-                           "Raytracer.cpp"
+                           "Raytracer.cpp",
+                           "Pulse.cpp",
+                           "Echo.cpp"
                        ],
                   libraries=[],  # refers to "liblas.2.3.0.dylib"
                   language="c++",  # remove this if C and not C++
-                  include_dirs=[], #["C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/include/"],
+                  include_dirs=["C:/Users/kueken/Miniconda3/envs/occPy/Library/include/"], #["C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/include/"],
                   #include_dirs=["/usr/local/Cellar/boost/1.75.0_2/include", "/usr/local/Cellar/pdal/2.2.0_3/include", "/usr/local/Cellar/laszip/3.4.3/include"],
-                  library_dirs=[], #["C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/lib"],
+                  library_dirs=["C:/Users/kueken/Miniconda3/envs/occPy/Library/lib"], #["C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/lib"],
                   #library_dirs=["/usr/local/Cellar/pdal/2.2.0_3/lib"],
                   requires=['Cython'],
                   #extra_compile_args=["-ferror-limit=0"]
