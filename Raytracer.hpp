@@ -73,7 +73,7 @@ class Raytracer {
                           vector<double> gps_time, vector<int> return_number, vector<int> number_of_returns);
 
 
-        void doRaytracing(vector<double> X, vector<double> Y, vector<double> Z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time);
+        void doRaytracing();
 
         void defineGrid(vector<int> minBound, vector<int> maxBound, int nx, int ny, int nz, float voxSize);
 
@@ -85,4 +85,6 @@ class Raytracer {
         bool linePlaneIntersection(vector3& contact, vector3 ray, vector3 rayOrigin, vector3 normal, vector3 coord);
 
         void getPulseDatasetReport();
+
+        void cleanUpPulseDataset();
 };

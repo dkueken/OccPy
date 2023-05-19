@@ -135,6 +135,9 @@ void Raytracer::addPointData(vector<double> X, vector<double> Y, vector<double> 
 
             p->addGPSTime(gps_time.at(i));
             p->addNumberOfReturns(number_of_returns.at(i));
+            p->addSensorXPosition(sensor_x.at(i));
+            p->addSensorYPosition(sensor_y.at(i));
+            p->addSensorZPosition(sensor_z.at(i));
 
             // extract laser return information
             boost::shared_ptr<Echo> e = boost::make_shared<Echo>();
@@ -163,26 +166,65 @@ void Raytracer::getPulseDatasetReport(){
     cout << "#### Pulse Dataset Report ####" << endl;
     cout << "### " << this->storedPoints << " Returns have been read and stored! " << endl;
     cout << "### " << this->duplicateReturns << " duplicate returns have been recognized! " << endl;
+    cout << "### " << this->pulsedataset.size() << " pulses are stored in the dataset! " << endl;
     cout << "### " << this->incompletePulses.size() << " incomplete pulses are not going to be analysed! " << endl;
 }
 
-void Raytracer::doRaytracing(vector<double> X, vector<double> Y, vector<double> Z,
-vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time)
+/*
+void Raytracer::getIncompletePulseDatasetReport(){
+
+    //TODO: implement this function!
+    cout << "#### Incomplete Pulse Dataset Report ####" << endl;
+
+    int numMissingFirst = 0;
+    int numMissingSecond = 0;
+    int numMissingThird = 0;
+    int numMissingFourth = 0;
+
+    for (map<double,boost::shared_ptr<Pulse> >::iterator it = this->incompletePulses.begin(); it != this->incompletePulses.end(); ++it) {
+
+
+    }
+}
+*/
+
+void Raytracer::cleanUpPulseDataset(){
+    //This function should clean up the incomplete pulses in order to include them within the voxel traversal
+
+    // iterate through incompletePulses
+    for (map<double,boost::shared_ptr<Pulse> >::iterator it = this->incompletePulses.begin(); it != this->incompletePulses.end(); ++it){
+        it->second->cleanupPulse();
+
+        // check if pulse is now complete
+        if (it->second->iscomplete()){
+            this->pulsedataset.insert(std::make_pair(it->second->getGPSTime(), it->second));
+            this->incompletePulses.erase(it);
+        } else {
+            cout << "#### Pulse cleanup not successful! ####" << endl;
+        }
+    }
+}
+
+void Raytracer::doRaytracing()
 {
     int pulsecount = 0;
     int traversedPulses = 0;
     int echoesOutside = 0;
     int numMissingReturns = 0;
+    int numNoGridIntersection = 0;
+
+    //TODO: implement functionality for single return pulses with no known sensor positions
 
     int regHit = 0; //Number of registered hit voxels
 
-    for (int i = 0; i < gps_time.size(); i++) {
+    //iterating through each pulse, initialise traversing of the pulse and traverse the pulse through the voxel grid
+    for (map<double,boost::shared_ptr<Pulse> >::iterator it = this->pulsedataset.begin(); it != this->pulsedataset.end(); ++it) {
         pulsecount++;
 
         bool isfound = false;
 
         //update progressbar
-        loadbar(pulsecount, (int)gps_time.size(), 20);
+        loadbar(pulsecount, (int)pulsedataset.size(), 20);
 
         //init several necessary variables befor starting
         int flag = 0;               //flag whether pulse crosses voxel grid or not
@@ -214,6 +256,55 @@ vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vecto
         vector<double> origin (3,0);
         vector<double> direction (3,0);
 
+        if (it->second->hasSensorPosition) {
+            origin.at(0) = it->second->getSensorY();
+            origin.at(1) = it->second->getSensorX();
+            origin.at(2) = it->second->getSensorZ();
+
+            //TODO: check if we should have to subtract 1 from the Number of Returns, because the vector indices are also 0 based
+            //TODO: this should work, as the getEchoes() function returns a map with a shared ptr.
+            direction.at(0) = it->second->getEchoes().at(it->second->getNumberOfReturns())->getY() - origin.at(0);
+            direction.at(1) = it->second->getEchoes().at(it->second->getNumberOfReturns())->getX() - origin.at(1);
+            direction.at(2) = it->second->getEchoes().at(it->second->getNumberOfReturns())->getZ() - origin.at(2);
+
+            /*
+            //TODO: Check if this is realy necessary. One small test showed, that not many pulses are actually affected by this effect!!!
+            // This algorithm works on the assumption of an infinitesimally small pulse. It is therefore crucial that all laser returns lie exactly on top of the laser pulse line, otherwise it could happen that the traversal algorithm will not traverse a laser echo because it lies in another voxel which was not traversed. We therefore project all echoes for pulses with more than 1 laser return onto the vector which represents the laser pulse
+            if (it->second->getNumberOfReturns()>1) {
+
+                for (int r=1; r<it->second->getNumberOfReturns(); r++) {
+                    double pX = it->second->getEcho(r)->getX();
+                    double pY = it->second->getEcho(r)->getY();
+                    double pZ = it->second->getEcho(r)->getZ();
+
+                    //difference of point with line origin
+                    double dy = pY - origin.at(0);
+                    double dx = pX - origin.at(1);
+                    double dz = pZ - origin.at(2);
+
+                    // Position of projection on line using dot product
+                    double delta = direction.at(1)*direction.at(1) + direction.at(0)*direction.at(0) + direction.at(2)*direction.at(2);
+                    double tp = (dx*direction.at(1) + dy*direction.at(0) + dz*direction.at(2))/delta;
+
+                    // convert position on line to cartesian coordinates
+                    double pYnew = origin.at(0)+tp*direction.at(0);
+                    double pXnew = origin.at(1)+tp*direction.at(1);
+                    double pZnew = origin.at(2)+tp*direction.at(2);
+
+                    //change coordinates of the Echo
+                    it->second->getEcho(r)->setX(pXnew);
+                    it->second->getEcho(r)->setY(pYnew);
+                    it->second->getEcho(r)->setZ(pZnew);
+
+                }
+            }
+            */
+        } else {
+            //TODO: implement traversal if sensor position is not known -> this should not be promoted as we should advocate
+            // that the sensor position should always be known!
+        }
+
+        /* old implementation! TODO: delete commented part once ready!
         // We are assuming that we do know the exact sensor position
         origin.at(0) = sensor_y.at(i);
         origin.at(1) = sensor_x.at(i);
@@ -222,6 +313,7 @@ vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vecto
         direction.at(0) = Y.at(i) - origin.at(0);
         direction.at(1) = X.at(i) - origin.at(1);
         direction.at(2) = Z.at(i) - origin.at(2);
+        */
 
         // if direction vector is == 0 assign a very small number to overcome problems with division through 0 in later steps. TODO: Check if this value is small enough. This could be a problem especially with TLS data!
         if (direction.at(0)==0) { direction.at(0) = numeric_limits<double>::min(); }
@@ -232,13 +324,14 @@ vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vecto
         rayBoxIntersection(origin, direction, this->gridDim.minBound, this->gridDim.maxBound, flag, tmin);
 
         if (flag==0) {
+            numNoGridIntersection++;
             //cout << "The ray does not intersect the grid" << endl;
         } else {
             //cout << "The ray does intersect the grid" << endl;
 
             traversedPulses++;
 
-            // int echoesOfPulseOutside = 0; // not needed as Horizon only has one return
+            int echoesOfPulseOutside = 0;
 
             if (tmin<0) {
                 tmin = 0;
@@ -255,25 +348,17 @@ vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vecto
             boxSize.at(2) = (double)this->gridDim.maxBound.at(2) - (double)this->gridDim.minBound.at(2);
 
             // Get the voxel indices of where the laser return lie in the grid
-
-            int XInd = 0; // There are only one return for the used MLS sensor TODO: Check on that!
-            int YInd = 0;
-            int ZInd = 0;
-
-
-            //TODO: implement multiple return functionalities
-            /*
             vector<int> XInd;
-            XInd.resize(number_of_returns.at(i));
+            XInd.resize(it->second->getNumberOfReturns());
             vector<int> YInd;
-            YInd.resize(number_of_returns.at(i));
+            YInd.resize(it->second->getNumberOfReturns());
             vector<int> ZInd;
-            ZInd.resize(number_of_returns.at(i));
+            ZInd.resize(it->second->getNumberOfReturns());
 
-            for (int j=1; j<=number_of_returns.at(i), j++){
-                YInd.at(j-1) = floor( ((Y.at(i+j-1) - (double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.ny );
-                XInd.at(j-1) = floor( ((X.at(i+j-1) - (double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.nx );
-                ZInd.at(j-1) = floor( ((Z.at(i+j-1) - (double)this->gridDim.minBound.at(2))/boxSize.at(2))*(double)this->gridDim.nz );
+            for (int j=1; j<=it->second->getNumberOfReturns(); j++){
+                YInd.at(j-1) = floor( ((it->second->getEchoes().at(j)->getY() - (double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.ny );
+                XInd.at(j-1) = floor( ((it->second->getEchoes().at(j)->getX() - (double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.nx );
+                ZInd.at(j-1) = floor( ((it->second->getEchoes().at(j)->getZ() - (double)this->gridDim.minBound.at(2))/boxSize.at(2))*(double)this->gridDim.nz );
 
                 if (YInd.at(j-1)>=this->gridDim.ny || YInd.at(j-1)<0 || XInd.at(j-1)>=this->gridDim.nx || XInd.at(j-1)<0 ||
                     ZInd.at(j-1)>=this->gridDim.nz || ZInd.at(j-1)<0){
@@ -282,16 +367,6 @@ vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vecto
                     echoesOfPulseOutside++;
 
                 }
-            }
-            */
-
-            YInd = floor( ((Y.at(i) - (double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.ny );
-            XInd = floor( ((X.at(i) - (double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.nx );
-            ZInd = floor( ((Z.at(i) - (double)this->gridDim.minBound.at(2))/boxSize.at(2))*(double)this->gridDim.nz );
-
-            if ( YInd >= this->gridDim.ny || YInd < 0 || XInd >= this->gridDim.nx || XInd < 0 || ZInd >= this->gridDim.nz || ZInd < 0 ){
-                echoesOutside++;
-                // echoesOfPulseOutside++; // Not needed as Horizon only has one return!
             }
 
             int x;
@@ -361,31 +436,36 @@ vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vecto
 
             int retNum = 1;
 
-            //Distance Between origin and laser return
-            double dP = sqrt( pow(Y.at(i)-origin.at(0), 2) + pow(X.at(i)-origin.at(1), 2) + pow(Z.at(i)-origin.at(2), 2));
-            //Distance between origin and the first traversed voxel (if origin == first return and origin inside voxel grid origin==start
-            double dS = sqrt( pow( (start.at(0) - origin.at(0)), 2) + pow( (start.at(1) - origin.at(1)), 2) + pow( (start.at(2) - origin.at(2)), 2) );
+            for (int j=1; j<=it->second->getNumberOfReturns(); j++){
 
-            if ( dP < dS ) {
-                retNum++;
+                //Distance Between origin and laser return
+                double dP = sqrt( pow( (it->second->getEchoes().at(j)->getY())-origin.at(0), 2 ) + pow( (it->second->getEchoes().at(j)->getX())-origin.at(1), 2 ) + pow( (it->second->getEchoes().at(j)->getZ())-origin.at(2), 2) );
+                //Distance between origin and the first traversed voxel (if origin == first return and origin inside voxel grid origin==start
+                double dS = sqrt( pow( (start.at(0) - origin.at(0)), 2) + pow( (start.at(1) - origin.at(1)), 2) + pow( (start.at(2) - origin.at(2)), 2) );
+
+                if (dP < dS) {
+                    retNum++;
+                }
             }
 
+            vector<int> traversedX;
+            vector<int> traversedY;
+            vector<int> traversedZ;
 
-            //vector<int> traversedX;
-            //vector<int> traversedY;
-            //vector<int> traversedZ;
-
+            // TODO: add support for DTM!
             while ( (x<this->gridDim.nx)&&(x>=0) && (y<this->gridDim.ny)&&(y>=0) && (z<this->gridDim.nz)&&(z>=0) && (!this->hasDTM || (this->hasDTM && z>=this->DTMind.at(y).at(x)))) {
 
-                //traversedX.push_back(x);
-                //traversedY.push_back(y);
-                //traversedZ.push_back(z);
+                //TODO: Implement path length estimation inside voxel
+                //TODO: Implement the estimation of the average incidence anlge output grid
+                traversedX.push_back(x);
+                traversedY.push_back(y);
+                traversedZ.push_back(z);
 
-                if ( retNum <= 1 && x==XInd && y==YInd && z==ZInd) {
+                if ( retNum <= it->second->getNumberOfReturns() && x==XInd.at(retNum-1) && y==YInd.at(retNum-1) && z==ZInd.at(retNum-1)) {
                     //the return is inside this voxel, feed information from return into this voxel
 
                     //cover the case where multiple returns are inside the same voxel:
-                    while (retNum <= 1 && x==XInd && y==YInd && z==ZInd) {
+                    while (retNum <= it->second->getNumberOfReturns() && x==XInd.at(retNum-1) && y==YInd.at(retNum-1) && z==ZInd.at(retNum-1)) {
 
                         this->Nhit.at(y).at(x).at(z)++;
 
@@ -399,7 +479,7 @@ vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vecto
                 } else { //if there are no hits
 
                     // if there are still hits that were not yet traversed:
-                    if (retNum <= 1) {
+                    if (retNum <= it->second->getNumberOfReturns()) {
                         this->Nmiss.at(y).at(x).at(z)++;
 
                         //TODO: Implement NmissWeigh and NmissWeighPathL!
@@ -459,6 +539,29 @@ vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vecto
                     }
                 }
             }
+            if (retNum <= (it->second->getNumberOfReturns()-echoesOfPulseOutside)) {
+
+
+                //cout << "#### Not all echoes of the pulse have been traversed!!! Number of missing echoes: " << it->second->getNumberOfReturns()-retNum << endl;
+                //cout << " Missing return infos: " << endl;
+                //for (int r=retNum; r<=it->second->getNumberOfReturns(); r++) {
+                //    numMissingReturns++;
+
+                //    double xtmp = it->second->getEcho(r)->getX();
+                //    double ytmp = it->second->getEcho(r)->getY();
+                //    double ztmp = it->second->getEcho(r)->getZ();
+
+                //    cout << "Ret Num: " << it->second->getEcho(r)->getReturnNumber() << " || X: " << it->second->getEcho(r)->getX() << " || Y: " << it->second->getEcho(r)->getY() << " || Z: " << it->second->getEcho(r)->getZ() << " || XInd at: " << XInd.at(r-1) << " || YInd at: " << YInd.at(r-1) << " || ZInd at: " << ZInd.at(r-1) <<     endl;
+
+
+                //}
+                //cout << "###############################" << endl;
+
+                //Pulse tmpPls = *it->second;
+                //map<int,shared_ptr<Echo> > tmpEch =  it->second->getEchoes();
+
+
+            }
         }
     }
 
@@ -466,6 +569,7 @@ vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vecto
     cout << "#### " << regHit << " Returns have been registered by the algorithm " << endl;
     cout << "#### " << echoesOutside << " Returns were found outside the voxel grid " << endl;
     cout << "#### " << numMissingReturns << " Returns were missed during the traversal!" << endl;
+    cout << "#### " << numNoGridIntersection << " Pulses did not intersect voxel grid!" << endl;
 }
 
 void Raytracer::rayBoxIntersection (vector<double> origin, vector<double> direction, vector<int> vmin, vector<int> vmax, int & flag, double & tmin){
