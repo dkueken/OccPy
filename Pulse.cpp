@@ -12,6 +12,7 @@ Pulse::Pulse (){
     
     this->hasSensorPosition = false;
 //    this->Echoes = map<int,boost::shared_ptr<Echo> >;
+    //this->wasTraversed = false;
     
     
 }
@@ -33,6 +34,8 @@ Pulse::Pulse (double gps, double sensX, double sensY, double sensZ, int numRet, 
     
     this->hasSensorPosition = true;
 
+    //this->wasTraversed = false;
+
     
     
 }
@@ -44,6 +47,8 @@ Pulse::Pulse(int numRets) {
 //    this->Echoes = new map<int,Echo*>();
     
     this->hasSensorPosition = false;
+
+    //this->wasTraversed = false;
     
 }
 
@@ -84,6 +89,41 @@ void Pulse::cleanupPulse(){
     this->Echoes = tmp;
     this->NumberOfReturns = this->Echoes.size();
     this->missingReturns = 0;
+
+}
+
+/* function to move selected point towards line */
+void Pulse::moveSensorPosToLine(){
+
+    // Calculate the line direction vector
+    vector<double> lineDirection(3);
+    lineDirection[0] = this->Echoes.at(this->NumberOfReturns)->getX() - this->Echoes.at(1)->getX();
+    lineDirection[1] = this->Echoes.at(this->NumberOfReturns)->getY() - this->Echoes.at(1)->getY();
+    lineDirection[2] = this->Echoes.at(this->NumberOfReturns)->getZ() - this->Echoes.at(1)->getZ();
+
+    // Calculate the point's projection onto the line
+    double dotProduct = 0;
+    double lineMagnitudeSquared = 0;
+    dotProduct += (this->SensorX - this->Echoes.at(1)->getX()) * lineDirection[0];
+    dotProduct += (this->SensorY - this->Echoes.at(1)->getY()) * lineDirection[1];
+    dotProduct += (this->SensorZ - this->Echoes.at(1)->getZ()) * lineDirection[2];
+
+    for (int i = 0; i < 3; i++){
+        lineMagnitudeSquared += lineDirection[i] * lineDirection[i];
+    }
+    double t = dotProduct / lineMagnitudeSquared;
+
+    double proj_sensor_x = this->Echoes.at(1)->getX() + t * lineDirection[0];
+    double proj_sensor_y = this->Echoes.at(1)->getY() + t * lineDirection[1];
+    double proj_sensor_z = this->Echoes.at(1)->getZ() + t * lineDirection[2];
+
+    this->SensorShift_X = proj_sensor_x - this->SensorX;
+    this->SensorShift_Y = proj_sensor_y - this->SensorY;
+    this->SensorShift_Z = proj_sensor_z - this->SensorZ;
+    this->SensorX = proj_sensor_x;
+    this->SensorY = proj_sensor_y;
+    this->SensorZ = proj_sensor_z;
+    this->wasSensorPos_shifted = true;
 
 }
 
@@ -136,6 +176,30 @@ void Pulse::addMultipleEchoes(map<int,boost::shared_ptr<Echo> > echoes) {
 
 boost::shared_ptr<Echo> Pulse::getEcho(int retNum) {
     return this->Echoes.at(retNum);
+}
+
+double Pulse::getSensorShiftX(){
+    if (this->wasSensorPos_shifted){
+        return this->SensorShift_X;
+    } else {
+        return 0;
+    }
+}
+
+double Pulse::getSensorShiftY(){
+    if (this->wasSensorPos_shifted){
+        return this->SensorShift_Y;
+    } else {
+        return 0;
+    }
+}
+
+double Pulse::getSensorShiftZ(){
+    if (this->wasSensorPos_shifted){
+        return this->SensorShift_Z;
+    } else {
+        return 0;
+    }
 }
 
 

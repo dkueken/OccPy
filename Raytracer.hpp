@@ -62,6 +62,16 @@ class Raytracer {
     vector<vector<vector<int > > > Nocc;
     vector<vector< double > > DTMind;
 
+    vector<vector< double > > SensorShifts;
+
+    // variables to report back about voxel traversal
+    int traversedPulses = 0;            // number of pulses successfully traversed
+    int totalPulsesInDataset = 0;       // number of pulses stored and potentially traversed (if voxel grid is intersected)
+    int regHit = 0;                     // number of returns registered by the voxel traversal
+    int echoesOutside = 0;               // number of returns outside the voxel grid
+    int numMissingReturns = 0;           // number of missing returns
+    int numNoGridIntersection = 0;      // number of pulses that did not intersect the grid.
+
     public:
         Raytracer();
         ~Raytracer();
@@ -74,17 +84,25 @@ class Raytracer {
 
 
         void doRaytracing();
+        void doRaytracing_singleReturnPulses(vector<double> X, vector<double> Y, vector<double> Z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time);
 
         void defineGrid(vector<int> minBound, vector<int> maxBound, int nx, int ny, int nz, float voxSize);
 
         vector<vector<vector<int > > >& getNhit();
         vector<vector<vector<int > > >& getNmiss();
         vector<vector<vector<int > > >& getNocc();
+        vector<vector<double > >& reportSensorShifts();
         vector<int >& getGridDimensions();
+
+        void moveSensorPos2Collinearity();
 
         bool linePlaneIntersection(vector3& contact, vector3 ray, vector3 rayOrigin, vector3 normal, vector3 coord);
 
         void getPulseDatasetReport();
 
         void cleanUpPulseDataset();
+
+        void clearPulseDataset();
+
+        void reportOnTraversal();
 };

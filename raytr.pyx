@@ -22,10 +22,17 @@ cdef extern from "Raytracer.hpp":
         void addPointData(vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[int], vector[int])
 
         void doRaytracing()
+        void doRaytracing_singleReturnPulses(vector[double] X, vector[double] Y, vector[double] Z, vector[double] sensor_x, vector[double] sensor_y, vector[double] sensor_z, vector[double] gps_time)
 
         void rayBoxIntersection(vector[double], vector[double], vector[int], vector[int], int &, double &);
 
         void cleanUpPulseDataset();
+
+        void clearPulseDataset();
+
+        void moveSensorPos2Collinearity();
+
+        void reportOnTraversal();
 
         #get functions
         vector[vector[vector[int]]]& getNhit()
@@ -33,6 +40,7 @@ cdef extern from "Raytracer.hpp":
         vector[vector[vector[int]]]& getNocc()
         vector[int]& getGridDimensions()
         void getPulseDatasetReport()
+        vector[vector[double]]& reportSensorShifts()
 
 
 # creating a cython wrapper class
@@ -50,8 +58,16 @@ cdef class PyRaytracer:
         self.thisptr.addPointData(X, Y, Z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)
     def doRaytracing(self):
         self.thisptr.doRaytracing()
+    def doRaytracing_singleReturnPulses(self, X, Y, Z, sensor_x, sensor_y, sensor_z, gps_time):
+        self.thisptr.doRaytracing_singleReturnPulses(X, Y, Z, sensor_x, sensor_y, sensor_z, gps_time)
     def cleanUpPulseDataset(self):
         self.thisptr.cleanUpPulseDataset()
+    def clearPulseDataset(self):
+        self.thisptr.clearPulseDataset()
+    def moveSensorPos2Collinearity(self):
+        self.thisptr.moveSensorPos2Collinearity()
+    def reportSensorShifts(self):
+        return self.thisptr.reportSensorShifts()
     def getNhit(self):
         return self.thisptr.getNhit()
     def getNmiss(self):
@@ -62,3 +78,5 @@ cdef class PyRaytracer:
         return self.thisptr.getGridDimensions()
     def getPulseDatasetReport(self):
         self.thisptr.getPulseDatasetReport()
+    def reportOnTraversal(self):
+        self.thisptr.reportOnTraversal()

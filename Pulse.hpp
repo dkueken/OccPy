@@ -36,6 +36,14 @@ class Pulse {
 
     int missingReturns;// = 99;
 
+    bool wasSensorPos_shifted = false;
+
+    double SensorShift_X;
+    double SensorShift_Y;
+    double SensorShift_Z;
+
+    //bool wasTraversed;
+
     
 public:
     bool hasSensorPosition;// = false;
@@ -63,6 +71,12 @@ public:
     int getNumberOfReturns(){return this->NumberOfReturns;}
     double getScanAngle(){return this->ScanAngle;}
     int getFlightNr(){return this->getFlightNr();}
+
+    void moveSensorPosToLine();
+
+    double getSensorShiftX();
+    double getSensorShiftY();
+    double getSensorShiftZ();
 
     map<int,boost::shared_ptr<Echo> > getEchoes(){return this->Echoes;}
     
