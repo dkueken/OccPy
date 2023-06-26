@@ -638,10 +638,12 @@ void Raytracer::clearPulseDataset()
 
 void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double> Y, vector<double> Z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time)
 {
+    //TODO: Add functionality for complete voxel traversal reporting as done in the doRaytracing() function!
     int pulsecount = 0;
     int traversedPulses = 0;
     int echoesOutside = 0;
     int numMissingReturns = 0;
+    int numNoGridIntersection = 0;
 
     int regHit = 0; //Number of registered hit voxels
 
@@ -701,6 +703,7 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
         rayBoxIntersection(origin, direction, this->gridDim.minBound, this->gridDim.maxBound, flag, tmin);
 
         if (flag==0) {
+            numNoGridIntersection++;
             //cout << "The ray does not intersect the grid" << endl;
         } else {
             //cout << "The ray does intersect the grid" << endl;
@@ -904,10 +907,20 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
         }
     }
 
+    // update feedback on voxel traversl
+    this->traversedPulses = this->traversedPulses + traversedPulses;
+    this->totalPulsesInDataset = this->totalPulsesInDataset + pulsecount;
+    this->regHit = this->regHit + regHit;
+    this->echoesOutside = this->echoesOutside + echoesOutside;
+    this->numMissingReturns = this->numMissingReturns + numMissingReturns;
+    this->numNoGridIntersection = this->numNoGridIntersection + numNoGridIntersection;
+
+    /*
     cout << "#### " << traversedPulses << " Pulses were traversed of possible " << pulsecount << " Pulses" << endl;
     cout << "#### " << regHit << " Returns have been registered by the algorithm " << endl;
     cout << "#### " << echoesOutside << " Returns were found outside the voxel grid " << endl;
     cout << "#### " << numMissingReturns << " Returns were missed during the traversal!" << endl;
+    */
 }
 
 void Raytracer::rayBoxIntersection (vector<double> origin, vector<double> direction, vector<int> vmin, vector<int> vmax, int & flag, double & tmin){

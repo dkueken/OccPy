@@ -12,21 +12,24 @@ is_sorted = lambda a: np.all(a[:-1] <= a[1:])
 # Define parameters
 # for performance reasons it would be best that multi return datasets are sorted based on their GPS time and return number
 # you could use LASTools lassort function for that: lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v
-laz_in = r"D:\_tmp_wdir\OcclusionMappingTests\Rameren\VZ400i\ScanPos001 - SINGLESCANS - 230207_112234 - Not impacted by exit aperture_sort.laz"
-out_dir = r"D:\_tmp_wdir\OcclusionMappingTests\Rameren\VZ400i\OcclusionMapping_ScanPos001_sorted"
+laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\TLS\Leica_BLK360_Oct2020\LAZ\Rameren_FP05_FP07_FP08-1_rot2LV95.laz"
+out_dir = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\TLS\Leica_BLK360_Oct2020\OcclusionMapping\ScanPoss001\\"
+
+single_return = True    # set this to true, if your TLS data is single return data (e.g. FARO -> they will also not have
+                        # the attributes gps_time, return_number and number_of_returns stored in the laz file...
 
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
 points_per_iter = 10000000
-ScanPos = dict(X=2676485.407984,
-               Y=1246058.337989,
-               Z=551.136297)
+ScanPos = dict(X=2676566.32042296,
+               Y=1246174.808677466,
+               Z=553.1482458720556)
 
-PlotDim = dict(minX=2676480,
-               maxX=2676550,
-               minY=1246050,
-               maxY=1246120,
+PlotDim = dict(minX=ScanPos['X'] - 25,
+               maxX=ScanPos['X'] + 25,
+               minY=ScanPos['Y'] - 25,
+               maxY=ScanPos['Y'] + 25,
                minZ=540,
                maxZ=585)
 
@@ -64,51 +67,73 @@ with laspy.open(laz_in) as file:
     for points in file.chunk_iterator(points_per_iteration=points_per_iter):
         print("{:.2f}%".format(count / file.header.point_count * 100))
 
-        x = points.x.copy()
-        y = points.y.copy()
-        z = points.z.copy()
-        gps_time = points.gps_time.copy()
-        return_number = points.return_number.copy()
-        number_of_returns = points.number_of_returns.copy()
+        if single_return:
+            sorted = True
 
-        # check if gps_time is sorted
-        if count==0:  # only check sort state in the first iteration of the for loop
-            if not is_sorted(gps_time):
-                print(f"!!!!! input laz file is not sorted along gps_time. The algorithm will still run. However, the "
-                      f"performance will be greatly decreased as the entire content of the laz file has to be read into "
-                      f"the system memory. If you have multi return data, consider sorting your laz data first, e.g. using "
-                      f"LASTools lassort: lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v !!!!")
-                sorted = False
-            else:
-                sorted = True
+            x = points.x.copy()
+            y = points.y.copy()
+            z = points.z.copy()
 
+            sensor_x = np.ones(x.shape) * ScanPos['X']
+            sensor_y = np.ones(x.shape) * ScanPos['Y']
+            sensor_z = np.ones(x.shape) * ScanPos['Z']
 
-        sensor_x = np.ones(gps_time.shape) * ScanPos['X']
-        sensor_y = np.ones(gps_time.shape) * ScanPos['Y']
-        sensor_z = np.ones(gps_time.shape) * ScanPos['Z']
+            gps_time = np.linspace(start=count+1, stop=count+len(x), num=len(x), endpoint=True)
 
-        RayTr.addPointData(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)
-
-        if sorted: # only if pulses are sorted run raytracing now. Otherwise we have to read in the entire dataset first!
-            # Get report on pulse dataset - comment this out once everythin is working or TODO: add a verbose flag!
-            RayTr.getPulseDatasetReport()
-
-            # run raytracing on added points
-            print("Do raytracing with stored pulses")
+            # run raytracing algorithme using singleReturnPulses version
+            print("Do raytracing with all pulses in batch")
             tic_r = time.time()
-            RayTr.doRaytracing()
+            RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y,
+                                                  sensor_z, gps_time)
             toc_r = time.time()
             print("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
 
-            # Check if traversed pulses have been deleted from map - comment this out once everything is working or TODO: add a verbose flag!
-            RayTr.getPulseDatasetReport()
 
+        else:
+            x = points.x.copy()
+            y = points.y.copy()
+            z = points.z.copy()
+            gps_time = points.gps_time.copy()
+            return_number = points.return_number.copy()
+            number_of_returns = points.number_of_returns.copy()
+
+            # check if gps_time is sorted
+            if count==0:  # only check sort state in the first iteration of the for loop
+                if not is_sorted(gps_time):
+                    print(f"!!!!! input laz file is not sorted along gps_time. The algorithm will still run. However, the "
+                          f"performance will be greatly decreased as the entire content of the laz file has to be read into "
+                          f"the system memory. If you have multi return data, consider sorting your laz data first, e.g. using "
+                          f"LASTools lassort: lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v !!!!")
+                    sorted = False
+                else:
+                    sorted = True
+
+
+            sensor_x = np.ones(gps_time.shape) * ScanPos['X']
+            sensor_y = np.ones(gps_time.shape) * ScanPos['Y']
+            sensor_z = np.ones(gps_time.shape) * ScanPos['Z']
+
+            RayTr.addPointData(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)
+
+            if sorted: # only if pulses are sorted run raytracing now. Otherwise we have to read in the entire dataset first!
+                # Get report on pulse dataset - comment this out once everythin is working or TODO: add a verbose flag!
+                RayTr.getPulseDatasetReport()
+
+                # run raytracing on added points
+                print("Do raytracing with stored pulses")
+                tic_r = time.time()
+                RayTr.doRaytracing()
+                toc_r = time.time()
+                print("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
+
+                # Check if traversed pulses have been deleted from map - comment this out once everything is working or TODO: add a verbose flag!
+                RayTr.getPulseDatasetReport()
 
         count = count + len(gps_time)
 
 
 toc = time.time()
-if sorted:
+if sorted and not single_return:
     # optional: incomplete pulses can occur if the data has been filtered (either actively or during black box processing
     # of the processing software. We could actively turn the incomplete pulses into complete ones and do the raytracing
     # for them!
@@ -122,7 +147,7 @@ if sorted:
     toc_r = time.time()
     print("Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
     print("Time elapsed for reading and raytracing entire data: {:.2f} seconds".format(toc-tic))
-else:
+elif not sorted and not single_return:
     print("Time elapsed for reading in data: {:.2f} seconds".format(toc-tic))
 
     RayTr.getPulseDatasetReport()
@@ -137,6 +162,9 @@ else:
     RayTr.doRaytracing()
     toc = time.time()
     print("Time elapsed for raytracing: {:.2f} seconds".format(toc-tic))
+
+# Get report on traversal
+RayTr.reportOnTraversal()
 
 
 print(f"### Raytracing is complete - Extracting 3D voxel grid")

@@ -6,7 +6,9 @@ Choose a self-explaining name for your project.
 --->
 
 ## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be 
+unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your 
+project, this is a good place to list differentiating factors.
 
 <!---
 ## Badges
@@ -17,7 +19,8 @@ Depending on what you are making, it can be a good idea to include screenshots o
 --->
 
 ## Installation
-To install OccPy, several steps are required which may or may not go through easily. The tool has been tested on Windows 10 and Mac OS X. Please let me know if you encounter any issues installing the tool.
+To install OccPy, several steps are required which may or may not go through easily. The tool has been tested on Windows 10. 
+Please let me know if you encounter any issues installing the tool.
 
 ### Seting up environment
 We expect you to have a working conda installation (either through Anaconda or miniconda)
@@ -28,6 +31,23 @@ conda env create -f environment.yml
 or within an existing environment install all the necessary packages:
 ```commandline
 pip install -r requirements.txt
+```
+
+### List of needed packages
+This is a list of needed packages for the tool to run, if the instal via environment.yml or requirements.txt fails:
+- [ ] boost
+- [ ] cython
+- [ ] numpy
+- [ ] laspy*
+- [ ] pandas
+- [ ] scipy
+
+'*' should be installed through pip (see below)
+
+installing most current version should in theory work.
+In order for laz compatibility, install _laspy_ with _laszip_ compatibility through
+```commandline
+pip install laspy[laszip]
 ```
 
 ### Compile the c++ side of the OccPy tool
@@ -55,10 +75,53 @@ There are three example scripts provided that should show how the tool can work 
 In order for the occlusion mapping to work, several requirements on the input data have to be met. These are listed below specifically for the diffreent flavors of LiDAR platforms
 
 ### TLS
+**Scan Positions**
+- [ ] Scan Position file (as txt), where position should be referring to the laser source position.
 
+**LAZ File**
+- [ ] 1 LAZ or LAS file per scan position, preferably not filtered. If a multi return TLS is used, you can improve
+performance by sorting the LAZ file according to GPS Time and return number, e.g. by using LASTools's lassort funciton:
+
+```commandline
+lassort -i in_laz -gps_time -return_number -odix _sort -olaz -cpu64 -v
+```
 ### MLS
+**Trajectory file**
+
+A trajectory file is strongly needed for the algorithm to work with MLS data. The following data should be present in 
+trajectory file:
+- [ ] Time (usually GPS time in seconds) - be sure that the GPS time format corresponds to the one stored in the gps_time field of the laz file
+- [ ] Position of the sensor in X, Y, Z coordinates
+
+the pose of the sensor is currently not regarded (e.g. quaternions) We are expecting that the coordinates in the trajectory
+corresponds to the position of the laser source.
+
+The gps time tags do not need to be exactly the same as found in the gps_time field of the laz file, as the exact position
+will be interpolated based on the gps_time. However, a higher frequency in positional readings of the trajectory file will 
+result in more accurate interpolation of the scanner position and hence a more accurate occlusion map.
+
+**LAZ file**
+
+As stated before, the biggest requirement for the LAZ file is that gps_time field is corresponding to the gps time readings 
+in the trajectory file.
 
 ### UAVLS
+**Trajectory file**
+
+As in the case for MLS data, trajectories are a hard requirement for UAVLS data. Please refer to 
+[MLS](MLS) section for the requirements on the trajectory file. Also check out [Test_MLS.py](Test_MLS.py) or 
+[Test_UAVLS](Test_UAVLS.py) python scripts for how to use this tool for occlusion mapping.
+
+**LAZ file**
+
+As UAVLS data often come as multi-return data, it is again recommended to sort the LAZ file based on gps_time and 
+return_number like:
+```commandline
+lassort -i laz_in -gps_time -return_number -odix _sort -olaz -cpu64 -v
+```
+
+unsorted LAZ files will also work, however, there will be a substantial computational overhead, as the entire dataset 
+needs to be read and stored at once.
 
 ## Support
 For questions and support, please contact Daniel Kükenbrink via daniel.kuekenbrink@wsl.ch
@@ -82,20 +145,20 @@ You can also document commands to lint the code or run tests. These steps help t
 --->
 
 ## Authors and acknowledgment
-The algorithm is strongly based on the initial publication of the voxel traversal algorithm as seen in Amanatides & Woo (1987). 
-This algorithm has been initially used in the publication by Kükenbrink et al. (2017) to map occlusion in ALS data and 
+The algorithm is strongly based on the initial publication of a voxel traversal algorithm as seen in Amanatides & Woo (1987). 
+This algorithm has been used in the publication by Kükenbrink et al. (2017) to map occlusion in ALS data and 
 is openly available as a Matlab code here: https://www.eufar.net/documents/6028 (user account needed). Big motivation for
 the development of this study came from the interesting paper by Bienert et al. (2010).
 This implementation is a substantial evolution to the Matlab implementation and should now be able to run 
-for any lidar platform available, when requirements as stated in [Requirements section](#Requirements for a successful occlusion mapping).
-Also performance of this Cython implementation should be largely increased compared to the Matlab implementation.
+for any lidar platform available, when requirements as stated in [Requirements section](#Requirements for a successful occlusion mapping) 
+are met. Also performance of this Cython implementation should be largely increased compared to the Matlab implementation.
 
-Development of the initial Matlab implementation was performed during the PhD studies of Daniel Kükenbrink within the
-EUFAR JRA - HYLIGHT project (EUFAR2 contract no. 312609). 
+Development of the initial Matlab implementation was performed during the PhD studies of Daniel Kükenbrink at the University of Zurich 
+within the EUFAR JRA - HYLIGHT project (EUFAR2 contract no. 312609). 
 The initial development of the Cython version has started during the same PhD and was used in the study by 
 Schneider et al. (2019) to map occlusion from TLS and UAVLS acquisitions in a temperate and tropical forest. 
 Substantial improvements and further development has been done at the Swiss Federal Institute WSL since then. The development
-is still ongoing also in the framework of the 3DForEcoTech COST action (working group 1). 
+is still ongoing also in the framework of the [3DForEcoTech COST action](https://3dforecotech.eu/) (working group 1). 
 
 Big thank you go out to all contributing to this code base since the beginning of my PhD:
 Felix Morsdorf, Fabian Schneider, Meinrad Abegg, Ruedi Bösch, Christian Ginzler

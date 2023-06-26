@@ -12,10 +12,10 @@ from BOVwriter import writeBOV
 from raytr import PyRaytracer
 
 # Input parameters
-laz_in = r"D:\_tmp_wdir\OcclusionMappingTests\Othmarsingen\Horizon\2023-05-26_12-02-12_OT1_05_100pct_height_world_rot2LV95.laz"
-traj_in = r"D:\_tmp_wdir\OcclusionMappingTests\Othmarsingen\Horizon\2023-05-26_12-02-12_OT1_05_results_traj_rot2LV95.txt"
+laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebHorizon\FP05\LAZ\Rameren_FP05_2022-06-01_07-32-05_100pct_height_world_rot2LV95.laz"
+traj_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebHorizon\FP05\Trajectories\Rameren_FP05_2022-06-01_07-32-05_results_traj_rot2LV95.txt"
 
-out_dir = r"D:\_tmp_wdir\OcclusionMappingTests\Othmarsingen\Horizon\OcclusionMapping\\"
+out_dir = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebHorizon\FP05\OcclusionMapping\\"
 os.makedirs(os.path.dirname(out_dir), exist_ok=True)
 
 parameters = dict(
@@ -27,7 +27,7 @@ parameters = dict(
 # read in trajectory file
 traj = pd.read_csv(traj_in, sep=" ")
 
-"""
+
 # Plot Dim FP05
 PlotDim = dict(minX=2676541,
                maxX=2676591,
@@ -35,13 +35,6 @@ PlotDim = dict(minX=2676541,
                maxY=1246210,
                minZ=540,
                maxZ=615)
-"""
-PlotDim = dict(minX=2659400,
-               maxX=2659450,
-               minY=1250050,
-               maxY=1250100,
-               minZ=460,
-               maxZ=520)
 
 gridDim = dict(nx=int((PlotDim['maxX'] - PlotDim['minX'])/parameters['voxDim']),
                ny=int((PlotDim['maxY'] - PlotDim['minY'])/parameters['voxDim']),
@@ -92,46 +85,15 @@ with laspy.open(laz_in) as file:
 
         # TODO: apparently there is a bug on the C++ side, that the voxel traversal gets stuck for several datasets
         #  tested so far. Find out what the issue is! For now use a simpler traversal implementation, where we do not
-        #  use the pulsedata implementation
+        #  use the pulsedata implementation -> as the tested MLS data is single return dataset, it does not make much
+        #  sense to actually use the pulsedata implementation!
         RayTr.doRaytracing_singleReturnPulses(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'], SensorPos['sensor_z'], gps_time)
-        """
-        # Add point data to the RayTr object
-        RayTr.addPointData(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'], SensorPos['sensor_z'], gps_time, return_number, number_of_returns)
-
-        # Get Report on Pulse dataset
-        RayTr.getPulseDatasetReport()
-        
-        # run raytracing on added points
-        tic = time.time()
-        RayTr.doRaytracing()
-        toc = time.time()
-        print("Time elapsed for raytracing batch: {:.2f} seconds".format(toc - tic))
-
-
-        # Check if traversed pulses have been deleted from map
-        RayTr.getPulseDatasetReport()
-        """
 
         count = count + len(gps_time)
 
-"""
-toc = time.time()
-print("Time elapsed for reading in data: {:.2f} seconds".format(toc-tic))
 
-RayTr.getPulseDatasetReport()
-
-print("Clean up pulse dataset in order to handle incomplete pulses") # This will resturcture the pulses. So, if we have a 3-return pulse, but the first return is missing, this will result in a 2-return pulse, where the 2nd return is now the first and the 3rd return is now the 2nd. TODO: check if this is feasible!
-RayTr.cleanUpPulseDataset()
-
-RayTr.getPulseDatasetReport()
-
-print("Do actual raytracing with all pulses")
-tic = time.time()
-RayTr.doRaytracing()
-toc = time.time()
-print("Time elapsed for raytracing: {:.2f} seconds".format(toc-tic))
-
-"""
+# Get report on traversal
+RayTr.reportOnTraversal()
 
 print("Extracting Nhit")
 tic = time.time()

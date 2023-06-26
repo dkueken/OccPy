@@ -105,12 +105,12 @@ def move_point_to_line(point, line_points):
 
 
 # Define parameters
-laz_in = r"D:\_tmp_wdir\OcclusionMappingTests\Rameren\miniVUX\20230216_Ramerenwald_LFI_FP05_07_08_10_0_45_doubleGrid_3.1_44.2lps_200pts_60m_90_sort.laz"
+laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20230216\20230216_Ramerenwald_LFI_FP05_07_08_10_0_45_doubleGrid_3.1_44.2lps_200pts_60m_90_sort.laz"
 
-traj_file_1 = r"D:\_tmp_wdir\OcclusionMappingTests\Rameren\miniVUX\trajectory_20230216_Ramerenwald_LFI_FP05_07_08_10_0°.txt"
-traj_file_2 = r"D:\_tmp_wdir\OcclusionMappingTests\Rameren\miniVUX\trajectory_20230216_Ramerenwald_LFI_FP05_07_08_10_45°.txt"
+traj_file_1 = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20230216\trajectory_20230216_Ramerenwald_LFI_FP05_07_08_10_0°.txt"
+traj_file_2 = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20230216\trajectory_20230216_Ramerenwald_LFI_FP05_07_08_10_45°.txt"
 
-out_dir = r"D:\_tmp_wdir\OcclusionMappingTests\Rameren\miniVUX\OcclusionMapping\FP08\\"
+out_dir = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20230216\OcclusionMapping\\"
 os.makedirs(os.path.dirname(out_dir), exist_ok=True)
 
 parameters = dict(
@@ -258,6 +258,11 @@ else:
 
     RayTr.getPulseDatasetReport()
 
+    RayTr.moveSensorPos2Collinearity()
+    # get report on sensor shifts
+    sensor_shifts_tmp = RayTr.reportSensorShifts()
+    SensorShifts = np.array(sensor_shifts_tmp, float)
+
     print("Do actual raytracing with all pulses")
     tic = time.time()
     RayTr.doRaytracing()
@@ -267,6 +272,9 @@ else:
 
 # Get report on traversal
 RayTr.reportOnTraversal()
+
+# save data to sensor shifts
+np.save(f"{out_dir}/SensorShifts.npy", SensorShifts)
 
 
 print(f"### Raytracing is complete - Extracting 3D voxel grid")
@@ -335,93 +343,6 @@ writeBOV(out_dir + '\\', "Nmiss", "Nmiss", 'i', Nmiss)
 writeBOV(out_dir + '\\', "Nocc", "Nocc", 'i', Nocc)
 toc = time.time()
 print("Elapsed Time: " + str(toc - tic) + " seconds")
-
-
-""" Test stuff"""
-"""
-x_sub = [SensorPos['sensor_x'][60], x[60], x[61], x[62]]
-y_sub = [SensorPos['sensor_y'][60], y[60], y[61], y[62]]
-z_sub = [SensorPos['sensor_z'][60], z[60], z[61], z[62]]
-
-fig = plt.figure()
-ax = fig.add_subplot(projection='3d')
-ax.scatter(x_sub, y_sub, z_sub, marker='x')
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-plt.show()
-
-df = pd.DataFrame({'gps_time': gps_time, 'return_number': return_number, 'number_of_returns': number_of_returns })
-
-# test colinearity
-all_points = [(SensorPos['sensor_x'][60], SensorPos['sensor_y'][60], SensorPos['sensor_z'][60]),
-              (x[60], y[60], z[60]),
-              (x[61], y[61], z[61]),
-              (x[62], y[62], z[62])]
-
-are_points_collinear(all_points, 0.1)
-
-only_returns = [(x[60], y[60], z[60]),
-              (x[61], y[61], z[61]),
-              (x[62], y[62], z[62])]
-
-are_points_collinear(only_returns, 0.1)
-
-# Try to move sensor position in order to reach collinearity
-updated_points = move_point_to_collinear(all_points, 0, threshold=0.01, max_iterations=100)
-
-# test if they are actually collinear now
-are_points_collinear(updated_points, 0.1)
-
-# plot updated points
-fig = plt.figure()
-ax = fig.add_subplot(projection='3d')
-ax.scatter(
-    [updated_points[0][0], updated_points[1][0], updated_points[2][0]],
-    [updated_points[0][1], updated_points[1][1], updated_points[2][1]],
-    [updated_points[0][2], updated_points[1][2], updated_points[2][2]], marker='x', color='red'
-)
-ax.scatter(
-    [all_points[0][0], all_points[1][0], all_points[2][0]],
-    [all_points[0][1], all_points[1][1], all_points[2][1]],
-    [all_points[0][2], all_points[1][2], all_points[2][2]], marker='x', color='blue'
-)
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-plt.show()
-
-# Try to move point towards line
-SensorPos_orig = (SensorPos['sensor_x'][60], SensorPos['sensor_y'][60], SensorPos['sensor_z'][60])
-Updated_SensorPos = move_point_to_line(SensorPos_orig,
-                                       only_returns)
-
-all_points_orig = [SensorPos_orig, only_returns[0], only_returns[1], only_returns[2]]
-all_points_updated = [list(Updated_SensorPos), only_returns[0], only_returns[1], only_returns[2]]
-
-are_points_collinear(all_points_orig, 0.1)
-are_points_collinear(all_points_updated, 0.05)
-
-fig = plt.figure()
-ax = fig.add_subplot(projection='3d')
-ax.scatter(
-    [all_points_updated[0][0], all_points_updated[1][0], all_points_updated[2][0]],
-    [all_points_updated[0][1], all_points_updated[1][1], all_points_updated[2][1]],
-    [all_points_updated[0][2], all_points_updated[1][2], all_points_updated[2][2]], marker='x', color='red'
-)
-ax.scatter(
-    [all_points_orig[0][0], all_points_orig[1][0], all_points_orig[2][0]],
-    [all_points_orig[0][1], all_points_orig[1][1], all_points_orig[2][1]],
-    [all_points_orig[0][2], all_points_orig[1][2], all_points_orig[2][2]], marker='x', color='blue'
-)
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-plt.show()
-
-"""
-
-
 
 
 
