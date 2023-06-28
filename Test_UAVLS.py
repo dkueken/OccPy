@@ -105,12 +105,12 @@ def move_point_to_line(point, line_points):
 
 
 # Define parameters
-laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20230216\20230216_Ramerenwald_LFI_FP05_07_08_10_0_45_doubleGrid_3.1_44.2lps_200pts_60m_90_sort.laz"
+laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20200916\20200916_Ramerenwald_CrossPattern_LV95LN02_3.5ms_sort.laz"
 
-traj_file_1 = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20230216\trajectory_20230216_Ramerenwald_LFI_FP05_07_08_10_0°.txt"
-traj_file_2 = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20230216\trajectory_20230216_Ramerenwald_LFI_FP05_07_08_10_45°.txt"
+traj_file_1 = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20200916\20200916_Ramerenwald_200916_120852.txt"
+traj_file_2 = r""
 
-out_dir = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20230216\OcclusionMapping\\"
+out_dir = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20200916\OcclusionMapping\\"
 os.makedirs(os.path.dirname(out_dir), exist_ok=True)
 
 parameters = dict(
@@ -121,10 +121,13 @@ parameters = dict(
 
 # read in trajectory file
 traj1 = pd.read_csv(traj_file_1, sep=",")
-traj2 = pd.read_csv(traj_file_2, sep=",")
+if len(traj_file_2)!=0:
+    traj2 = pd.read_csv(traj_file_2, sep=",")
 
-# combine the two trajectories
-traj = pd.concat([traj1, traj2], ignore_index=True)
+    # combine the two trajectories
+    traj = pd.concat([traj1, traj2], ignore_index=True)
+else:
+    traj = traj1
 
 # Plot Dim FP05
 """

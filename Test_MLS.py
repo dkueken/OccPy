@@ -12,10 +12,14 @@ from BOVwriter import writeBOV
 from raytr import PyRaytracer
 
 # Input parameters
-laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebHorizon\FP05\LAZ\Rameren_FP05_2022-06-01_07-32-05_100pct_height_world_rot2LV95.laz"
-traj_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebHorizon\FP05\Trajectories\Rameren_FP05_2022-06-01_07-32-05_results_traj_rot2LV95.txt"
+# ZebHorizon
+# laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebHorizon\FP05\LAZ\Rameren_FP05_2022-06-01_07-32-05_100pct_height_world_rot2LV95.laz"
+# traj_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebHorizon\FP05\Trajectories\Rameren_FP05_2022-06-01_07-32-05_results_traj_rot2LV95.txt"
+#ZebRevo
+laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebRevo\FP05\LAZ\2020-10-07_10-02-19_FP05_100pct_height_world_rot2LV95_ground_heb_clip.laz"
+traj_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebRevo\FP05\Trajectories\2020-10-07_10-02-19_FP05_results_traj_rot2LV95.txt"
 
-out_dir = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebHorizon\FP05\OcclusionMapping\\"
+out_dir = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebRevo\FP05\OcclusionMapping\\"
 os.makedirs(os.path.dirname(out_dir), exist_ok=True)
 
 parameters = dict(
