@@ -7,23 +7,22 @@ import laspy
 import time
 from prepare_trajectory import interpolate_traj
 
+from BOVwriter import writeBOV
+
 from raytr import PyRaytracer
 
 # Input parameters
-CLNR = 7379
-OP = 2
-laz_in = r"\\speedy11-12-fs\data_15\_PLS\20220503_LFI_CH_Campaign\CLNR_7379\Operator_2\LAZ\CLNR_7379_TRAN_OP02_2022-05-03_13-17-04_100pct_height_world_rot2LV95.laz"
-laz_clip = r"\\speedy11-12-fs\data_15\_PLS\20220503_LFI_CH_Campaign\CLNR_7379\Operator_2\LAZ\CLNR_7379_TRAN_OP02_2022-05-03_13-17-04_100pct_height_world_rot2LV95_clip2plot.laz"
-traj_in = r"\\speedy11-12-fs\data_15\_PLS\20220503_LFI_CH_Campaign\CLNR_7379\Operator_2\Trajectories\CLNR_7379_TRAN_OP02_2022-05-03_13-17-04_results_traj_rot2LV95.txt"
-plot_dim_pkl = r"\\speedy11-12-fs\data_15\_PLS\20220503_LFI_CH_Campaign\CLNR_7379\Operator_2\Occlusion_Mapping\PlotDimensions.pkl"
-dtm_file = r"\\speedy11-12-fs\data_15\_PLS\20220503_LFI_CH_Campaign\CLNR_7379\Operator_2\DEM\DTM_7379_swissAlti3D_10cm.tif"
-dsm_file = r"\\speedy11-12-fs\data_15\_PLS\20220503_LFI_CH_Campaign\CLNR_7379\Operator_2\DEM\DSM_7379_swissSurface3D_10cm.tif"
+# ZebHorizon
+# laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebHorizon\FP05\LAZ\Rameren_FP05_2022-06-01_07-32-05_100pct_height_world_rot2LV95.laz"
+# traj_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebHorizon\FP05\Trajectories\Rameren_FP05_2022-06-01_07-32-05_results_traj_rot2LV95.txt"
+#ZebRevo
+laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebRevo\FP05\LAZ\2020-10-07_10-02-19_FP05_100pct_height_world_rot2LV95_ground_heb_clip.laz"
+traj_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebRevo\FP05\Trajectories\2020-10-07_10-02-19_FP05_results_traj_rot2LV95.txt"
 
-out_dir = r"D:\Projects\OcclusionMapping_Timelapse\CLNR_7379\Operator_2\Frames\\"
+out_dir = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebRevo\FP05\OcclusionMapping\\"
 os.makedirs(os.path.dirname(out_dir), exist_ok=True)
 
 parameters = dict(
-    sensorType=3,
     voxDim=0.1,
     lower_threshold=1,
     points_per_iter=10000000,
@@ -32,9 +31,14 @@ parameters = dict(
 # read in trajectory file
 traj = pd.read_csv(traj_in, sep=" ")
 
-# Read in Plot dimensions from pickle
-with open(plot_dim_pkl, 'rb') as f:
-    PlotDim = pickle.load(f)
+
+# Plot Dim FP05
+PlotDim = dict(minX=2676541,
+               maxX=2676591,
+               minY=1246160,
+               maxY=1246210,
+               minZ=540,
+               maxZ=615)
 
 gridDim = dict(nx=int((PlotDim['maxX'] - PlotDim['minX'])/parameters['voxDim']),
                ny=int((PlotDim['maxY'] - PlotDim['minY'])/parameters['voxDim']),
@@ -47,41 +51,53 @@ Nhit = np.zeros((gridDim['ny'], gridDim['nx'], gridDim['nz']), dtype=int)
 Nmiss = np.zeros((gridDim['ny'], gridDim['nx'], gridDim['nz']), dtype=int)
 Nocc = np.zeros((gridDim['ny'], gridDim['nx'], gridDim['nz']), dtype=int)
 
+# init Raytracer object
+print("Initializing Raytracer")
+RayTr = PyRaytracer()
+
+tic = time.time()
+print("Define Grid")
+minBound = np.array([PlotDim['minY'], PlotDim['minX'], PlotDim['minZ']])
+maxBound = np.array([PlotDim['maxY'], PlotDim['maxX'], PlotDim['maxZ']])
+RayTr.defineGrid(minBound, maxBound, gridDim['nx'], gridDim['ny'], gridDim['nz'], parameters['voxDim'])
+toc = time.time()
+print("Time elapsed: {:.2f} seconds".format(toc - tic))
+
 # read in laz iteratively and run raytracing tool
+print("Reading in LAZ data")
 tic_tot = time.time()
 with laspy.open(laz_in) as file:
-
-    # init Raytracer object
-    print("Initializing Raytracer")
-    RayTr = PyRaytracer()
-
-    tic = time.time()
-    print("Define Grid")
-    minBound = np.array([PlotDim['minY'], PlotDim['minX'], PlotDim['minZ']])
-    maxBound = np.array([PlotDim['maxY'], PlotDim['maxX'], PlotDim['maxZ']])
-    RayTr.defineGrid(minBound, maxBound, gridDim['nx'], gridDim['ny'], gridDim['nz'], parameters['voxDim'])
-    toc = time.time()
-    print("Time elapsed: {:.2f} seconds".format(toc - tic))
-
     count = 0
     for points in file.chunk_iterator(parameters['points_per_iter']):
         print("{:.2f}%".format(count / file.header.point_count * 100))
 
         # For performance we need to use copy
         # so that the underlying arrays are contiguous
-        x, y, z, gps = points.x.copy(), points.y.copy(), points.z.copy(), points.gps_time.copy()
+        x = points.x.copy()
+        y = points.y.copy()
+        z = points.z.copy()
+        gps_time = points.gps_time.copy()
+        return_number = points.return_number.copy()
+        number_of_returns = points.number_of_returns.copy()
 
-        # call interpolate function for trajectory
-        SensorPos = interpolate_traj(traj, gps)
+        if np.max(return_number)==0:  # a not very nice hack for the special case where return_number and number_of_returns are all 0 for Horizon measurements - TODO: figure out why!
+            return_number[:] = 1
+            number_of_returns[:] = 1
 
-        print("Do actual raytracing with all pulses")
-        tic = time.time()
-        RayTr.doRaytracing(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'], SensorPos['sensor_z'], SensorPos['time'])
-        toc = time.time()
+        # call interpolate function for trajectory to extract sensor position for each gps_time
+        SensorPos = interpolate_traj(traj['%time'], traj['x'], traj['y'], traj['z'], gps_time)
 
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        # TODO: apparently there is a bug on the C++ side, that the voxel traversal gets stuck for several datasets
+        #  tested so far. Find out what the issue is! For now use a simpler traversal implementation, where we do not
+        #  use the pulsedata implementation -> as the tested MLS data is single return dataset, it does not make much
+        #  sense to actually use the pulsedata implementation!
+        RayTr.doRaytracing_singleReturnPulses(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'], SensorPos['sensor_z'], gps_time)
 
-        count += len(points)
+        count = count + len(gps_time)
+
+
+# Get report on traversal
+RayTr.reportOnTraversal()
 
 print("Extracting Nhit")
 tic = time.time()
@@ -117,5 +133,39 @@ del RayTr
 
 toc_tot = time.time()
 print("Total Elapsed Time for Voxel Traversal: {:.2f} seconds".format(toc_tot - tic_tot))
+
+print("Saving Occlusion Outputs")
+tic = time.time()
+np.save(f"{out_dir}/Nhit.npy", Nhit)
+np.save(f"{out_dir}/Nmiss.npy", Nmiss)
+np.save(f"{out_dir}/Nocc.npy", Nocc)
+toc = time.time()
+print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+
+# Create Classification grid
+print("Classify Grid")
+tic = time.time()
+Classification = np.zeros((gridDim['ny'], gridDim['nx'], gridDim['nz']), dtype=int)
+
+Classification[np.logical_and.reduce((Nhit>0, Nmiss>=0, Nocc>=0))] = 1 # voxels that were observed
+Classification[np.logical_and.reduce((Nhit==0, Nmiss>0, Nocc>=0))] = 2 # voxels that are empty
+Classification[np.logical_and.reduce((Nhit==0, Nmiss==0, Nocc>0))] = 3 # voxels that are hidden (occluded)
+Classification[np.logical_and.reduce((Nhit==0, Nmiss==0, Nocc==0))] = 4 # voxels that were not observed # TODO: Figure out, why this overwrites voxels that are classified as occluded! -> this was because np.logical_and only takes in 2 arrays as input, not 3! use np.logical_and.reduce() for that!
+
+np.save(f"{out_dir}/Classification.npy", Classification)
+toc = time.time()
+print("Elapsed Time: " + str(toc - tic) + " seconds")
+
+
+# write BOV file -> Actually VISIT can read in npy files. However, axis definition is wrong.
+print("Writing BOV File")
+tic = time.time()
+writeBOV(out_dir + '\\', "Classification", "Classification", 'i', Classification)
+writeBOV(out_dir + '\\', "Nhit", "Nhit", 'i', Nhit)
+writeBOV(out_dir + '\\', "Nmiss", "Nmiss", 'i', Nmiss)
+writeBOV(out_dir + '\\', "Nocc", "Nocc", 'i', Nocc)
+toc = time.time()
+print("Elapsed Time: " + str(toc - tic) + " seconds")
+
 
 
