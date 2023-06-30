@@ -22,16 +22,47 @@ Depending on what you are making, it can be a good idea to include screenshots o
 To install OccPy, several steps are required which may or may not go through easily. The tool has been tested on Windows 10. 
 Please let me know if you encounter any issues installing the tool.
 
+### Clone repository
+Clone the repository using git with the following command (or download the zip from gitlab):
+```commandline
+git clone https://gitlab.wsl.ch/kueken/occpy.git
+```
+
+cd into the cloned repository
+```commandline
+cd occPy
+```
+
 ### Seting up environment
 We expect you to have a working conda installation (either through Anaconda or miniconda)
 Either setup a new environment using the following command
 ```commandline
 conda env create -f environment.yml
 ```
+activate the environment
+```commandline
+conda activate occPy
+```
 or within an existing environment install all the necessary packages:
 ```commandline
 pip install -r requirements.txt
 ```
+
+### Potential Issues
+Currently, packages installed via pip are not listed in the environment.yml file (e.g. laspy). It could be that you need
+to install these packages using pip:
+e.g.
+```commandline
+pip install laspy[laszip]
+```
+the _[laszip]_ option enables the reading of .laz files 
+
+or you could also install all packages with the following command (potential package conflicts between conda and pip not tested)
+
+```commandline
+pip install -r requirements.txt
+```
+
 
 ### List of needed packages
 This is a list of needed packages for the tool to run, if the instal via environment.yml or requirements.txt fails:

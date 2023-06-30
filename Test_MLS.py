@@ -12,14 +12,10 @@ from BOVwriter import writeBOV
 from raytr import PyRaytracer
 
 # Input parameters
-# ZebHorizon
-# laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebHorizon\FP05\LAZ\Rameren_FP05_2022-06-01_07-32-05_100pct_height_world_rot2LV95.laz"
-# traj_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebHorizon\FP05\Trajectories\Rameren_FP05_2022-06-01_07-32-05_results_traj_rot2LV95.txt"
-#ZebRevo
-laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebRevo\FP05\LAZ\2020-10-07_10-02-19_FP05_100pct_height_world_rot2LV95_ground_heb_clip.laz"
-traj_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebRevo\FP05\Trajectories\2020-10-07_10-02-19_FP05_results_traj_rot2LV95.txt"
+laz_in = r"path_to_input_laz_file.laz"
+traj_in = r"path_to_input_trajectory_file.txt"
 
-out_dir = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\MLS\ZebRevo\FP05\OcclusionMapping\\"
+out_dir = r"path_to_output_directory"
 os.makedirs(os.path.dirname(out_dir), exist_ok=True)
 
 parameters = dict(
@@ -32,7 +28,7 @@ parameters = dict(
 traj = pd.read_csv(traj_in, sep=" ")
 
 
-# Plot Dim FP05
+# Plot Dimensions - Plot Dim FP05
 PlotDim = dict(minX=2676541,
                maxX=2676591,
                minY=1246160,
@@ -44,7 +40,6 @@ gridDim = dict(nx=int((PlotDim['maxX'] - PlotDim['minX'])/parameters['voxDim']),
                ny=int((PlotDim['maxY'] - PlotDim['minY'])/parameters['voxDim']),
                nz=int((PlotDim['maxZ'] - PlotDim['minZ'])/parameters['voxDim'])
                )
-
 
 # initialize output grids
 Nhit = np.zeros((gridDim['ny'], gridDim['nx'], gridDim['nz']), dtype=int)
@@ -87,10 +82,6 @@ with laspy.open(laz_in) as file:
         # call interpolate function for trajectory to extract sensor position for each gps_time
         SensorPos = interpolate_traj(traj['%time'], traj['x'], traj['y'], traj['z'], gps_time)
 
-        # TODO: apparently there is a bug on the C++ side, that the voxel traversal gets stuck for several datasets
-        #  tested so far. Find out what the issue is! For now use a simpler traversal implementation, where we do not
-        #  use the pulsedata implementation -> as the tested MLS data is single return dataset, it does not make much
-        #  sense to actually use the pulsedata implementation!
         RayTr.doRaytracing_singleReturnPulses(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'], SensorPos['sensor_z'], gps_time)
 
         count = count + len(gps_time)

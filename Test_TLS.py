@@ -12,8 +12,8 @@ is_sorted = lambda a: np.all(a[:-1] <= a[1:])
 # Define parameters
 # for performance reasons it would be best that multi return datasets are sorted based on their GPS time and return number
 # you could use LASTools lassort function for that: lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v
-laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\TLS\Leica_BLK360_Oct2020\LAZ\Rameren_FP05_FP07_FP08-1_rot2LV95.laz"
-out_dir = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\TLS\Leica_BLK360_Oct2020\OcclusionMapping\ScanPoss001\\"
+laz_in = r"path_to_input_laz_file.laz"
+out_dir = r"path_to_output_directory"
 
 single_return = True    # set this to true, if your TLS data is single return data (e.g. FARO -> they will also not have
                         # the attributes gps_time, return_number and number_of_returns stored in the laz file...
@@ -21,11 +21,14 @@ single_return = True    # set this to true, if your TLS data is single return da
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
-points_per_iter = 10000000
+points_per_iter = 10000000 # define how many points should be read from the laz file simultaneously
+
+# Define the coordinates of the Scanner position
 ScanPos = dict(X=2676566.32042296,
                Y=1246174.808677466,
                Z=553.1482458720556)
 
+# Define the coordinates of the plot
 PlotDim = dict(minX=ScanPos['X'] - 25,
                maxX=ScanPos['X'] + 25,
                minY=ScanPos['Y'] - 25,
@@ -33,7 +36,7 @@ PlotDim = dict(minX=ScanPos['X'] - 25,
                minZ=540,
                maxZ=585)
 
-vox_dim = 0.1
+vox_dim = 0.1  # voxel dimension in meters
 
 # Prepare Raytracer
 gridDim = dict(nx=int((PlotDim['maxX'] - PlotDim['minX']) / vox_dim),

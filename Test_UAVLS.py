@@ -16,6 +16,7 @@ from raytr import PyRaytracer
 
 is_sorted = lambda a: np.all(a[:-1] <= a[1:])
 
+# convenience functions for testing purposes. not actually needed!
 # function to check if points are collinear
 def are_points_collinear(points, threshold):
     # Ensure at least 3 points are provided
@@ -105,12 +106,13 @@ def move_point_to_line(point, line_points):
 
 
 # Define parameters
-laz_in = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20200916\20200916_Ramerenwald_CrossPattern_LV95LN02_3.5ms_sort.laz"
+laz_in = r"path_to_input_laz_file.laz"
 
-traj_file_1 = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20200916\20200916_Ramerenwald_200916_120852.txt"
+# If you have multiple trajectory files, define their paths here and combine them using pandas as seen below.
+traj_file_1 = r"path_to_trajectory_file.txt"
 traj_file_2 = r""
 
-out_dir = r"\\speedy11-12-fs\Data_23\USER_DANIEL\3DForEcoTech\STSM_Occlusion\Data\RamerenWald\UAVLS\20200916\OcclusionMapping\\"
+out_dir = r"path_to_output_directory"
 os.makedirs(os.path.dirname(out_dir), exist_ok=True)
 
 parameters = dict(
@@ -129,6 +131,7 @@ if len(traj_file_2)!=0:
 else:
     traj = traj1
 
+# Define plot dimensions
 # Plot Dim FP05
 """
 PlotDim = dict(minX=2676541,
