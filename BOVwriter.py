@@ -5,7 +5,10 @@ def writeBOV(outDir, variableName, BOVname, formatstring, ndarray):
     dataSizeX = len(ndarray[0])
     dataSizeZ = len(ndarray[0][0])
 
-    dataFormat = "INT"
+    if formatstring=='i':
+        dataFormat = "INT"
+    elif formatstring=='f':
+        dataFormat = "FLOAT"
 
     divideBrick = 0
 

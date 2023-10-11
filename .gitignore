@@ -5,3 +5,4 @@ __pycache__/**
 build/**/**
 *.pyd
 raytr.cpp
+OcclusionMapping_Holstein.py
