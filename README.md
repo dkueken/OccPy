@@ -25,12 +25,12 @@ Please let me know if you encounter any issues installing the tool.
 ### Clone repository
 Clone the repository using git with the following command (or download the zip from gitlab):
 ```commandline
-git clone https://gitlab.wsl.ch/kueken/occpy.git
+git clone https://github.com/dkueken/OccPy.git
 ```
 
 cd into the cloned repository
 ```commandline
-cd occPy
+cd OccPy
 ```
 
 ### Seting up environment
