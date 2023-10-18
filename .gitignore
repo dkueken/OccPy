@@ -8,3 +8,4 @@ raytr.cpp
 OcclusionMapping_Holstein.py
 *.exp
 *.lib
+*.code-workspace
