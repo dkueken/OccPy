@@ -3,6 +3,9 @@
 .idea
 __pycache__/**
 build/**/**
+src/build/**/**
+src/build/**
+*.obj
 *.pyd
 raytr.cpp
 OcclusionMapping_Holstein.py
