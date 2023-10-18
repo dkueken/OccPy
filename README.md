@@ -82,18 +82,23 @@ pip install laspy[laszip]
 ```
 
 ### Compile the c++ side of the OccPy tool
-first we need to edit the _setup.py_ file in order for the compiler to find the necessary libraries.
+first we need to edit the _setup.py_ file in the '.\src' folder in order for the compiler to find the necessary libraries.
 Only two lines have to be changed as shown below (example for Windows machines). Adapt based on your system (paths will be different based on your conda installation):
 ```python
 include_dirs=["C:/Users/_your_user_name_/Miniconda3/envs/_name_of_your_environment_/Library/include/"]
 library_dirs=["C:/Users/_your_user_name_/Miniconda3/envs/_name_of_your_environment_/Library/lib"]
 ```
-Once you have adapted _setup.py_ you can compile the C++ code using the following command:
+Once you have adapted _setup.py_ you can compile the C++ code. First cd into the src folder and then compile the code using the following command:
 ```commandline
 python setup.py build_ext --inplace
 ```
 There will probably appear several warning messages. These can mostly be ignored (TODO: @kueken: check on these warnings!)
 If compilation was successful, the tool should be ready to use. 
+However, if the compiled raytr file is not in the same directory as your python code calling the raytracer, you should add the following lines to the beginning of your python script
+```python
+import sys
+sys.path.append(r".\src) # assuming you have your python file in the root directory of the tool. change adequately if this is not the case.
+```
 
 ## Usage
 There are three example scripts provided that should show how the tool can work for different flavors of LiDAR platforms (TLS, MLS, UAVLS)
