@@ -16,6 +16,7 @@
 #include <math.h>
 #include <vector>
 #include <string>
+#include <sstream>
 #include <map>
 #include <boost/shared_ptr.hpp>
 #include <boost/make_shared.hpp>
@@ -104,5 +105,5 @@ class Raytracer {
 
         void clearPulseDataset();
 
-        void reportOnTraversal();
+        string reportOnTraversal();
 };

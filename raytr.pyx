@@ -32,7 +32,7 @@ cdef extern from "Raytracer.hpp":
 
         void moveSensorPos2Collinearity();
 
-        void reportOnTraversal();
+        string reportOnTraversal();
 
         #get functions
         vector[vector[vector[int]]]& getNhit()
@@ -79,4 +79,4 @@ cdef class PyRaytracer:
     def getPulseDatasetReport(self):
         self.thisptr.getPulseDatasetReport()
     def reportOnTraversal(self):
-        self.thisptr.reportOnTraversal()
+        return self.thisptr.reportOnTraversal()

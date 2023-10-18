@@ -623,12 +623,28 @@ void Raytracer::doRaytracing()
     */
 }
 
-void Raytracer::reportOnTraversal(){
+string Raytracer::reportOnTraversal(){
+    /*
     cout << "#### " << this->traversedPulses << " Pulses were traversed of possible " << this->totalPulsesInDataset << " Pulses" << endl;
     cout << "#### " << this->regHit << " Returns have been registered by the algorithm " << endl;
     cout << "#### " << this->echoesOutside << " Returns were found outside the voxel grid " << endl;
     cout << "#### " << this->numMissingReturns << " Returns were missed during the traversal!" << endl;
     cout << "#### " << this->numNoGridIntersection << " Pulses did not intersect voxel grid!" << endl;
+    */
+    stringstream multilineString;
+
+    multilineString << "#### " << this->traversedPulses << " Pulses were traversed of possible " << this->totalPulsesInDataset << " Pulses" << "\n";
+    multilineString << "#### " << this->regHit << " Returns have been registered by the algorithm " << "\n";
+    multilineString << "#### " << this->echoesOutside << " Returns were found outside the voxel grid " << "\n";
+    multilineString << "#### " << this->numMissingReturns << " Returns were missed during the traversal!" << "\n";
+    multilineString << "#### " << this->numNoGridIntersection << " Pulses did not intersect voxel grid!" << "\n";
+
+    // convert the stringstream to a string
+    string out_str = multilineString.str();
+
+    cout << out_str;
+
+    return out_str;
 }
 
 void Raytracer::clearPulseDataset()
