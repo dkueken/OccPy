@@ -9,13 +9,17 @@ from prepare_trajectory import interpolate_traj
 
 from BOVwriter import writeBOV
 
+# we need to add the path to the src folder so raytr module can be found
+import sys
+sys.path.append(r".\src")
+
 from raytr import PyRaytracer
 
 # Input parameters
-laz_in = r"path_to_input_laz_file.laz"
-traj_in = r"path_to_input_trajectory_file.txt"
+laz_in = r"\\speedy11-12-fs\data_15\_PLS\20230802_3DForEcoTech_WG4_STSM\Data\MLS\STSM_Acquisitions\FP05\Daniel\LAZ\2023-08-08_14-06-13_FP05_DAN_100pct_height_world_rot2LV95.laz"
+traj_in = r"\\speedy11-12-fs\data_15\_PLS\20230802_3DForEcoTech_WG4_STSM\Data\MLS\STSM_Acquisitions\FP05\Daniel\Trajectories\2023-08-08_14-06-13_FP05_DAN_results_traj_rot2LV95.txt"
 
-out_dir = r"path_to_output_directory"
+out_dir = r"\\speedy11-12-fs\data_15\_PLS\20230802_3DForEcoTech_WG4_STSM\Data\MLS\STSM_Acquisitions\FP05\Daniel\OcclusionMapping"
 os.makedirs(os.path.dirname(out_dir), exist_ok=True)
 
 parameters = dict(
