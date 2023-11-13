@@ -24,15 +24,15 @@ cdef extern from "Raytracer.hpp":
         void doRaytracing()
         void doRaytracing_singleReturnPulses(vector[double] X, vector[double] Y, vector[double] Z, vector[double] sensor_x, vector[double] sensor_y, vector[double] sensor_z, vector[double] gps_time)
 
-        void rayBoxIntersection(vector[double], vector[double], vector[int], vector[int], int &, double &);
+        void rayBoxIntersection(vector[double], vector[double], vector[int], vector[int], int &, double &)
 
-        void cleanUpPulseDataset();
+        void cleanUpPulseDataset()
 
-        void clearPulseDataset();
+        void clearPulseDataset()
 
-        void moveSensorPos2Collinearity();
+        void moveSensorPos2Collinearity()
 
-        string reportOnTraversal();
+        string reportOnTraversal()
 
         #get functions
         vector[vector[vector[int]]]& getNhit()
