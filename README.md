@@ -169,7 +169,9 @@ Several open issues and improvements are currently worked on or planned for the 
 - [ ] Add example data which should be used in the example scripts
 - [ ] There is currently still an issue with UAVLS data, where some (very few) LiDAR returns are not registered by the algorithm. The implications for that should be analysed and the problem mitigated. This could cause an underestimation of occlusion, as the e.g. the last return is never reached and the pulse will traverse further without declaring an voxels as occluded for that pulse. There is the possibility to overcome this issue by using the function ```RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)``` as used in the script _Test_MLS.py_, where the input data is not initially converted to a pulse dataset, but each return is basically treated as a single pulse. We would only recommend to use this approach, if you are confident about your trajectory information.
 - [ ] Add support for reading in a DTM file, so the algorithm could stop, once the pulse reached the terrain.
+- [ ] Add functionality for height normalisation of outputs
 - [ ] substantial performance improvement by using multi core processing
+- [ ] Add functionality for PAI/PAD calculation of each voxel (i.e. calculation of path length within voxel for each pulse) 
 
 <!---
 ## Contributing
