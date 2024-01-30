@@ -95,7 +95,7 @@ If compilation was successful, the tool should be ready to use.
 However, if the compiled raytr file is not in the same directory as your python code calling the raytracer, you should add the following lines to the beginning of your python script
 ```python
 import sys
-sys.path.append(r".\src) # assuming you have your python file in the root directory of the tool. change adequately if this is not the case.
+sys.path.append(r".\src") # assuming you have your python file in the root directory of the tool. change adequately if this is not the case.
 ```
 
 ## Usage

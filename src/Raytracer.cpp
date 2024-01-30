@@ -663,6 +663,7 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
 
     int regHit = 0; //Number of registered hit voxels
 
+    #pragma omp parallel for
     for (int i = 0; i < gps_time.size(); i++) {
         pulsecount++;
 

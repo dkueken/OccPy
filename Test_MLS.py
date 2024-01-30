@@ -15,11 +15,13 @@ sys.path.append(r".\src")
 
 from raytr import PyRaytracer
 
-# Input parameters
-laz_in = r"\\speedy11-12-fs\data_15\_PLS\20230802_3DForEcoTech_WG4_STSM\Data\MLS\STSM_Acquisitions\FP05\Daniel\LAZ\2023-08-08_14-06-13_FP05_DAN_100pct_height_world_rot2LV95.laz"
-traj_in = r"\\speedy11-12-fs\data_15\_PLS\20230802_3DForEcoTech_WG4_STSM\Data\MLS\STSM_Acquisitions\FP05\Daniel\Trajectories\2023-08-08_14-06-13_FP05_DAN_results_traj_rot2LV95.txt"
 
-out_dir = r"\\speedy11-12-fs\data_15\_PLS\20230802_3DForEcoTech_WG4_STSM\Data\MLS\STSM_Acquisitions\FP05\Daniel\OcclusionMapping"
+
+# Input parameters
+laz_in = r"D:\data\occpy\Rameren_FP05_2022-04-27_14-32-22_100pct_height_world_rot2LV95.laz"
+traj_in = r"D:\data\occpy\Rameren_FP05_2022-04-27_14-32-22_results_traj_rot_LV95.txt"
+
+out_dir = r"D:\data\occpy\output"
 os.makedirs(os.path.dirname(out_dir), exist_ok=True)
 
 parameters = dict(
@@ -29,8 +31,7 @@ parameters = dict(
 )
 
 # read in trajectory file
-traj = pd.read_csv(traj_in, sep=" ")
-
+traj = pd.read_csv(traj_in, sep=";")
 
 # Plot Dimensions - Plot Dim FP05
 PlotDim = dict(minX=2676541,
@@ -62,6 +63,8 @@ RayTr.defineGrid(minBound, maxBound, gridDim['nx'], gridDim['ny'], gridDim['nz']
 toc = time.time()
 print("Time elapsed: {:.2f} seconds".format(toc - tic))
 
+starttime = time.time()
+
 # read in laz iteratively and run raytracing tool
 print("Reading in LAZ data")
 tic_tot = time.time()
@@ -84,12 +87,13 @@ with laspy.open(laz_in) as file:
             number_of_returns[:] = 1
 
         # call interpolate function for trajectory to extract sensor position for each gps_time
-        SensorPos = interpolate_traj(traj['%time'], traj['x'], traj['y'], traj['z'], gps_time)
+        SensorPos = interpolate_traj(traj['X.time'], traj['x'], traj['y'], traj['z'], gps_time)
 
         RayTr.doRaytracing_singleReturnPulses(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'], SensorPos['sensor_z'], gps_time)
 
         count = count + len(gps_time)
 
+print("RAYTRACING Elapsed Time: " + str(totaltime) + " seconds")
 
 # Get report on traversal
 RayTr.reportOnTraversal()
@@ -162,5 +166,5 @@ writeBOV(out_dir + '\\', "Nocc", "Nocc", 'i', Nocc)
 toc = time.time()
 print("Elapsed Time: " + str(toc - tic) + " seconds")
 
-
+totaltime = time.time() - starttime
 
