@@ -16,11 +16,11 @@ sys.path.append(r".\src")
 from raytr import PyRaytracer
 
 # Input parameters
-laz_in = r"\\speedy11-12-fs\data_15\_PLS\20230802_3DForEcoTech_WG4_STSM\Data\MLS\STSM_Acquisitions\FP05\Daniel\LAZ\2023-08-08_14-06-13_FP05_DAN_100pct_height_world_rot2LV95.laz"
-traj_in = r"\\speedy11-12-fs\data_15\_PLS\20230802_3DForEcoTech_WG4_STSM\Data\MLS\STSM_Acquisitions\FP05\Daniel\Trajectories\2023-08-08_14-06-13_FP05_DAN_results_traj_rot2LV95.txt"
+laz_in = r"D:\_tmp_wdir\TestData_occpy\MLS\Rameren_FP05_2022-04-06_07-39-44_100pct_height_world_rot2LV95.laz"
+traj_in = r"D:\_tmp_wdir\TestData_occpy\MLS\Rameren_FP05_2022-04-06_07-39-44_results_traj_rot2LV95.txt"
 
-out_dir = r"\\speedy11-12-fs\data_15\_PLS\20230802_3DForEcoTech_WG4_STSM\Data\MLS\STSM_Acquisitions\FP05\Daniel\OcclusionMapping"
-os.makedirs(os.path.dirname(out_dir), exist_ok=True)
+out_dir = r"D:\_tmp_wdir\TestData_occpy\MLS\OcclusionMapping_origOccPy"
+os.makedirs(out_dir, exist_ok=True)
 
 parameters = dict(
     voxDim=0.1,
@@ -62,6 +62,8 @@ RayTr.defineGrid(minBound, maxBound, gridDim['nx'], gridDim['ny'], gridDim['nz']
 toc = time.time()
 print("Time elapsed: {:.2f} seconds".format(toc - tic))
 
+starttime = time.time()
+
 # read in laz iteratively and run raytracing tool
 print("Reading in LAZ data")
 tic_tot = time.time()
@@ -90,6 +92,8 @@ with laspy.open(laz_in) as file:
 
         count = count + len(gps_time)
 
+totaltime = time.time() - starttime
+print("RAYTRACING Elapsed Time: " + str(totaltime) + " seconds")
 
 # Get report on traversal
 RayTr.reportOnTraversal()
@@ -161,6 +165,9 @@ writeBOV(out_dir + '\\', "Nmiss", "Nmiss", 'i', Nmiss)
 writeBOV(out_dir + '\\', "Nocc", "Nocc", 'i', Nocc)
 toc = time.time()
 print("Elapsed Time: " + str(toc - tic) + " seconds")
+
+totaltime = time.time() - starttime
+print("TOTAL Elapsed Time: " + str(totaltime) + " seconds")
 
 
 
