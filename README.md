@@ -157,6 +157,11 @@ lassort -i laz_in -gps_time -return_number -odix _sort -olaz -cpu64 -v
 unsorted LAZ files will also work, however, there will be a substantial computational overhead, as the entire dataset 
 needs to be read and stored at once.
 
+## Visualization of output .bov files
+OccPy has the option to output .bov files for visualization purposes. These files (basically a binary file (.dat) and a 
+header file (.bov)) can be visualized using the VisIt visualization software (https://visit-dav.github.io/visit-website/index.html).
+#TODO: implement an alternative visualization solution with automatic 2D top down, slice and profile visualization.
+
 ## Support
 For questions and support, please contact Daniel Kükenbrink via daniel.kuekenbrink@wsl.ch
 
@@ -170,7 +175,7 @@ Several open issues and improvements are currently worked on or planned for the 
 - [ ] Add functionality for height normalisation of outputs
 - [ ] substantial performance improvement by using multi core processing
 - [ ] Add functionality for PAI/PAD calculation of each voxel (i.e. calculation of path length within voxel for each pulse) 
-
+- [ ] Add visualization solution like (potential idea: https://github.com/msoechting/lexcube)
 <!---
 ## Contributing
 State if you are open to contributions and what your requirements are for accepting them.
