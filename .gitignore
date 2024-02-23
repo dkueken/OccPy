@@ -3,8 +3,8 @@
 .idea
 __pycache__/**
 build/**/**
-src/build/**/**
-src/build/**
+occpy/src/build/**/**
+occpy/src/build/**
 *.obj
 *.pyd
 raytr.cpp
@@ -13,3 +13,4 @@ OcclusionMapping_Holstein.py
 *.lib
 *.code-workspace
 .vscode
+*__pycache__*

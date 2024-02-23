@@ -12,7 +12,7 @@ from Cython.Distutils import build_ext
 from Cython.Build import cythonize
 
 # clean previous build
-for root, dirs, files in os.walk(".", topdown=False):
+for root, dirs, files in os.walk("", topdown=False):
     for name in files:
         if (name.startswith("raytr") and not(name.endswith(".pyx") or name.endswith(".pxd"))):
             os.remove(os.path.join(root, name))

@@ -11,7 +11,7 @@ from BOVwriter import writeBOV
 
 # we need to add the path to the src folder so raytr module can be found
 import sys
-sys.path.append(r".\src")
+sys.path.append(r"occpy/src")
 
 from raytr import PyRaytracer
 
