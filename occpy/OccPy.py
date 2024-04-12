@@ -20,12 +20,15 @@ import seaborn as sns
 
 import time
 import os
+import glob
 
 # we need to add the path to the src folder so raytr module can be found
 import sys
 
 sys.path.append(r"./src")  # TODO: check if src folder should be better placed into occpy package
 from occpy.src.raytr import PyRaytracer
+
+is_sorted = lambda a: np.all(a[:-1] <= a[1:])
 
 def last_nonzero(arr, axis, invalid_val=-1):
     """_summary_
@@ -75,6 +78,9 @@ class OccPy:
         self.traj = None
         self.senspos_f = None
         self.senspos = None
+        self.single_return = None
+        # TODO: find a better way to link scan position id between laz file and scan pos file!
+        self.scan_pos_id_stridx = 0
 
         # some parameters that will be filled during function calls
         self.TotalVolume = 0
@@ -87,6 +93,7 @@ class OccPy:
         self.Occlusion10_max = 0
 
         self.OcclFrac2D = None
+
 
         # 3DGrids
         self.Nhit = None
@@ -141,8 +148,16 @@ class OccPy:
 
         self.traj = pd.DataFrame(data=d)
 
-    def read_sensorpos_file(self, path2senspos, delimiter=" ", hdr_time='', hdr_x='', hdr_y='', hdr_z=''):
-        print('TODO!')
+    def read_sensorpos_file(self, path2senspos, delimiter=" ", hdr_scanpos_id='', hdr_x='', hdr_y='', hdr_z='', sens_pos_id_offset=0, str_idx_ScanPosID=0, single_return=False):
+        self.is_mobile = False
+        sens_pos_in = pd.read_csv(path2senspos, sep=delimiter)
+
+        d = {'ScanPos': sens_pos_in[hdr_scanpos_id]+sens_pos_id_offset,
+             'sensor_x': sens_pos_in[hdr_x], 'sensor_y': sens_pos_in[hdr_y], 'sensor_z': sens_pos_in[hdr_z]}
+
+        self.senspos = pd.DataFrame(data=d)
+        self.scan_pos_id_stridx = str_idx_ScanPosID
+        self.single_return = single_return
 
     def interpolate_traj(self, traj_time, traj_x, traj_y, traj_z, pts_gpstime):
         f_x = interpolate.interp1d(traj_time, traj_x, kind='linear', fill_value="extrapolate")
@@ -159,40 +174,201 @@ class OccPy:
         return df
 
     def do_raytracing(self):
-        with laspy.open(self.laz_in_f) as file:
-            count = 0
-            for points in file.chunk_iterator(self.points_per_iter):
-                print("{:.2f}%".format(count / file.header.point_count * 100))
+        if os.path.isdir(self.laz_in_f):
+            ## get list of laz files in input directory
+            fCont = glob.glob(f"{self.laz_in_f}\*.laz")
 
-                # For performance we need to use copy
-                # so that the underlying arrays are contiguous
-                x = points.x.copy()
-                y = points.y.copy()
-                z = points.z.copy()
-                gps_time = points.gps_time.copy()
-                return_number = points.return_number.copy()
-                number_of_returns = points.number_of_returns.copy()
+            for f in fCont:
+                # get scan position
+                lastdir_ind = f.rfind("\\")
+                scan_name = f[lastdir_ind + 1:]
+                # TODO: This is very specific to the test data and needs to be made generic!
+                end_of_scanID_idx = scan_name.rfind("_")
+                scan_id = int(scan_name[self.scan_pos_id_stridx:end_of_scanID_idx])
 
-                if np.max(
-                        return_number) == 0:  # a not very nice hack for the special case where return_number and number_of_returns are all 0 for Horizon measurements - TODO: figure out why!
-                    return_number[:] = 1
-                    number_of_returns[:] = 1
+                print(f"###############################")
+                print(f"##### Processing {scan_name}...")
+                print(f"###############################")
 
-                # for the case of mobile acquisitions, inerpolate trajectory for gps_time
-                if self.is_mobile:
-                    SensorPos = self.interpolate_traj(self.traj['time'], self.traj['sensor_x'], self.traj['sensor_y'],
-                                                      self.traj['sensor_z'], gps_time)
-                # call interpolate function for trajectory to extract sensor position for each gps_time
+                scanpos_X = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_x'].values[0]
+                scanpos_Y = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_y'].values[0]
+                scanpos_Z = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_z'].values[0]
 
-                if np.max(number_of_returns) == 1 or np.max(return_number) == 1:
-                    self.RayTr.doRaytracing_singleReturnPulses(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
-                                                               SensorPos['sensor_z'], gps_time)
-                else:
-                    self.RayTr.addPointData(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
-                                            SensorPos['sensor_z'],
-                                            gps_time, return_number, number_of_returns)
+                # read in laz file
+                tic = time.time()
+                with laspy.open(f) as file:
+                    count = 0
+                    for points in file.chunk_iterator(self.points_per_iter):
 
-                count = count + len(gps_time)
+                        if self.single_return:
+                            sorted = True
+
+                            x = points.x.copy()
+                            y = points.y.copy()
+                            z = points.z.copy()
+
+                            sensor_x = np.ones(x.shape) * scanpos_X
+                            sensor_y = np.ones(x.shape) * scanpos_Y
+                            sensor_z = np.ones(x.shape) * scanpos_Z
+
+                            gps_time = np.linspace(start=count + 1, stop=count + len(x), num=len(x), endpoint=True)
+
+                            # run raytracing algorithme using singleReturnPulses version
+                            #print("Do raytracing with all pulses in batch")
+                            tic_r = time.time()
+                            self.RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y,
+                                                                  sensor_z, gps_time)
+                            toc_r = time.time()
+                            #print("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
+
+                        else:
+                            x = points.x.copy()
+                            y = points.y.copy()
+                            z = points.z.copy()
+                            gps_time = points.gps_time.copy()
+                            return_number = points.return_number.copy()
+                            number_of_returns = points.number_of_returns.copy()
+
+                            # check if gps_time is sorted
+                            if count == 0:  # only check sort state in the first iteration of the for loop
+                                if not is_sorted(gps_time):
+                                    print(
+                                        f"!!!!! input laz file is not sorted along gps_time. The algorithm will still run. However, the "
+                                        f"performance will be greatly decreased as the entire content of the laz file has to be read into "
+                                        f"the system memory. If you have multi return data, consider sorting your laz data first, e.g. using "
+                                        f"LASTools lassort: lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v !!!!")
+                                    sorted = False
+                                else:
+                                    sorted = True
+
+                            sensor_x = np.ones(gps_time.shape) * scanpos_X
+                            sensor_y = np.ones(gps_time.shape) * scanpos_Y
+                            sensor_z = np.ones(gps_time.shape) * scanpos_Z
+
+                            self.RayTr.addPointData(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number,
+                                               number_of_returns)
+
+                            if sorted:  # only if pulses are sorted run raytracing now. Otherwise we have to read in the entire dataset first!
+                                # Get report on pulse dataset - comment this out once everythin is working or TODO: add a verbose flag!
+                                #self.RayTr.getPulseDatasetReport()
+
+                                # run raytracing on added points
+                                #print("Do raytracing with stored pulses")
+                                tic_r = time.time()
+                                self.RayTr.doRaytracing()
+                                toc_r = time.time()
+                                #print("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
+
+                                self.RayTr.clearPulseDataset()
+
+                                # Check if traversed pulses have been deleted from map - comment this out once everything is working or TODO: add a verbose flag!
+                                # RayTr.getPulseDatasetReport()
+
+                        count = count + len(gps_time)
+
+            toc = time.time()
+            if sorted and not self.single_return:
+                # optional: incomplete pulses can occur if the data has been filtered (either actively or during black box processing
+                # of the processing software. We could actively turn the incomplete pulses into complete ones and do the raytracing
+                # for them!
+                print("convert incomplete pulses to complete ones - be cautious with that!")
+                # RayTr.getPulseDatasetReport()
+                self.RayTr.cleanUpPulseDataset()
+                # RayTr.getPulseDatasetReport()
+                print("Run raytracing for incomplete pulses")
+                tic_r = time.time()
+                self.RayTr.doRaytracing()
+                toc_r = time.time()
+                print("Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
+                print("Time elapsed for reading and raytracing entire data: {:.2f} seconds".format(toc_r - tic))
+            elif not sorted and not self.single_return:
+                print("Time elapsed for reading in data: {:.2f} seconds".format(toc - tic))
+
+                # RayTr.getPulseDatasetReport()
+
+                print("Clean up pulse dataset in order to handle incomplete pulses")
+                self.RayTr.cleanUpPulseDataset()
+
+                self.RayTr.getPulseDatasetReport()
+
+                print("Do actual raytracing with all pulses")
+                tic = time.time()
+                self.RayTr.doRaytracing()
+                toc = time.time()
+                print("Time elapsed for raytracing: {:.2f} seconds".format(toc - tic))
+
+        else: # if input is a single laz file
+            with laspy.open(self.laz_in_f) as file:
+                count = 0
+                for points in file.chunk_iterator(self.points_per_iter):
+                    print("{:.2f}%".format(count / file.header.point_count * 100))
+
+                    # For performance we need to use copy
+                    # so that the underlying arrays are contiguous
+                    x = points.x.copy()
+                    y = points.y.copy()
+                    z = points.z.copy()
+                    gps_time = points.gps_time.copy()
+                    return_number = points.return_number.copy()
+                    number_of_returns = points.number_of_returns.copy()
+
+                    if np.max(
+                            return_number) == 0:  # a not very nice hack for the special case where return_number and number_of_returns are all 0 for Horizon measurements - TODO: figure out why!
+                        return_number[:] = 1
+                        number_of_returns[:] = 1
+
+                    # for the case of mobile acquisitions, inerpolate trajectory for gps_time
+                    if self.is_mobile:
+                        SensorPos = self.interpolate_traj(self.traj['time'], self.traj['sensor_x'], self.traj['sensor_y'],
+                                                          self.traj['sensor_z'], gps_time)
+                    # call interpolate function for trajectory to extract sensor position for each gps_time
+
+                    run_raytraycing_after_loading = False
+
+                    if np.max(number_of_returns) == 1 or np.max(return_number) == 1:
+                        run_raytraycing_after_loading = False
+                        self.RayTr.doRaytracing_singleReturnPulses(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
+                                                                   SensorPos['sensor_z'], gps_time)
+                    else:
+                        # check if gps_time is sorted
+                        if count == 0:  # only check sort state in the first iteration of the for loop
+                            if not is_sorted(gps_time):
+                                print(
+                                    f"!!!!! input laz file is not sorted along gps_time. The algorithm will still run. However, the "
+                                    f"performance will be greatly decreased as the entire content of the laz file has to be read into "
+                                    f"the system memory. If you have multi return data, consider sorting your laz data first, e.g. using "
+                                    f"LASTools lassort: lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v !!!!")
+                                sorted = False
+                                run_raytraycing_after_loading=True
+
+
+                            else:
+                                sorted = True
+
+                        self.RayTr.addPointData(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
+                                                SensorPos['sensor_z'],
+                                                gps_time, return_number, number_of_returns)
+
+                        if sorted:  # only if pulses are sorted run raytracing now. Otherwise we have to read in the entire dataset first!
+                            # Get report on pulse dataset - comment this out once everythin is working or TODO: add a verbose flag!
+                            # self.RayTr.getPulseDatasetReport()
+
+                            # run raytracing on added points
+                            # print("Do raytracing with stored pulses")
+                            tic_r = time.time()
+                            self.RayTr.doRaytracing()
+                            toc_r = time.time()
+                            # print("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
+
+                            self.RayTr.clearPulseDataset() # clear out data that have been traced.
+
+                            # Check if traversed pulses have been deleted from map - comment this out once everything is working or TODO: add a verbose flag!
+                            # self.RayTr.getPulseDatasetReport()
+
+                    count = count + len(gps_time)
+
+        if run_raytraycing_after_loading:
+            self.RayTr.doRaytracing()
 
         self.get_raytracing_report()
         self.save_raytracing_output()
@@ -261,8 +437,6 @@ class OccPy:
         :param dsm_file: DSM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
         :return:
         """
-        # TODO: implement this function!
-        print('TODO!')
 
         self.Nhit = np.load(f"{input_folder}\\Nhit.npy")
         self.Nmiss = np.load(f"{input_folder}\\Nmiss.npy")
@@ -401,13 +575,18 @@ class OccPy:
 
     def get_Occl_TransectFigure(self, start_ind, end_ind, axis=0):
 
+        chm_slice_ref = None
         if axis==0: # get a slice of Y-Axis
             Nhit_Slice = np.sum(self.Nhit_norm[start_ind:end_ind, :, :], axis=axis)
             OcclFrac_Slice = np.sum(self.Classification_norm[start_ind:end_ind, :, :]==3, axis=axis) / (end_ind - start_ind)
+            if self.chm is not None:
+                chm_slice_ref = np.max(self.chm[start_ind:end_ind, :], axis=0)
         elif axis==1:
             Nhit_Slice = np.sum(self.Nhit_norm[:,start_ind:end_ind,:], axis=axis)
             OcclFrac_Slice = np.sum(self.Classification_norm[:, start_ind:end_ind, :] == 3, axis=axis) / (
                         end_ind - start_ind)
+            if self.chm is not None:
+                chm_slice_ref = np.max(self.chm[:, start_ind:end_ind], axis=1)
         else:
             Nhit_Slice = np.sum(self.Nhit_norm[:, :, start_ind:end_ind], axis=axis)
             OcclFrac_Slice = np.sum(self.Classification_norm[:, :, start_ind:end_ind] == 3, axis=axis) / (
@@ -421,17 +600,20 @@ class OccPy:
 
         fig = plt.figure(figsize=(8, 8))
         ax = fig.add_subplot(1,1,1)
+        x_axis_vect = None
         if axis==0:
             ax.set_xlabel(f"X [m]")
             ax.set_ylabel(f"Z [m]")
-            extent = [self.PlotDim['minX'], self.PlotDim['maxX'], 0, OcclFrac_Slice.shape[0]*self.vox_dim + 10]
+            extent = [self.PlotDim['minX'], self.PlotDim['maxX'], 0, OcclFrac_Slice.shape[0]*self.vox_dim]
             ax.axis(extent)
+            x_axis_vect = np.linspace(start=self.PlotDim['minX'], stop=self.PlotDim['maxX'], num=500)
 
         elif axis==1:
             ax.set_xlabel(f"Y [m]")
             ax.set_ylabel(f"Z [m]")
-            extent = [self.PlotDim['minY'], self.PlotDim['maxY'], 0, OcclFrac_Slice.shape[0] * self.vox_dim + 10]
+            extent = [self.PlotDim['minY'], self.PlotDim['maxY'], 0, OcclFrac_Slice.shape[0] * self.vox_dim]
             ax.axis(extent)
+            x_axis_vect = np.linspace(start=self.PlotDim['minY'], stop=self.PlotDim['maxY'], num=500)
         else:
             ax.set_xlabel(f"X [m]")
             ax.set_ylabel(f"Y [m]")
@@ -448,6 +630,11 @@ class OccPy:
         im2 = ax.imshow(OcclFrac_Slice * 100, cmap=reds_cmap, vmin=1, vmax=50, clim=[1, 100], interpolation='none',
                         alpha=0.8,
                         extent=extent)
+        if x_axis_vect is not None:
+            chm_ref_plot = ax.plot(x_axis_vect, chm_slice_ref, label="Ref CHM")
+            # chm_comp_plot = ax.plot(x_axis_vect, chm_slice_comp, label="Comp CHM", linestyle='--') #TODO: implement that!
+            ax.legend(handles=[chm_ref_plot[0]], loc='upper left', bbox_to_anchor=(0.375, 1))
+
         # define colorbars with position and dimension
         axins1 = inset_axes(
             ax,
@@ -466,18 +653,8 @@ class OccPy:
         axins2.xaxis.set_ticks_position("bottom")
         fig.colorbar(im2, cax=axins2, orientation='horizontal', label="Occlusion [%]")
 
-        # TODO add reference CHM if available!
-        """
-        # Add CHM from SwissSurface to the plot
-        CHM_ref_plot = ax.plot(np.linspace(start=-25, stop=25, num=500), CHM_ref, label="ALS CHM")
 
-        # Add MLS CHM
-        CHM_comp_plot = ax.plot(np.linspace(start=-25, stop=25, num=500), CHM_comp, color='k', label="MLS CHM",
-                                linestyle='--')
 
-        # Add legend
-        ax.legend(handles=[CHM_ref_plot[0], CHM_comp_plot[0]], loc='upper left', bbox_to_anchor=(0.375, 1))
-        """
 
         # save figure
         if axis==0:
