@@ -27,6 +27,7 @@ import sys
 
 sys.path.append(r"./src")  # TODO: check if src folder should be better placed into occpy package
 from occpy.src.raytr import PyRaytracer
+from occpy.TerrainModel import TerrainModel
 
 is_sorted = lambda a: np.all(a[:-1] <= a[1:])
 
@@ -174,6 +175,7 @@ class OccPy:
         return df
 
     def do_raytracing(self):
+        run_raytraycing_after_loading = False
         if os.path.isdir(self.laz_in_f):
             ## get list of laz files in input directory
             fCont = glob.glob(f"{self.laz_in_f}\*.laz")
@@ -323,7 +325,7 @@ class OccPy:
                                                           self.traj['sensor_z'], gps_time)
                     # call interpolate function for trajectory to extract sensor position for each gps_time
 
-                    run_raytraycing_after_loading = False
+
 
                     if np.max(number_of_returns) == 1 or np.max(return_number) == 1:
                         run_raytraycing_after_loading = False
@@ -344,6 +346,7 @@ class OccPy:
 
                             else:
                                 sorted = True
+                                run_raytraycing_after_loading=False
 
                         self.RayTr.addPointData(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
                                                 SensorPos['sensor_z'],
@@ -443,13 +446,39 @@ class OccPy:
         self.Nocc = np.load(f"{input_folder}\\Nocc.npy")
         self.Classification = np.load(f"{input_folder}\\Classification.npy")
 
+        # This is a bit of a quick and dirty solution to check on the compatibility of voxel size and pixel size of terrain models. TODO: improve that!
+        dtm = TerrainModel(dtm_file)
+        gt = dtm.dtm.res
+        pix_size = gt[0]
+
+        if pix_size != self.vox_dim:
+            dtm.crop2extent(extent=(self.PlotDim['minX'], self.PlotDim['maxY'], self.PlotDim['maxX'], self.PlotDim['minY']),
+                                   out_file=f"{dtm_file[:-4]}_resc_{self.vox_dim}.tif",
+                                   res=self.vox_dim)
+
+        dtm_file = dtm.get_terrainmodel_path()
+
         dtm_src = rasterio.open(dtm_file)
         self.dtm = np.flipud(dtm_src.read(
             1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
         # fill in data gaps in dtm
         self.dtm = fillnodata(self.dtm, mask=self.dtm != dtm_src.get_nodatavals()[0])
 
+
+
         if dsm_file is not None:
+
+            dsm = TerrainModel(dsm_file)
+            # check on pixel size
+            gt = dsm.dtm.res
+            pix_size = gt[0]
+
+            if pix_size != self.vox_dim:
+                dsm.crop2extent(extent=(self.PlotDim['minX'], self.PlotDim['maxY'], self.PlotDim['maxX'], self.PlotDim['minY']),
+                                   out_file=f"{dtm_file[:-4]}_resc_{self.vox_dim}.tif",
+                                   res=self.vox_dim)
+
+            dsm_file = dsm.get_terrainmodel_path()
             dsm_src = rasterio.open(dsm_file)
             self.dsm = np.flipud(dsm_src.read(
                 1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
@@ -606,14 +635,14 @@ class OccPy:
             ax.set_ylabel(f"Z [m]")
             extent = [self.PlotDim['minX'], self.PlotDim['maxX'], 0, OcclFrac_Slice.shape[0]*self.vox_dim]
             ax.axis(extent)
-            x_axis_vect = np.linspace(start=self.PlotDim['minX'], stop=self.PlotDim['maxX'], num=500)
+            x_axis_vect = np.linspace(start=self.PlotDim['minX'], stop=self.PlotDim['maxX'], num=self.grid_dim['nx'])
 
         elif axis==1:
             ax.set_xlabel(f"Y [m]")
             ax.set_ylabel(f"Z [m]")
             extent = [self.PlotDim['minY'], self.PlotDim['maxY'], 0, OcclFrac_Slice.shape[0] * self.vox_dim]
             ax.axis(extent)
-            x_axis_vect = np.linspace(start=self.PlotDim['minY'], stop=self.PlotDim['maxY'], num=500)
+            x_axis_vect = np.linspace(start=self.PlotDim['minY'], stop=self.PlotDim['maxY'], num=self.grid_dim['ny'])
         else:
             ax.set_xlabel(f"X [m]")
             ax.set_ylabel(f"Y [m]")

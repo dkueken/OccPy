@@ -4,7 +4,7 @@ from occpy import TerrainModel
 
 test = OccPy(laz_in=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05_shared\Data\RamerenWald\TLS\Leica_BLK360_Oct2020\LAZ',
              out_dir=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05_shared\Data\RamerenWald\TLS\Leica_BLK360_Oct2020\OccPy_Test',
-             vox_dim=0.5,
+             vox_dim=0.1,
              lower_threshold=1,
              points_per_iter=100000000,
              plot_dim=[2676541,
@@ -14,22 +14,22 @@ test = OccPy(laz_in=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05
                        1246210,
                        615])
 
-test.read_trajectory_file(path2traj=r'D:\_tmp_wdir\TestData_occpy\MLS\Rameren_FP05_2022-04-06_07-39-44_results_traj_rot2LV95.txt')
-test.read_sensorpos_file(path2senspos=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05\Data\RamerenWald\TLS\Leica_BLK360_Oct2020\ScanPositions.txt',
+
+test.read_sensorpos_file(path2senspos=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05_shared\Data\RamerenWald\TLS\Leica_BLK360_Oct2020\ScanPositions.txt',
                          delimiter=" ",
                          hdr_scanpos_id="ScanPosID",
                          hdr_x="X",
                          hdr_y="Y",
                          hdr_z="Z",
                          str_idx_ScanPosID=23,
-                         sens_pos_id_offset=1,
-                         single_return=True) # This is a very specific use case, where we had an offset of scan pos id between laz files and scan pos id in the scanner position file.
+                         sens_pos_id_offset=1,  # This is a very specific use case, where we had an offset of scan pos id between laz files and scan pos id in the scanner position file.
+                         single_return=True)
 
 test.do_raytracing()
 
 test.normalize_occlusion_output(input_folder=test.out_dir,
-                                dtm_file=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05\Data\RamerenWald\DTM_FP05_swissAlti3D_10cm.tif',
-                                dsm_file=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05\Data\RamerenWald\DSM_FP05_swissSurface3D_10cm.tif')
+                                dtm_file=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05_shared\Data\RamerenWald\DTM_FP05_swissAlti3D_10cm.tif',
+                                dsm_file=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05_shared\Data\RamerenWald\DSM_FP05_swissSurface3D_10cm.tif')
 
 # Get some occlusion statistics
 print(f"Total canopy volume of the plot: {test.TotalVolume * (test.vox_dim**3)} m3")
