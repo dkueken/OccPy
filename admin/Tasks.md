@@ -13,7 +13,7 @@
 
 ## Adding Functionalities
 - [ ] Enhance and build upon visualization capabilities of the occlusion outputs. Are there potentially good packages out there?
-  - [ ] add funcitonality to output figures directly   -> @Jonas
+  - [x] add funcitonality to output figures directly   -> @Jonas
   - [ ] Check on output format of figures (png vs pdf) -> @Jonas
 - [ ] Implement footprint size for raytracing. Bernhard suggested to look into this notebook for generating subrays within the footprint: https://github.com/3dgeo-heidelberg/helios/blob/implementation_docu/doc/power_sep_interactive.ipynb
 - [ ] Possibility to pass a DTM to the voxel traversal in order to stop the traversing of pulses once they reached the terrain
@@ -24,7 +24,7 @@
 - [ ] setup notebooks showcasing the tool for different lidar sensors (MLS, TLS, UAVLS; multi-return pulses, single return pulses) -> @Jonas
 
 ## Code clean-up
-- [ ] there is a lot of potential for cleaning up code   -> @Jonas
+- [] there is a lot of potential for cleaning up code   -> @Jonas
 - [] remove hard-coding of paths etc. (also on setup.py) -> @Jonas
 
 ## Packaging
