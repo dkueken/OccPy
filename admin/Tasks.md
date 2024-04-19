@@ -22,6 +22,7 @@
 
 ## Code clean-up
 - [ ] there is a lot of potential for cleaning up code
+- [ ] remove hard-coding of paths etc. (also on setup.py)
 
 ## Packaging
 - [ ] How to package and distribute tool via pip and/or conda?
