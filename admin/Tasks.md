@@ -27,3 +27,5 @@
 - [ ] How to package and distribute tool via pip and/or conda?
 - [ ] Improve structure of the package before distribution
 - [ ] how could we add sample data to the distribution package?
+- [ ] update requirements.txt
+- [ ] 
