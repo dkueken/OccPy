@@ -14,7 +14,7 @@ test = OccPy(laz_in=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05
                        1246210,
                        615])
 
-test.read_trajectory_file(path2traj=r'D:\_tmp_wdir\TestData_occpy\MLS\Rameren_FP05_2022-04-06_07-39-44_results_traj_rot2LV95.txt')
+test.read_trajectory_file(path2traj=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05\Data\RamerenWald\MLS\ZebHorizon\FP05\Trajectories\Rameren_FP05_2022-06-01_07-32-05_results_traj_rot2LV95.txt')
 
 test.do_raytracing()
 
