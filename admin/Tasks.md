@@ -25,13 +25,13 @@
 
 ## Code clean-up
 - [ ] there is a lot of potential for cleaning up code   -> @Jonas
-- [ ] remove hard-coding of paths etc. (also on setup.py) -> @Jonas
+- [] remove hard-coding of paths etc. (also on setup.py) -> @Jonas
 
 ## Packaging
 - [ ] How to package and distribute tool via pip and/or conda?
 - [ ] Improve structure of the package before distribution
 - [ ] how could we add sample data to the distribution package?
-- [ ] update requirements.txt    -> @Jonas
+- [x] update requirements.txt    -> @Jonas
 
 ## Ubuntu
 - [ ] make code run on ubuntu -> @William
