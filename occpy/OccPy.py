@@ -602,7 +602,7 @@ class OccPy:
             self.Volume0_3 = self.Volume0_3 + len(prof_class)
             self.Occlusion0_3 = self.Occlusion0_3 + sum(prof_class == 3)
 
-    def get_Occl_TransectFigure(self, start_ind, end_ind, axis=0, show_plots=False):
+    def get_Occl_TransectFigure(self, start_ind, end_ind, axis=0, format="png", show_plots=False):
 
         chm_slice_ref = None
         if axis==0: # get a slice of Y-Axis
@@ -688,23 +688,23 @@ class OccPy:
         # save figure
         if axis==0:
             plt.savefig(
-                f"{self.out_dir}/Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels.png",
-                dpi=300, format='png')
+                f"{self.out_dir}/Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels.{format}",
+                dpi=300, format=format)
         elif axis==1:
             plt.savefig(
-                f"{self.out_dir}/Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels.png",
-                dpi=300, format='png')
+                f"{self.out_dir}/Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels.{format}",
+                dpi=300, format=format)
         else:
             plt.savefig(
-                f"{self.out_dir}/Occlusion_Slice_XY_{start_ind}_{end_ind}_voxels.png",
-                dpi=300, format='png')
+                f"{self.out_dir}/Occlusion_Slice_XY_{start_ind}_{end_ind}_voxels.{format}",
+                dpi=300, format=format)
 
         if show_plots:
             plt.show()
         else:
             plt.close()
 
-    def get_Occlusion_Profile(self, show_plots=False):
+    def get_Occlusion_Profile(self, format="png", show_plots=False):
 
         OcclVertProf = np.sum(self.Classification_norm == 3, axis=0)
         OcclVertProf = np.sum(OcclVertProf, axis=0)
@@ -741,7 +741,7 @@ class OccPy:
         mcl = line.axhline(mean_canopy_h, color='r', linestyle='--', label='Mean canopy height')
         line_proxy = mlines.Line2D([], [], color='blue', label="MLS Occlusion")
         ax2.legend(handles=[line_proxy, mcl], loc='upper right', labels=["MLS Occlusion", "Mean ALS canopy height"])
-        plt.savefig(f"{self.out_dir}/OcclusionVertProf.pdf", dpi=300, format='pdf')
+        plt.savefig(f"{self.out_dir}/OcclusionVertProf.{format}", dpi=300, format=format)
         if show_plots:
             plt.show()
         else:
