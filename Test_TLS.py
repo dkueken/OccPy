@@ -5,6 +5,9 @@ import laspy
 import time
 from BOVwriter import writeBOV
 
+import sys
+sys.path.append(r"/home/wcherlet/repos/OccPy/src")
+
 from raytr import PyRaytracer
 
 is_sorted = lambda a: np.all(a[:-1] <= a[1:])
@@ -230,10 +233,10 @@ print("Elapsed Time: " + str(toc - tic) + " seconds")
 # write BOV file -> Actually VISIT can read in npy files. However, axis definition is wrong.
 print("Writing BOV File")
 tic = time.time()
-writeBOV(out_dir + '\\', "Classification", "Classification", 'i', Classification)
-writeBOV(out_dir + '\\', "Nhit", "Nhit", 'i', Nhit)
-writeBOV(out_dir + '\\', "Nmiss", "Nmiss", 'i', Nmiss)
-writeBOV(out_dir + '\\', "Nocc", "Nocc", 'i', Nocc)
+writeBOV(out_dir, "Classification", "Classification", 'i', Classification)
+writeBOV(out_dir, "Nhit", "Nhit", 'i', Nhit)
+writeBOV(out_dir, "Nmiss", "Nmiss", 'i', Nmiss)
+writeBOV(out_dir, "Nocc", "Nocc", 'i', Nocc)
 toc = time.time()
 print("Elapsed Time: " + str(toc - tic) + " seconds")
 

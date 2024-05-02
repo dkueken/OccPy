@@ -1,3 +1,4 @@
+import os
 from array import array
 
 def writeBOV(outDir, variableName, BOVname, formatstring, ndarray):
@@ -13,7 +14,7 @@ def writeBOV(outDir, variableName, BOVname, formatstring, ndarray):
     divideBrick = 0
 
     # write header file
-    fid = open(outDir + BOVname + '.bov', 'w')
+    fid = open(os.path.join(outDir, BOVname + '.bov'), 'w')
     fid.write('TIME: 00.00\n')
     fid.write('DATA_FILE: ' + BOVname + '.dat \n')
     fid.write('# The data size corresponds to NX,NY,NZ \n')
@@ -59,6 +60,6 @@ def writeBOV(outDir, variableName, BOVname, formatstring, ndarray):
 
     fid.close()
     arr = array(formatstring, ndarray.flatten('F'))
-    f = open(outDir + BOVname + '.dat', 'wb')
+    f = open(os.path.join(outDir, BOVname + '.dat'), 'wb')
     arr.tofile(f)
     f.close()
