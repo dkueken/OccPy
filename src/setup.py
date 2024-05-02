@@ -38,9 +38,8 @@ extensions = [
               #library_dirs=["/usr/local/Cellar/pdal/2.2.0_3/lib"],
               requires=['Cython'],
               #extra_compile_args=["-ferror-limit=0"]
-              #extra_compile_args=["-std=c++11"],
-              #requires=['Cython'],
-              #extra_compile_args=["-fopenmp", "-O3"],
+              extra_compile_args=["-std=c++11"],
+              #extra_compile_args=["-fopenmp", "-O3"],  
               extra_compile_args=['-openmp'],  #Windows only
               extra_link_args=['-openmp']  #Windows only
               #extra_link_args=["L.C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/lib/pdalcpp"]
