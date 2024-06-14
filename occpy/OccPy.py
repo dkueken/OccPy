@@ -456,6 +456,14 @@ class OccPy:
                                    out_file=f"{dtm_file[:-4]}_resc_{self.vox_dim}.tif",
                                    res=self.vox_dim)
 
+        ext = dtm.get_extent()
+        extent_dtm = (ext.left, ext.top, ext.right, ext.bottom)
+        extent_voxgrid = (self.PlotDim['minX'], self.PlotDim['maxY'], self.PlotDim['maxX'], self.PlotDim['minY'])
+        if extent_dtm != extent_voxgrid:
+            dtm.crop2extent(extent=extent_voxgrid,
+                            out_file = f"{dtm.get_terrainmodel_path()[:-4]}_clipped.tif",
+                            res=self.vox_dim)
+
         dtm_file = dtm.get_terrainmodel_path()
 
         dtm_src = rasterio.open(dtm_file)
@@ -463,7 +471,6 @@ class OccPy:
             1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
         # fill in data gaps in dtm
         self.dtm = fillnodata(self.dtm, mask=self.dtm != dtm_src.get_nodatavals()[0])
-
 
 
         if dsm_file is not None:
@@ -477,6 +484,13 @@ class OccPy:
                 dsm.crop2extent(extent=(self.PlotDim['minX'], self.PlotDim['maxY'], self.PlotDim['maxX'], self.PlotDim['minY']),
                                    out_file=f"{dtm_file[:-4]}_resc_{self.vox_dim}.tif",
                                    res=self.vox_dim)
+
+            ext = dsm.get_extent()
+            extent_dsm = (ext.left, ext.top, ext.right, ext.bottom)
+            if extent_dsm != extent_voxgrid:
+                dsm.crop2extent(extent=extent_voxgrid,
+                                out_file=f"{dsm.get_terrainmodel_path()[:-4]}_clipped.tif",
+                                res=self.vox_dim)
 
             dsm_file = dsm.get_terrainmodel_path()
             dsm_src = rasterio.open(dsm_file)

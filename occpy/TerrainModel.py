@@ -19,6 +19,9 @@ class TerrainModel():
 
         return pix_val[0][0] #TODO: check if this solution is generic!
 
+    def get_extent(self):
+        return self.dtm.bounds
+
     # crop to extent and change resolution if not None
     def crop2extent(self, extent, out_file, res):
         gdal.Translate(out_file, self.path2tiff, projWin=extent)
