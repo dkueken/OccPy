@@ -20,6 +20,12 @@ for root, dirs, files in os.walk("", topdown=False):
     #    if (name == "build"):
     #        shutil.rmtree(name)
 
+
+# Removes hardcoding by using Environment path to form the relevant directory paths. 
+env_path = sys.prefix
+include_path = os.path.join(env_path, "Library/include")
+library_path = os.path.join(env_path, "Library/lib")
+
 # build "raytr.so" python extension to be added to "PYTHONPATH" afterwards...
 extensions = [
     Extension("raytr",
@@ -30,10 +36,10 @@ extensions = [
                        ],
               libraries=[],  # refers to "liblas.2.3.0.dylib"
               language="c++",  # remove this if C and not C++
-              include_dirs=["C:/Users/kueken/Miniconda3/envs/occPy/Library/include/"],
+              include_dirs=[include_path],
               # ["C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/include/"],
               # include_dirs=["/usr/local/Cellar/boost/1.75.0_2/include", "/usr/local/Cellar/pdal/2.2.0_3/include", "/usr/local/Cellar/laszip/3.4.3/include"],
-              library_dirs=["C:/Users/kueken/Miniconda3/envs/occPy/Library/lib"],
+              library_dirs=[library_path],
               # ["C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/lib"],
               #library_dirs=["/usr/local/Cellar/pdal/2.2.0_3/lib"],
               requires=['Cython'],
