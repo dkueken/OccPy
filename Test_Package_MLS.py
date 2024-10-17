@@ -1,9 +1,17 @@
 from occpy.OccPy import OccPy
 from occpy import TerrainModel
+import argparse
+import os
+from pathlib import Path
 
+parser = argparse.ArgumentParser(description="OccPy")
+parser.add_argument('root_folder', type=str, help="Path to the folder containing relevant files")
+args = parser.parse_args()
 
-test = OccPy(laz_in=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05\Data\RamerenWald\MLS\ZebHorizon\FP05\LAZ\Rameren_FP05_2022-06-01_07-32-05_100pct_height_world_rot2LV95.laz',
-             out_dir=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05\Data\RamerenWald\MLS\ZebHorizon\FP05\OccPy_Test',
+root_folder = Path(args.root_folder)
+
+test = OccPy(laz_in= os.path.join(root_folder, "Occpy_MLS_test_data.laz"),
+             out_dir=os.path.join(str(root_folder.parent.parent), "output"),
              vox_dim=0.1,
              lower_threshold=1,
              points_per_iter=1000000,
@@ -14,15 +22,15 @@ test = OccPy(laz_in=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05
                        1246210,
                        615])
 
-test.read_trajectory_file(path2traj=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05\Data\RamerenWald\MLS\ZebHorizon\FP05\Trajectories\Rameren_FP05_2022-06-01_07-32-05_results_traj_rot2LV95.txt')
+test.read_trajectory_file(path2traj=os.path.join(root_folder, "Rameren_FP05_2022-06-01_07-32-05_results_traj_rot2LV95.txt"))
 
 test.do_raytracing()
 
 test.save_raytracing_output()
 
 test.normalize_occlusion_output(input_folder=test.out_dir,
-                                dtm_file=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05\Data\RamerenWald\DTM_FP05_swissAlti3D_10cm.tif',
-                                dsm_file=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05\Data\RamerenWald\DSM_FP05_swissSurface3D_10cm.tif')
+                                dtm_file=os.path.join(str(root_folder.parent), "DTM_FP05_swissAlti3D_10cm.tif"),
+                                dsm_file=os.path.join(str(root_folder.parent), "DSM_FP05_swissSurface3D_10cm.tif"))
 
 # Get some occlusion statistics
 print(f"Total canopy volume of the plot: {test.TotalVolume * (test.vox_dim**3)} m3")
