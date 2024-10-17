@@ -1,9 +1,17 @@
 from occpy.OccPy import OccPy
 from occpy import TerrainModel
+import os
+import argparse
+from pathlib import Path
 
+parser = argparse.ArgumentParser(description="OccPy")
+parser.add_argument('root_folder', type=str, help="Path to the folder containing relevant files")
+args = parser.parse_args()
 
-test = OccPy(laz_in=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05_shared\Data\RamerenWald\TLS\Leica_BLK360_Oct2020\LAZ',
-             out_dir=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05_shared\Data\RamerenWald\TLS\Leica_BLK360_Oct2020\OccPy_Test',
+root_folder = Path(args.root_folder)
+
+test = OccPy(laz_in=os.path.join(root_folder, "LAZ"),
+             out_dir=os.path.join(str(root_folder.parent.parent), "output"),
              vox_dim=0.1,
              lower_threshold=1,
              points_per_iter=100000000,
@@ -15,7 +23,7 @@ test = OccPy(laz_in=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05
                        615])
 
 
-test.read_sensorpos_file(path2senspos=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05_shared\Data\RamerenWald\TLS\Leica_BLK360_Oct2020\ScanPositions.txt',
+test.read_sensorpos_file(path2senspos=os.path.join(root_folder, "ScanPositions.txt"),
                          delimiter=" ",
                          hdr_scanpos_id="ScanPosID",
                          hdr_x="X",
@@ -28,8 +36,8 @@ test.read_sensorpos_file(path2senspos=r'Z:\Data\Occlusion_TestData\OccPy_TestDat
 test.do_raytracing()
 
 test.normalize_occlusion_output(input_folder=test.out_dir,
-                                dtm_file=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05_shared\Data\RamerenWald\DTM_FP05_swissAlti3D_10cm.tif',
-                                dsm_file=r'Z:\Data\Occlusion_TestData\OccPy_TestData_RamerenWald_FP05_shared\Data\RamerenWald\DSM_FP05_swissSurface3D_10cm.tif')
+                                dtm_file=os.path.join(str(root_folder.parent), "DTM_FP05_swissAlti3D_10cm.tif"),
+                                dsm_file=os.path.join(str(root_folder.parent), "DSM_FP05_swissSurface3D_10cm.tif"))
 
 # Get some occlusion statistics
 print(f"Total canopy volume of the plot: {test.TotalVolume * (test.vox_dim**3)} m3")
