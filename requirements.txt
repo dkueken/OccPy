@@ -1,25 +1,69 @@
-﻿brotlipy==0.7.0
+affine==2.4.0
+asciitree==0.3.3
+attrs==24.2.0
+brotlipy==0.7.0
+certifi @ file:///home/conda/feedstock_root/build_artifacts/certifi_1707022139797/work/certifi
+cffi==1.16.0
+charset-normalizer==3.3.2
+click==8.1.7
+click-plugins==1.1.1
+cligj==0.7.2
+contourpy @ file:///home/conda/feedstock_root/build_artifacts/contourpy_1712429905637/work
+cryptography==40.0.2
+cycler @ file:///home/conda/feedstock_root/build_artifacts/cycler_1696677705766/work
 Cython==0.29.34
+fasteners @ file:///home/conda/feedstock_root/build_artifacts/fasteners_1643971550063/work
+fonttools @ file:///home/conda/feedstock_root/build_artifacts/fonttools_1712344558731/work
+GDAL==3.4.1
+idna==3.6
+joblib==1.4.2
+kiwisolver @ file:///home/conda/feedstock_root/build_artifacts/kiwisolver_1695379902431/work
 laspy==2.4.1
 laszip==0.2.2
+lidario==0.3.0
+linear-equations==0.0.7
+matplotlib @ file:///home/conda/feedstock_root/build_artifacts/matplotlib-suite_1712605966339/work
 msgpack==1.0.5
 munkres==1.1.4
-pandas==2.0.1
-pip==23.1.2
+numcodecs @ file:///home/conda/feedstock_root/build_artifacts/numcodecs_1697592095423/work
+numpy @ file:///home/conda/feedstock_root/build_artifacts/numpy_1707225380409/work/dist/numpy-1.26.4-cp310-cp310-linux_x86_64.whl#sha256=51131fd8fc130cd168aecaf1bc0ea85f92e8ffebf211772ceb16ac2e7f10d7ca
+OSToolBox==1.6
+packaging @ file:///home/conda/feedstock_root/build_artifacts/packaging_1710075952259/work
+pandas==2.2.2
+pillow @ file:///home/conda/feedstock_root/build_artifacts/pillow_1712154467551/work
+platformdirs==4.2.0
+ply @ file:///home/conda/feedstock_root/build_artifacts/ply_1712242996588/work
+plyfile==1.1
 pooch==1.7.0
+pycparser==2.22
 pygeo3d==0.0.8
 pyOpenSSL==23.1.1
+pyparsing @ file:///home/conda/feedstock_root/build_artifacts/pyparsing_1709721012883/work
 PyQt5==5.15.7
+PyQt5-Qt5==5.15.2
+PyQt5-sip==12.12.2
+PySide6==6.7.2
+PySide6_Addons==6.7.2
+PySide6_Essentials==6.7.2
 PySocks==1.7.1
+python-dateutil==2.9.0.post0
+pytz @ file:///home/conda/feedstock_root/build_artifacts/pytz_1706886791323/work
+pyvectors==0.2.8
+rasterio==1.4.2
+requests==2.31.0
+scikit-learn==1.5.2
 scipy==1.10.1
+seaborn==0.13.2
+shiboken6==6.7.2
 sip==6.7.9
-toml==0.10.2
+six @ file:///home/conda/feedstock_root/build_artifacts/six_1620240208055/work
+threadpoolctl==3.5.0
+toml @ file:///home/conda/feedstock_root/build_artifacts/toml_1604308577558/work
+tomli @ file:///home/conda/feedstock_root/build_artifacts/tomli_1644342247877/work
 tornado==6.3.2
 typing_extensions==4.5.0
+tzdata==2024.1
 unicodedata2==15.0.0
-wheel==0.40.0
+urllib3==2.2.1
 win-inet-pton==1.1.0
 zarr==2.14.2
-seaborn==0.13.2
-rasterio==1.3.10
-lidario==0.3.0

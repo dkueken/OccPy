@@ -6,6 +6,8 @@ from rasterio.fill import fillnodata
 
 import laspy
 from occpy.TerrainModel import TerrainModel
+from occpy.PreparePly import prepare_ply
+import OSToolBox as ost
 
 # import plotting functions
 import matplotlib
@@ -67,13 +69,14 @@ def lineplot_plusplus(orientation = "horizontal", **kwargs):
 
 
 class OccPy:
-    def __init__(self, laz_in, out_dir, vox_dim=0.1, lower_threshold=1, points_per_iter=10000000, plot_dim=None):
+    def __init__(self, laz_in, out_dir, vox_dim=0.1, lower_threshold=1, points_per_iter=10000000, plot_dim=None, output_voxels=False):
         self.laz_in_f = laz_in
         self.out_dir = out_dir
         os.makedirs(out_dir, exist_ok=True)
         self.vox_dim = vox_dim  # voxel dimension (cubic) in meters TODO: maybe implement non-cubic voxels?
         self.lower_threshold = lower_threshold  # lower threshold above ground to exclude TODO: check if necessary
         self.points_per_iter = points_per_iter  # number of points read in from laz file in each iteration
+        self.output_voxels = output_voxels
         self.is_mobile = False
         self.traj_f = None
         self.traj = None
@@ -178,11 +181,11 @@ class OccPy:
         run_raytraycing_after_loading = False
         if os.path.isdir(self.laz_in_f):
             ## get list of laz files in input directory
-            fCont = glob.glob(f"{self.laz_in_f}\*.laz")
+            fCont = glob.glob(f"{self.laz_in_f}/*.laz")
 
             for f in fCont:
                 # get scan position
-                lastdir_ind = f.rfind("\\")
+                lastdir_ind = f.rfind("/")
                 scan_name = f[lastdir_ind + 1:]
                 # TODO: This is very specific to the test data and needs to be made generic!
                 end_of_scanID_idx = scan_name.rfind("_")
@@ -405,7 +408,7 @@ class OccPy:
         toc = time.time()
         print("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
-        print("Saving Occlusion Outputs")
+        print("Saving Occlusion Outputs As .npy")
         tic = time.time()
         np.save(f"{self.out_dir}/Nhit.npy", self.Nhit)
         np.save(f"{self.out_dir}/Nmiss.npy", self.Nmiss)
@@ -429,6 +432,26 @@ class OccPy:
         toc = time.time()
         print("Elapsed Time: " + str(toc - tic) + " seconds")
 
+        # write ply file
+        if self.output_voxels:
+            print("Saving Occlusion Outputs As .ply")
+            tic = time.time()
+            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nhit)
+            ost.write_ply(f"{self.out_dir}/Nhit.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nmiss)
+            ost.write_ply(f"{self.out_dir}/Nmiss.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nocc)
+            ost.write_ply(f"{self.out_dir}/Nocc.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Classification)
+            ost.write_ply(f"{self.out_dir}/Classification.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            self.occl = np.zeros(shape=self.Classification.shape)
+            x4, y4, z4 = np.where(self.Classification == 4)
+            self.occl[x4, y4, z4] = self.Classification[x4, y4, z4]
+            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.occl)
+            ost.write_ply(f"{self.out_dir}/Occl.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            toc = time.time()
+            print("Elapsed Time: " + str(toc - tic) + " seconds")
+
     def normalize_occlusion_output(self, input_folder, dtm_file, dsm_file=None):
         """
         normalize_occlusion_output normalizes all occlusion output grids (Nhit, Nmiss, Nocc, Classification) with the specified DTM
@@ -441,10 +464,10 @@ class OccPy:
         :return:
         """
 
-        self.Nhit = np.load(f"{input_folder}\\Nhit.npy")
-        self.Nmiss = np.load(f"{input_folder}\\Nmiss.npy")
-        self.Nocc = np.load(f"{input_folder}\\Nocc.npy")
-        self.Classification = np.load(f"{input_folder}\\Classification.npy")
+        self.Nhit = np.load(f"{input_folder}/Nhit.npy")
+        self.Nmiss = np.load(f"{input_folder}/Nmiss.npy")
+        self.Nocc = np.load(f"{input_folder}/Nocc.npy")
+        self.Classification = np.load(f"{input_folder}/Classification.npy")
 
         # This is a bit of a quick and dirty solution to check on the compatibility of voxel size and pixel size of terrain models. TODO: improve that!
         dtm = TerrainModel(dtm_file)
@@ -503,17 +526,14 @@ class OccPy:
             self.Nhit_norm = np.zeros((self.dtm.shape[0], self.dtm.shape[1], int(np.ceil(np.amax(self.chm) / self.vox_dim))), dtype=int)
             self.Nmiss_norm = np.zeros((self.dtm.shape[0], self.dtm.shape[1], int(np.ceil(np.amax(self.chm) / self.vox_dim))), dtype=int)
             self.Nocc_norm = np.zeros((self.dtm.shape[0], self.dtm.shape[1], int(np.ceil(np.amax(self.chm) / self.vox_dim))), dtype=int)
-            self.Classification_norm = np.zeros((self.dtm.shape[0], self.dtm.shape[1], int(np.ceil(np.amax(self.chm) / self.vox_dim))),
-                                           dtype=int)
+            self.Classification_norm = np.zeros((self.dtm.shape[0], self.dtm.shape[1], int(np.ceil(np.amax(self.chm) / self.vox_dim))), dtype=int)
 
             self.OcclFrac2D = np.zeros(self.dtm.shape)
-
             for y in range(0, self.dsm.shape[0], 1):
                 for x in range(0, self.dsm.shape[1], 1):
                     # get zind where DTM is located in grid at x,y
                     zind_dtm = int(np.floor((self.dtm[y, x] - self.PlotDim['minZ']) / self.vox_dim))
                     zind_dsm = int(np.floor((self.dsm[y, x] - self.PlotDim['minZ']) / self.vox_dim))
-
                     # extract profile from grids
                     prof_class = self.Classification[y, x, zind_dtm:zind_dsm]
                     prof_class_buf = self.Classification[y, x, zind_dtm+int(np.ceil(self.lower_threshold/self.vox_dim)):zind_dsm]
@@ -532,7 +552,6 @@ class OccPy:
                     self.Nocc_norm[y, x, 0:len(prof_class)] = self.Nocc[y, x, zind_dtm:zind_dsm]
 
                     self.__updateOccl_Volumes(prof_class)
-
 
         else:
             # as we do not know the height of the scene a priori, we will initialize a 3 D grid with the same dimensions
@@ -585,11 +604,26 @@ class OccPy:
             self.Nmiss_norm = self.Nmiss_norm[:, :, 0:max_len_prof]
             self.Nocc_norm = self.Nocc_norm[:, :, 0:max_len_prof]
 
-        print(f"Saving normalized output files into input directory...")
+        print(f"Saving normalized output files into directory as .npy...")
         np.save(f"{input_folder}/Nhit_norm.npy", self.Nhit_norm)
         np.save(f"{input_folder}/Nmiss_norm.npy", self.Nmiss_norm)
         np.save(f"{input_folder}/Nocc_norm.npy", self.Nocc_norm)
         np.save(f"{input_folder}/Classification_norm.npy", self.Classification_norm)
+
+        # write ply file
+        if self.output_voxels:
+            print(f"Saving normalized output files into directory as .ply...")
+            tic = time.time()
+            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nhit_norm)
+            ost.write_ply(f"{self.out_dir}/Nhit_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nmiss_norm)
+            ost.write_ply(f"{self.out_dir}/Nmiss_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nocc_norm)
+            ost.write_ply(f"{self.out_dir}/Nocc_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Classification_norm)
+            ost.write_ply(f"{self.out_dir}/Classification_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            toc = time.time()
+            print("Elapsed Time: " + str(toc - tic) + " seconds")
 
     #def visualize_2d_occlusion_map(self, out_fig):
 
