@@ -22,6 +22,9 @@
 ## Documentation and Notebooks
 - [ ] improve and enhance documentation (on code side as well as on readme)
 - [ ] setup notebooks showcasing the tool for different lidar sensors (MLS, TLS, UAVLS; multi-return pulses, single return pulses) -> @Jonas
+- [ ] add test scripts for single and multi tls scenario
+- [ ] integrate lexcube into notebooks
+- [ ] 
 
 ## Code clean-up
 - [ ] there is a lot of potential for cleaning up code   -> @Jonas
