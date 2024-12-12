@@ -664,14 +664,14 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
 
     int regHit = 0; //Number of registered hit voxels
 
-    //#pragma omp parallel for
+    // #pragma omp parallel for
     for (int i = 0; i < gps_time.size(); i++) {
         pulsecount++;
 
         bool isfound = false;
 
         //update progressbar
-        loadbar(pulsecount, (int)gps_time.size(), 20);
+        // loadbar(pulsecount, (int)gps_time.size(), 20);
 
         //init several necessary variables befor starting
         int flag = 0;               //flag whether pulse crosses voxel grid or not

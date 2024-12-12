@@ -447,7 +447,7 @@ class OccPy:
         else: # if input is a single laz file
             with laspy.open(self.laz_in_f) as file:
                 count = 0
-                with tqdm(total=file.header.point_count, desc="Filtering points", unit="points") as pbar:
+                with tqdm(total=file.header.point_count, desc="Tracing Pulses...", unit="points") as pbar:
                     for points in file.chunk_iterator(points_per_iteration=self.points_per_iter):
 
                         # For performance we need to use copy
