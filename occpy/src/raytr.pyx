@@ -41,6 +41,8 @@ cdef extern from "Raytracer.hpp":
         vector[int]& getGridDimensions()
         void getPulseDatasetReport()
         vector[vector[double]]& reportSensorShifts()
+        vector[double] getPulsesIntersectingBox(vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[int], vector[int])
+
 
 
 # creating a cython wrapper class
@@ -80,3 +82,6 @@ cdef class PyRaytracer:
         self.thisptr.getPulseDatasetReport()
     def reportOnTraversal(self):
         return self.thisptr.reportOnTraversal()
+    def getPulsesIntersectingBox(self, x, y, z, sensor_x, sensor_y, sensor_z, gps_time, vmin, vmax):
+        return self.thisptr.getPulsesIntersectingBox(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, vmin, vmax)
+

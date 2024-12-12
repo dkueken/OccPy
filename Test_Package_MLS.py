@@ -4,13 +4,17 @@ import argparse
 import os
 from pathlib import Path
 
+import time
+"""
 parser = argparse.ArgumentParser(description="OccPy")
 parser.add_argument('root_folder', type=str, help="Path to the folder containing relevant files")
 args = parser.parse_args()
 
 root_folder = Path(args.root_folder)
+"""
+root_folder = Path(r"C:\Users\Kueken\dev\occPy\data_local\MLS")
 
-test = OccPy(laz_in= os.path.join(root_folder, "Occpy_MLS_test_data.laz"),
+test = OccPy(laz_in= os.path.join(root_folder, "Occpy_MLS_test_data_FP05_unfiltered.laz"),
              out_dir=os.path.join(str(root_folder.parent.parent), "output"),
              vox_dim=0.1,
              lower_threshold=1,
@@ -22,11 +26,22 @@ test = OccPy(laz_in= os.path.join(root_folder, "Occpy_MLS_test_data.laz"),
                        1246210,
                        615])
 
-test.read_trajectory_file(path2traj=os.path.join(root_folder, "Rameren_FP05_2022-06-01_07-32-05_results_traj_rot2LV95.txt"))
+test.define_sensor_pos(path2file=os.path.join(root_folder, "OccPy_MLS_test_data_FP05_trajectory.txt"),
+                       is_mobile=True,
+                       single_return=True,
+                       delimiter=" ",
+                       hdr_time='%time',
+                       hdr_x='x',
+                       hdr_y='y',
+                       hdr_z = 'z')
 
+
+tic = time.time()
 test.do_raytracing()
+toc = time.time()
+print(f"Elapsed time: {toc-tic} seconds")
 
-test.save_raytracing_output()
+#test.save_raytracing_output()
 
 test.normalize_occlusion_output(input_folder=test.out_dir,
                                 dtm_file=os.path.join(str(root_folder.parent), "DTM_FP05_swissAlti3D_10cm.tif"),

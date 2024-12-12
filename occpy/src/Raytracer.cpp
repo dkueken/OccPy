@@ -14,7 +14,8 @@ Raytracer::Raytracer()
 
 Raytracer::~Raytracer()
 {
-    cout << "Cleaning up and destroy Raytracer object" << endl;
+    //TODO: add a verbose flag that outputs these kinds of statements!
+    //cout << "Cleaning up and destroy Raytracer object" << endl;
 
     vector<vector<vector<int > > >().swap(this->Nhit);
     vector<vector<vector<int > > >().swap(this->Nmiss);
@@ -663,7 +664,7 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
 
     int regHit = 0; //Number of registered hit voxels
 
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for (int i = 0; i < gps_time.size(); i++) {
         pulsecount++;
 
@@ -1037,6 +1038,81 @@ vector<int >& Raytracer::getGridDimensions(){
     grid_dim.at(2) = this->gridDim.nz;
 
     return grid_dim;
+}
+
+vector<double> Raytracer::getPulsesIntersectingBox(vector<double> x, vector<double> y, vector<double> z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time, vector<int> vmin, vector<int> vmax){
+
+    int pulsecount = 0;
+    int numNoGridIntersection = 0;
+    int numGridIntersection = 0;
+
+    vector<double> pulses_intersecting_box;
+
+    int total_pulses2iterate = gps_time.size();
+
+    // cout << "Total number of pulses to check: " << total_pulses2iterate << endl;
+    // cout << "minbounds: " << vmin.at(0) << " " << vmin.at(1) << " " << vmin.at(2) << endl;
+    // cout << "maxbounds: " << vmax.at(0) << " " << vmax.at(1) << " " << vmax.at(2) << endl;
+
+    //#pragma omp parallel for
+    for (int i = 0; i < gps_time.size(); i++) {
+        //vector<int> local_intersecting_pulses; // needed when using omp parallel as pulses_intersecting_box is shared between threads
+        pulsecount++;
+
+        // init several necessary variables before starting
+        int flag = 0;               //flag whether pulse crosses voxel grid or not
+        double tmin = 0;             //how far along the pulse direction we have to travel until we reach the voxel grid. based on the vector representation of a line: y = u + tmin*v (y,u and v are vectors)
+
+        vector<double> origin (3,0);
+        vector<double> direction (3,0);
+
+        // We are assuming that we do know the exact sensor position
+        origin.at(0) = sensor_y.at(i);
+        origin.at(1) = sensor_x.at(i);
+        origin.at(2) = sensor_z.at(i);
+
+        direction.at(0) = y.at(i) - origin.at(0);
+        direction.at(1) = x.at(i) - origin.at(1);
+        direction.at(2) = z.at(i) - origin.at(2);
+
+        // if direction vector is == 0 assign a very small number to overcome problems with division through 0 in later steps. TODO: Check if this value is small enough. This could be a problem especially with TLS data!
+        if (direction.at(0)==0) { direction.at(0) = numeric_limits<double>::min(); }
+        if (direction.at(1)==0) { direction.at(1) = numeric_limits<double>::min(); }
+        if (direction.at(2)==0) { direction.at(2) = numeric_limits<double>::min(); }
+
+        //check if pulse intersects voxel grid
+        rayBoxIntersection(origin, direction, vmin, vmax, flag, tmin);
+
+        if (flag==0) {
+            numNoGridIntersection++;
+            // pulse not relevant remove from pulse dataset
+            //it = this->pulsedataset.erase(it);
+            //cout << "The ray does not intersect the grid" << endl;
+        } else {
+            //cout << "The ray does intersect the grid" << endl;
+
+            numGridIntersection++;
+
+            pulses_intersecting_box.push_back(gps_time.at(i));
+        }
+
+        /*
+        #pragma omp critical -> TODO: this just does not work right! Find out why and decide whether we want to go down that route!
+        {
+            pulses_intersecting_box.insert(pulses_intersecting_box.end(), local_intersecting_pulses.begin(), local_intersecting_pulses.end());
+        }
+        */
+
+    }
+
+    // TODO: Add verbose flag!
+    /*
+    cout << "Number of pulses intersecting the grid: " << numGridIntersection << endl;
+    cout << "Number of pulses NOT intersecting the grid: " << numNoGridIntersection << endl;
+    */
+
+    // return pulses_intersecting_box vector
+    return pulses_intersecting_box; // this vector just includes the GPSTimes of the pulses intersecting the box.
 }
 
 

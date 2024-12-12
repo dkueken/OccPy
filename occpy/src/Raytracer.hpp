@@ -94,6 +94,7 @@ class Raytracer {
         vector<vector<vector<int > > >& getNocc();
         vector<vector<double > >& reportSensorShifts();
         vector<int >& getGridDimensions();
+        vector<double> getPulsesIntersectingBox(vector<double> x, vector<double> y, vector<double> z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time, vector<int> vmin, vector<int> vmax);
 
         void moveSensorPos2Collinearity();
 

@@ -5,6 +5,8 @@ __pycache__/**
 build/**/**
 occpy/src/build/**/**
 occpy/src/build/**
+data_local/**
+output*
 *.obj
 *.pyd
 raytr.cpp

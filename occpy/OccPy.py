@@ -18,6 +18,9 @@ from matplotlib.collections import PathCollection
 import matplotlib.lines as mlines
 import seaborn as sns
 
+from tqdm import tqdm
+from multiprocessing import Pool
+
 import time
 import os
 import glob
@@ -64,6 +67,137 @@ def lineplot_plusplus(orientation = "horizontal", **kwargs):
     line.set_ylabel(xlabel)
 
     return line
+
+def interpolate_traj(traj_time, traj_x, traj_y, traj_z, pts_gpstime):
+    f_x = interpolate.interp1d(traj_time, traj_x, kind='linear', fill_value="extrapolate")
+    sensor_x = f_x(pts_gpstime)
+    f_y = interpolate.interp1d(traj_time, traj_y, kind='linear', fill_value="extrapolate")
+    sensor_y = f_y(pts_gpstime)
+    f_z = interpolate.interp1d(traj_time, traj_z, kind='linear', fill_value="extrapolate")
+    sensor_z = f_z(pts_gpstime)
+
+    d = {'time': pts_gpstime, 'sensor_x': sensor_x, 'sensor_y': sensor_y, 'sensor_z': sensor_z}
+
+    df = pd.DataFrame(data=d)
+
+    return df
+
+def read_trajectory_file(path2traj, delimiter=" ", hdr_time='%time', hdr_x='x', hdr_y='y', hdr_z='z'):
+    """
+
+    :param path2traj:
+    :param delimiter:
+    :param hdr_time:
+    :param hdr_x:
+    :param hdr_y:
+    :param hdr_z:
+    :return:
+
+    defaults refer to the default trajectory template of the GeoSLAM ZebHorizon scanner
+    """
+    traj_in = pd.read_csv(path2traj, sep=delimiter)
+
+    d = {'time': traj_in[hdr_time], 'sensor_x': traj_in[hdr_x], 'sensor_y': traj_in[hdr_y],
+         'sensor_z': traj_in[hdr_z]}
+
+    traj = pd.DataFrame(data=d)
+
+    return traj # retunr trajectory file if necessary
+
+def read_sensorpos_file(path2senspos, delimiter=" ", hdr_scanpos_id='', hdr_x='', hdr_y='', hdr_z='', sens_pos_id_offset=0):
+    sens_pos_in = pd.read_csv(path2senspos, sep=delimiter)
+
+    d = {'ScanPos': sens_pos_in[hdr_scanpos_id]+sens_pos_id_offset,
+         'sensor_x': sens_pos_in[hdr_x], 'sensor_y': sens_pos_in[hdr_y], 'sensor_z': sens_pos_in[hdr_z]}
+
+    senspos = pd.DataFrame(data=d)
+
+    return senspos
+
+def filterPointsIntersectingBox(laz_in, laz_out, min_bound, max_bound,sensor_pos=None, traj_in=None, points_per_iter=100000):
+    """
+
+    :param laz_in:
+    :param laz_out:
+    :param sensor_pos: if not read in using OccPy function 'read_sensorpos_file', a pandas dataframe is expected
+    with the fields ['SensPos', 'sensor_x', 'sensor_y', 'sensor_z']
+    :param traj_in: if not read in using OccPy function 'read_trajectory_file', a pandas dataframe is expected with
+    the fields ['time', 'sensor_x', 'sensor_y']
+    :param min_bound: CAUTION: order is min_y, min_x, min_z! y-axis before x-axis!
+    :param max_bound: CAUTION: order is max_y, max_x, max_z! y-axis before x-axis!
+    :return:
+    """
+    pulses_intersecting = []
+    #TODO: check if data has already been loaded from an initial do_raytracing run (and pulse dataset is complete).
+    # If this is the case, the data does not need to be loaded and could be used directly
+    if traj_in is not None:
+        is_mobile = True
+        traj = traj_in
+    else:
+        is_mobile = False
+        sens_pos = sensor_pos
+
+    with laspy.open(laz_in) as file:
+        hdr = file.header
+
+        writer = laspy.open(laz_out, mode="w", header=hdr) # create output laz file
+
+        with tqdm(total=hdr.point_count, desc="Filtering points", unit="points") as pbar:
+            for points in file.chunk_iterator(points_per_iteration=points_per_iter):
+
+                # TODO: find another solution for this.
+                if np.max(
+                        points.return_number) == 0:  # a not very nice hack for the special case where return_number and number_of_returns are all 0 for Horizon measurements - TODO: figure out why!
+                    points.return_number[:] = 1
+                    points.number_of_returns[:] = 1
+
+                # we only need first returns
+                first_ret_ind = points.return_number == 1
+
+                gps_time = points.gps_time.copy()[first_ret_ind]
+                x = points.x.copy()[first_ret_ind]
+                y = points.y.copy()[first_ret_ind]
+                z = points.z.copy()[first_ret_ind]
+
+                if is_mobile:
+                    SensorPos = interpolate_traj(traj['time'], traj['sensor_x'],
+                                                      traj['sensor_y'],
+                                                      traj['sensor_z'], gps_time)
+
+                    time = SensorPos['time'].to_numpy()
+                    sensor_x = SensorPos['sensor_x'].to_numpy()
+                    sensor_y = SensorPos['sensor_y'].to_numpy()
+                    sensor_z = SensorPos['sensor_z'].to_numpy()
+
+                else:
+                    time = gps_time
+                    sensor_x = np.ones(time.shape) * sens_pos['sensor_x']
+                    sensor_y = np.ones(time.shape) * sens_pos['sensor_y']
+                    sensor_z = np.ones(time.shape) * sens_pos['sensor_z']
+
+                vmin = min_bound
+                vmax = max_bound
+
+
+                raytr = PyRaytracer()
+
+                GPSTimes_intersect = raytr.getPulsesIntersectingBox(x, y, z, sensor_x, sensor_y, sensor_z, time, vmin, vmax)
+                pulses_intersecting.extend(GPSTimes_intersect)
+                # print(GPSTimes_intersect)
+                del raytr # to free up some memory
+
+                pulses2take = np.isin(time, GPSTimes_intersect)
+
+
+
+                # write points with flag=True to new laz file
+                writer.write_points(points[pulses2take])
+
+                pbar.update(len(points))
+
+        writer.close()
+
+    return pulses_intersecting
 
 
 class OccPy:
@@ -140,39 +274,34 @@ class OccPy:
         self.RayTr.defineGrid(minBound, maxBound, self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz'],
                               self.vox_dim)
 
-    def read_trajectory_file(self, path2traj, delimiter=" ", hdr_time='%time', hdr_x='x', hdr_y='y', hdr_z='z'):
-        self.is_mobile = True
-        traj_in = pd.read_csv(path2traj, sep=delimiter)
+    def define_sensor_pos(self, path2file, is_mobile, single_return=None, delimiter=" ", hdr_time='%time', hdr_scanpos_id='', hdr_x='x', hdr_y='y', hdr_z='z', sens_pos_id_offset=0, str_idx_ScanPosID=0):
+        """
 
-        d = {'time': traj_in[hdr_time], 'sensor_x': traj_in[hdr_x], 'sensor_y': traj_in[hdr_y],
-             'sensor_z': traj_in[hdr_z]}
-
-        self.traj = pd.DataFrame(data=d)
-
-    def read_sensorpos_file(self, path2senspos, delimiter=" ", hdr_scanpos_id='', hdr_x='', hdr_y='', hdr_z='', sens_pos_id_offset=0, str_idx_ScanPosID=0, single_return=False):
-        self.is_mobile = False
-        sens_pos_in = pd.read_csv(path2senspos, sep=delimiter)
-
-        d = {'ScanPos': sens_pos_in[hdr_scanpos_id]+sens_pos_id_offset,
-             'sensor_x': sens_pos_in[hdr_x], 'sensor_y': sens_pos_in[hdr_y], 'sensor_z': sens_pos_in[hdr_z]}
-
-        self.senspos = pd.DataFrame(data=d)
-        self.scan_pos_id_stridx = str_idx_ScanPosID
+        :param path2file: [mandatory] path to csv file with sensor position information
+        :param is_mobile: [mandatory] True or False whether platform is mobile (MLS, ULS) or static (TLS)
+        :param single_return: [adviced] True or False whether data is single return or multi return data
+        :param delimiter: csv delimiter [default: " "]
+        :param hdr_time: column header for time (only needed for mobile acquisition)
+        :param hdr_scanpos_id: column header for scan pos id (only needed for static acquisitions -> equivalent to hdr_time in mobile acquisitions
+        :param hdr_x: column header for x coordinates [default 'x']
+        :param hdr_y: column header for y coordinates [default 'y']
+        :param hdr_z: column header for z coordinates [default 'z']
+        :param sens_pos_id_offset: Very specific use case where Scan Pos ID in position file does not correspond with Scan Pos ID in LAZ files and we need to add an offset
+        :param str_idx_ScanPosID: string index of where the scan position identifier is written in the laz file name TODO: find a better way to handle this!
+        :return:
+        """
+        self.is_mobile = is_mobile
         self.single_return = single_return
 
-    def interpolate_traj(self, traj_time, traj_x, traj_y, traj_z, pts_gpstime):
-        f_x = interpolate.interp1d(traj_time, traj_x, kind='linear', fill_value="extrapolate")
-        sensor_x = f_x(pts_gpstime)
-        f_y = interpolate.interp1d(traj_time, traj_y, kind='linear', fill_value="extrapolate")
-        sensor_y = f_y(pts_gpstime)
-        f_z = interpolate.interp1d(traj_time, traj_z, kind='linear', fill_value="extrapolate")
-        sensor_z = f_z(pts_gpstime)
+        if is_mobile: # case of mobile acquisitions (MLS, ULS)
+            self.traj = read_trajectory_file(path2traj=path2file, delimiter=delimiter, hdr_time=hdr_time, hdr_x=hdr_x, hdr_y=hdr_y, hdr_z = hdr_z)
+        else: # case of static acquisition (TLS)
+            self.senspos = read_sensorpos_file(path2senspos=path2file, delimiter=delimiter, hdr_scanpos_id=hdr_scanpos_id, hdr_x=hdr_x, hdr_y=hdr_y, hdr_z=hdr_z, sens_pos_id_offset=sens_pos_id_offset)
+            self.scan_pos_id_stridx = str_idx_ScanPosID
 
-        d = {'time': pts_gpstime, 'sensor_x': sensor_x, 'sensor_y': sensor_y, 'sensor_z': sensor_z}
 
-        df = pd.DataFrame(data=d)
 
-        return df
+
 
     def do_raytracing(self):
         run_raytraycing_after_loading = False
@@ -196,11 +325,27 @@ class OccPy:
                 scanpos_Y = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_y'].values[0]
                 scanpos_Z = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_z'].values[0]
 
+
+
                 # read in laz file
                 tic = time.time()
                 with laspy.open(f) as file:
+
                     count = 0
                     for points in file.chunk_iterator(self.points_per_iter):
+
+                        # if self.single_return is not set, check data to find out if there are multiple returns stored per pulse
+                        if self.single_return == None:
+                            print(
+                                f"TIPP: it was not specified if the point cloud stores single return data. to avoid any "
+                                f"issues where there are only single return pulses in the first chunk, put there are "
+                                f"multi return pulses in the whole dataset, please set the single_return variable within "
+                                f"the define_sensor_pos function")
+                            max_ret_num = np.max(points.return_number)
+                            if max_ret_num > 1:
+                                self.single_return = False
+                            else:
+                                self.single_return = True
 
                         if self.single_return:
                             sorted = True
@@ -302,73 +447,74 @@ class OccPy:
         else: # if input is a single laz file
             with laspy.open(self.laz_in_f) as file:
                 count = 0
-                for points in file.chunk_iterator(self.points_per_iter):
-                    print("{:.2f}%".format(count / file.header.point_count * 100))
+                with tqdm(total=file.header.point_count, desc="Filtering points", unit="points") as pbar:
+                    for points in file.chunk_iterator(points_per_iteration=self.points_per_iter):
 
-                    # For performance we need to use copy
-                    # so that the underlying arrays are contiguous
-                    x = points.x.copy()
-                    y = points.y.copy()
-                    z = points.z.copy()
-                    gps_time = points.gps_time.copy()
-                    return_number = points.return_number.copy()
-                    number_of_returns = points.number_of_returns.copy()
+                        # For performance we need to use copy
+                        # so that the underlying arrays are contiguous
+                        x = points.x.copy()
+                        y = points.y.copy()
+                        z = points.z.copy()
+                        gps_time = points.gps_time.copy()
+                        return_number = points.return_number.copy()
+                        number_of_returns = points.number_of_returns.copy()
 
-                    if np.max(
-                            return_number) == 0:  # a not very nice hack for the special case where return_number and number_of_returns are all 0 for Horizon measurements - TODO: figure out why!
-                        return_number[:] = 1
-                        number_of_returns[:] = 1
+                        if np.max(
+                                return_number) == 0:  # a not very nice hack for the special case where return_number and number_of_returns are all 0 for Horizon measurements - TODO: figure out why!
+                            return_number[:] = 1
+                            number_of_returns[:] = 1
 
-                    # for the case of mobile acquisitions, inerpolate trajectory for gps_time
-                    if self.is_mobile:
-                        SensorPos = self.interpolate_traj(self.traj['time'], self.traj['sensor_x'], self.traj['sensor_y'],
-                                                          self.traj['sensor_z'], gps_time)
-                    # call interpolate function for trajectory to extract sensor position for each gps_time
-
-
-
-                    if np.max(number_of_returns) == 1 or np.max(return_number) == 1:
-                        run_raytraycing_after_loading = False
-                        self.RayTr.doRaytracing_singleReturnPulses(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
-                                                                   SensorPos['sensor_z'], gps_time)
-                    else:
-                        # check if gps_time is sorted
-                        if count == 0:  # only check sort state in the first iteration of the for loop
-                            if not is_sorted(gps_time):
-                                print(
-                                    f"!!!!! input laz file is not sorted along gps_time. The algorithm will still run. However, the "
-                                    f"performance will be greatly decreased as the entire content of the laz file has to be read into "
-                                    f"the system memory. If you have multi return data, consider sorting your laz data first, e.g. using "
-                                    f"LASTools lassort: lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v !!!!")
-                                sorted = False
-                                run_raytraycing_after_loading=True
+                        # for the case of mobile acquisitions, inerpolate trajectory for gps_time
+                        if self.is_mobile:
+                            SensorPos = interpolate_traj(self.traj['time'], self.traj['sensor_x'], self.traj['sensor_y'],
+                                                              self.traj['sensor_z'], gps_time)
+                        # call interpolate function for trajectory to extract sensor position for each gps_time
 
 
-                            else:
-                                sorted = True
-                                run_raytraycing_after_loading=False
 
-                        self.RayTr.addPointData(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
-                                                SensorPos['sensor_z'],
-                                                gps_time, return_number, number_of_returns)
+                        if np.max(number_of_returns) == 1 or np.max(return_number) == 1:
+                            run_raytraycing_after_loading = False
+                            self.RayTr.doRaytracing_singleReturnPulses(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
+                                                                       SensorPos['sensor_z'], gps_time)
+                        else:
+                            # check if gps_time is sorted
+                            if count == 0:  # only check sort state in the first iteration of the for loop
+                                if not is_sorted(gps_time):
+                                    print(
+                                        f"!!!!! input laz file is not sorted along gps_time. The algorithm will still run. However, the "
+                                        f"performance will be greatly decreased as the entire content of the laz file has to be read into "
+                                        f"the system memory. If you have multi return data, consider sorting your laz data first, e.g. using "
+                                        f"LASTools lassort: lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v !!!!")
+                                    sorted = False
+                                    run_raytraycing_after_loading=True
 
-                        if sorted:  # only if pulses are sorted run raytracing now. Otherwise we have to read in the entire dataset first!
-                            # Get report on pulse dataset - comment this out once everythin is working or TODO: add a verbose flag!
-                            # self.RayTr.getPulseDatasetReport()
 
-                            # run raytracing on added points
-                            # print("Do raytracing with stored pulses")
-                            tic_r = time.time()
-                            self.RayTr.doRaytracing()
-                            toc_r = time.time()
-                            # print("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
+                                else:
+                                    sorted = True
+                                    run_raytraycing_after_loading=False
 
-                            self.RayTr.clearPulseDataset() # clear out data that have been traced.
+                            self.RayTr.addPointData(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
+                                                    SensorPos['sensor_z'],
+                                                    gps_time, return_number, number_of_returns)
 
-                            # Check if traversed pulses have been deleted from map - comment this out once everything is working or TODO: add a verbose flag!
-                            # self.RayTr.getPulseDatasetReport()
+                            if sorted:  # only if pulses are sorted run raytracing now. Otherwise we have to read in the entire dataset first!
+                                # Get report on pulse dataset - comment this out once everythin is working or TODO: add a verbose flag!
+                                # self.RayTr.getPulseDatasetReport()
 
-                    count = count + len(gps_time)
+                                # run raytracing on added points
+                                # print("Do raytracing with stored pulses")
+                                tic_r = time.time()
+                                self.RayTr.doRaytracing()
+                                toc_r = time.time()
+                                # print("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
+
+                                self.RayTr.clearPulseDataset() # clear out data that have been traced.
+
+                                # Check if traversed pulses have been deleted from map - comment this out once everything is working or TODO: add a verbose flag!
+                                # self.RayTr.getPulseDatasetReport()
+
+                        count = count + len(gps_time)
+                        pbar.update(len(points))
 
         if run_raytraycing_after_loading:
             self.RayTr.doRaytracing()
