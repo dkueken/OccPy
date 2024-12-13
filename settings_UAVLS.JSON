@@ -1,5 +1,5 @@
 {
-	"root_folder": ""path/to/your/OccPy/folder/",
+	"root_folder": "path/to/your/OccPy/folder/",
     "laz_in": "data/UAVLS/Occpy_UAVLS_test_data.laz",
     "tif_in": {
     	"DTM": "data/DTM_FP05_swissAlti3D_10cm.tif",
