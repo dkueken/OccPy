@@ -6,7 +6,8 @@ build/**/**
 occpy/src/build/**/**
 occpy/src/build/**
 data_local/**
-output*
+output/
+output/**
 *.obj
 *.pyd
 raytr.cpp
