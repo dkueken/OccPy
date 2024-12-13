@@ -5,6 +5,9 @@ import laspy
 import time
 from BOVwriter import writeBOV
 
+# adding the path to the src folder in case raytr module cannot be found
+import sys
+sys.path.append(r"src")
 from raytr import PyRaytracer
 
 is_sorted = lambda a: np.all(a[:-1] <= a[1:])

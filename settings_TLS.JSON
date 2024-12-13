@@ -1,5 +1,5 @@
 {
-	"root_folder": "/home/william/Documents/GitHub/OccPy/",
+	"root_folder": "path/to/your/OccPy/folder/",
     "laz_in": "data/TLS/LAZ/",
     "tif_in": {
     	"DTM": "data/DTM_FP05_swissAlti3D_10cm.tif",

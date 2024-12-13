@@ -1,30 +1,32 @@
 from occpy.OccPy import OccPy
 from occpy import TerrainModel
-import argparse
 import os
+import argparse
 from pathlib import Path
+import json
 
 import time
-"""
+
 parser = argparse.ArgumentParser(description="OccPy")
-parser.add_argument('root_folder', type=str, help="Path to the folder containing relevant files")
+parser.add_argument('config_file', help="JSON configuration file of the OccPy command")
 args = parser.parse_args()
 
-root_folder = Path(args.root_folder)
-"""
-root_folder = Path(r"C:\Users\Kueken\dev\occPy\data_local\MLS")
+def load_config(config_file):
+    with open(config_file, 'r') as file:
+        return json.load(file)
 
-test = OccPy(laz_in= os.path.join(root_folder, "Occpy_MLS_test_data_FP05_unfiltered.laz"),
-             out_dir=os.path.join(str(root_folder.parent.parent), "output"),
-             vox_dim=0.1,
-             lower_threshold=1,
-             points_per_iter=1000000,
-             plot_dim=[2676541,
-                       1246160,
-                       540,
-                       2676591,
-                       1246210,
-                       615])
+
+config = load_config(args.config_file)
+root_folder = config['root_folder']
+
+
+test = OccPy(laz_in=f"{root_folder}{config['laz_in']}",
+             out_dir=f"{root_folder}{config['out_dir']}",
+             vox_dim=config['vox_dim'],
+             lower_threshold=config['lower_threshold'],
+             points_per_iter=config['points_per_iter'],
+             plot_dim=config['plot_dim'],
+             )
 
 test.define_sensor_pos(path2file=os.path.join(root_folder, "OccPy_MLS_test_data_FP05_trajectory.txt"),
                        is_mobile=True,
@@ -35,7 +37,6 @@ test.define_sensor_pos(path2file=os.path.join(root_folder, "OccPy_MLS_test_data_
                        hdr_y='y',
                        hdr_z = 'z')
 
-
 tic = time.time()
 test.do_raytracing()
 toc = time.time()
@@ -44,8 +45,8 @@ print(f"Elapsed time: {toc-tic} seconds")
 #test.save_raytracing_output()
 
 test.normalize_occlusion_output(input_folder=test.out_dir,
-                                dtm_file=os.path.join(str(root_folder.parent), "DTM_FP05_swissAlti3D_10cm.tif"),
-                                dsm_file=os.path.join(str(root_folder.parent), "DSM_FP05_swissSurface3D_10cm.tif"))
+                                dtm_file=f"{root_folder}{config['tif_in']['DTM']}",
+                                dsm_file=f"{root_folder}{config['tif_in']['DSM']}")
 
 # Get some occlusion statistics
 print(f"Total canopy volume of the plot: {test.TotalVolume * (test.vox_dim**3)} m3")
