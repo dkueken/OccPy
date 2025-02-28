@@ -20,15 +20,15 @@ config = load_config(args.config_file)
 root_folder = config['root_folder']
 
 
-test = OccPy(laz_in=f"{root_folder}{config['laz_in']}",
-             out_dir=f"{root_folder}{config['out_dir']}",
+test = OccPy(laz_in=f"{config['laz_in']}",
+             out_dir=f"{config['out_dir']}",
              vox_dim=config['vox_dim'],
              lower_threshold=config['lower_threshold'],
              points_per_iter=config['points_per_iter'],
              plot_dim=config['plot_dim'],
              )
 
-test.define_sensor_pos(path2file=os.path.join(root_folder, "OccPy_MLS_test_data_FP05_trajectory.txt"),
+test.define_sensor_pos(path2file=config['ScanPos'],
                        is_mobile=True,
                        single_return=True,
                        delimiter=" ",
@@ -45,8 +45,8 @@ print(f"Elapsed time: {toc-tic} seconds")
 #test.save_raytracing_output()
 
 test.normalize_occlusion_output(input_folder=test.out_dir,
-                                dtm_file=f"{root_folder}{config['tif_in']['DTM']}",
-                                dsm_file=f"{root_folder}{config['tif_in']['DSM']}")
+                                dtm_file=f"{config['tif_in']['DTM']}",
+                                dsm_file=f"{config['tif_in']['DSM']}")
 
 # Get some occlusion statistics
 print(f"Total canopy volume of the plot: {test.TotalVolume * (test.vox_dim**3)} m3")

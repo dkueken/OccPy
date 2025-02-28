@@ -1,14 +1,14 @@
 {
 	"root_folder": "path/to/your/OccPy/folder/",
-    "laz_in": "data/MLS/Occpy_MLS_test_data.laz",
+    "laz_in": "data_local/MLS/OccPy_MLS_test_data_FP05_unfiltered.laz",
     "tif_in": {
     	"DTM": "data/DTM_FP05_swissAlti3D_10cm.tif",
     	"DSM": "data/DSM_FP05_swissSurface3D_10cm.tif"},
     "out_dir": "output/",
     "vox_dim": 0.1,
     "lower_threshold": 1,
-    "points_per_iter": 10000000,
+    "points_per_iter": 1000000,
     "plot_dim": [2676541, 1246160, 540, 2676591, 1246210, 615],
-    "ScanPos": "data/MLS/MLS_Scan_Positions.txt",
+    "ScanPos": "data_local/MLS/OccPy_MLS_test_data_FP05_trajectory.txt",
     "output_voxels": false
 }

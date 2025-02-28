@@ -118,6 +118,12 @@ def read_sensorpos_file(path2senspos, delimiter=" ", hdr_scanpos_id='', hdr_x=''
 
 def filterPointsIntersectingBox(laz_in, laz_out, min_bound, max_bound,sensor_pos=None, traj_in=None, points_per_iter=100000):
     """
+    filterPointsIntersectingBox filters points which pulses intersect the box defined by min_bound and max_bound.
+    TODO: This filter does not work as intended for solid state scanners such as GeoSLAM ZebHorizon or FARO ORBIS. This
+    is because GPSTime is not a unique identifier for pulses anymore (multiple pulses are sent out at the exact same GPSTime).
+    If needed, implement a method that also accounts for this. To accomplish this, not only GPSTime but also shooting
+    direction of the pulses should be considered. This is actually already performed on the C++ side but should be passed
+    to the python side. TODO: implement not only passing GPSTimes but also a flag if the pulse actually intersect the box
 
     :param laz_in:
     :param laz_out:
