@@ -27,21 +27,21 @@ extensions = [
                            "Raytracer.cpp",
                            "Pulse.cpp",
                            "Echo.cpp"
-                       ],
+                       ],   
               libraries=[],  # refers to "liblas.2.3.0.dylib"
               language="c++",  # remove this if C and not C++
-              include_dirs=["C:/Users/kueken/Miniconda3/envs/occPy/Library/include/"],
+              include_dirs=["/home/wcherlet/miniconda3/envs/occPy/include"],
               # ["C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/include/"],
               # include_dirs=["/usr/local/Cellar/boost/1.75.0_2/include", "/usr/local/Cellar/pdal/2.2.0_3/include", "/usr/local/Cellar/laszip/3.4.3/include"],
-              library_dirs=["C:/Users/kueken/Miniconda3/envs/occPy/Library/lib"],
+              library_dirs=["/home/wcherlet/miniconda3/envs/occPy/lib"],
               # ["C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/lib"],
               #library_dirs=["/usr/local/Cellar/pdal/2.2.0_3/lib"],
               requires=['Cython'],
               #extra_compile_args=["-ferror-limit=0"]
               extra_compile_args=["-std=c++11"],
               #extra_compile_args=["-fopenmp", "-O3"],  
-              extra_compile_args=['-openmp'],  #Windows only
-              extra_link_args=['-openmp']  #Windows only
+            #   extra_compile_args=['-openmp'],  #Windows only
+            #   extra_link_args=['-openmp']  #Windows only
               #extra_link_args=["L.C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/lib/pdalcpp"]
               #, "-DSOME_DEFINE_OPT","-L./some/extra/dependency/dir/"]
               )
