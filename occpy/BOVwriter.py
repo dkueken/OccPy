@@ -1,7 +1,7 @@
 from array import array
 
 def writeBOV(outDir, variableName, BOVname, formatstring, ndarray):
-    dataSizeY = len(ndarray);
+    dataSizeY = len(ndarray)
     dataSizeX = len(ndarray[0])
     dataSizeZ = len(ndarray[0][0])
 

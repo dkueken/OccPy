@@ -21,5 +21,4 @@ riegl_tests/
 scripts/
 test_out/
 occpy.egg-info
-*.so
 data/RIEGL_TLS
