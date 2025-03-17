@@ -29,6 +29,7 @@ for root, dirs, files in os.walk("", topdown=False):
 # exact paths platform-dependent, see below
 env_path = sys.prefix
 
+# set source paths
 src_path = os.path.abspath("src")
 sources=[os.path.join(src_path, "raytr.pyx"),
                         os.path.join(src_path, "Raytracer.cpp"),
@@ -208,11 +209,11 @@ cxxFlags = getExtraCXXFlags()
 # External modules
 pre_riegl_ext_len = len(extensions)
 ext_cy = cythonize(extensions)
-# addRieglRXPDriver(ext_cy, cxxFlags)
-# addRieglRDBDriver(ext_cy, cxxFlags)
+addRieglRXPDriver(ext_cy, cxxFlags)
+addRieglRDBDriver(ext_cy, cxxFlags)
 
-# if len(extensions) == pre_riegl_ext_len:
-#     print('RiVLib and/or RDBLib not found. RIEGL I/O will not be supported.')
+if len(ext_cy) == pre_riegl_ext_len:
+    print('RiVLib and/or RDBLib not found. RIEGL I/O will not be supported.')
 
 setup(
     name = 'occpy',

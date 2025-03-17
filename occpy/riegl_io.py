@@ -26,8 +26,6 @@ import json
 import numpy as np
 from numba import njit
 
-from . import PRR_MAX_TARGETS 
-
 
 class RDBFile:
     def __init__(self, filename, transform_file=None, pose_file=None, query_str=None):
