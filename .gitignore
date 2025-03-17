@@ -17,3 +17,7 @@ OcclusionMapping_Holstein.py
 *.code-workspace
 .vscode
 *__pycache__*
+riegl_tests/
+scripts/
+test_out/
+src/
