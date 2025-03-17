@@ -15,8 +15,6 @@ from distutils.extension import Extension
 from Cython.Distutils import build_ext
 from Cython.Build import cythonize
 
-assert os.path.exists(os.path.join("src", "Raytracer.cpp")), "Raytracer.cpp is missing!"
-
 # clean previous build
 for root, dirs, files in os.walk("", topdown=False):
     for name in files:
@@ -31,23 +29,21 @@ for root, dirs, files in os.walk("", topdown=False):
 # exact paths platform-dependent, see below
 env_path = sys.prefix
 
+src_path = os.path.abspath("src")
+sources=[os.path.join(src_path, "raytr.pyx"),
+                        os.path.join(src_path, "Raytracer.cpp"),
+                        os.path.join(src_path, "Pulse.cpp"),
+                        os.path.join(src_path, "Echo.cpp")
+                        ]
+
 # build "raytr.so" python extension to be added to "PYTHONPATH" afterwards...
 if platform.system() == 'Linux':
     include_path = os.path.join(env_path, "include")
     library_path = os.path.join(env_path, "lib")
-    src_path = os.path.abspath("src")
-
-    print(f"src_path: {src_path}")
-    print(f"Raytracer.cpp exists: {os.path.exists(os.path.join(src_path, 'Raytracer.cpp'))}")
-    print(f"Sources: {[os.path.join(src_path, s) for s in ['raytr.pyx', 'Raytracer.cpp', 'Pulse.cpp', 'Echo.cpp']]}")
 
     extensions = [
         Extension("raytr",
-                sources=[os.path.join(src_path, "raytr.pyx"),
-                        os.path.join(src_path, "Raytracer.cpp"),
-                        os.path.join(src_path, "Pulse.cpp"),
-                        os.path.join(src_path, "Echo.cpp")
-                        ],
+                sources=sources,
                 libraries=[],  # refers to "liblas.2.3.0.dylib"
                 language="c++",  # remove this if C and not C++
                 include_dirs=[include_path],
@@ -60,11 +56,7 @@ else:
     library_path = os.path.join(env_path, "Library/lib")
     extensions = [
         Extension("raytr",
-                sources=["src/raytr.pyx",
-                            "src/Raytracer.cpp",
-                            "src/Pulse.cpp",
-                            "src/Echo.cpp"
-                        ],
+                sources=sources,
                 libraries=[],  # refers to "liblas.2.3.0.dylib"
                 language="c++",  # remove this if C and not C++
                 include_dirs=[include_path],
@@ -76,7 +68,6 @@ else:
                 requires=['Cython'],
                 #extra_compile_args=["-ferror-limit=0"]
                 #extra_compile_args=["-std=c++11"],
-                #requires=['Cython'],
                 #extra_compile_args=["-fopenmp", "-O3"],
                 extra_compile_args=['-openmp'],  #Windows only
                 extra_link_args=['-openmp']  #Windows only

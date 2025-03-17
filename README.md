@@ -80,6 +80,13 @@ pip install laspy[laszip]
 ```
 
 ### Compile the c++ side of the OccPy tool
+
+Compile c++ side and install occpy package using:
+pip install -v .
+
+There will probably appear several warning messages. These can mostly be ignored (TODO: @kueken: check on these warnings!)
+If compilation was successful, the tool can be imported using 
+
 Navigate to the src folder where setup.py is located
 ```commandline
 cd occpy/src
@@ -88,8 +95,7 @@ Then compile the code using the following command:
 ```commandline
 python setup.py build_ext --inplace
 ```
-There will probably appear several warning messages. These can mostly be ignored (TODO: @kueken: check on these warnings!)
-If compilation was successful, the tool should be ready to use. 
+ 
 However, if the compiled raytr file is not in the same directory as your python code calling the raytracer, you should add the following lines to the beginning of your python script
 ```python
 import sys

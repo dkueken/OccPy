@@ -27,11 +27,7 @@ import time
 import os
 import glob
 
-# we need to add the path to the src folder so raytr module can be found
-import sys
-
-sys.path.append(r"./src")  # TODO: check if src folder should be better placed into occpy package
-from occpy.src.raytr import PyRaytracer
+from raytr import PyRaytracer
 from occpy.TerrainModel import TerrainModel
 
 is_sorted = lambda a: np.all(a[:-1] <= a[1:])
