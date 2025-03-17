@@ -1,0 +1,2 @@
+OCCPY_VERSION = '0.1'
+__version__ = OCCPY_VERSION

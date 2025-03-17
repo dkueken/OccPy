@@ -1,5 +1,4 @@
 # distutils: language = c++
-# distutils: sources = Raytracer.cpp
 
 # Cython interface file for wrapping the object
 #

@@ -8,11 +8,14 @@ import numpy
 import platform
 import shutil
 import ctypes
+import occpy
 
 from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Distutils import build_ext
 from Cython.Build import cythonize
+
+assert os.path.exists(os.path.join("src", "Raytracer.cpp")), "Raytracer.cpp is missing!"
 
 # clean previous build
 for root, dirs, files in os.walk("", topdown=False):
@@ -25,33 +28,42 @@ for root, dirs, files in os.walk("", topdown=False):
 
 
 # Removes hardcoding by using Environment path to form the relevant directory paths. 
+# exact paths platform-dependent, see below
 env_path = sys.prefix
-include_path = os.path.join(env_path, "Library/include")
-library_path = os.path.join(env_path, "Library/lib")
 
 # build "raytr.so" python extension to be added to "PYTHONPATH" afterwards...
 if platform.system() == 'Linux':
+    include_path = os.path.join(env_path, "include")
+    library_path = os.path.join(env_path, "lib")
+    src_path = os.path.abspath("src")
+
+    print(f"src_path: {src_path}")
+    print(f"Raytracer.cpp exists: {os.path.exists(os.path.join(src_path, 'Raytracer.cpp'))}")
+    print(f"Sources: {[os.path.join(src_path, s) for s in ['raytr.pyx', 'Raytracer.cpp', 'Pulse.cpp', 'Echo.cpp']]}")
+
     extensions = [
         Extension("raytr",
-                sources=["raytr.pyx",
-                            "Raytracer.cpp",
-                            "Pulse.cpp",
-                            "Echo.cpp"
+                sources=[os.path.join(src_path, "raytr.pyx"),
+                        os.path.join(src_path, "Raytracer.cpp"),
+                        os.path.join(src_path, "Pulse.cpp"),
+                        os.path.join(src_path, "Echo.cpp")
                         ],
                 libraries=[],  # refers to "liblas.2.3.0.dylib"
                 language="c++",  # remove this if C and not C++
-                include_dirs=["/home/william/miniconda3/envs/occPy/include/"],
-                library_dirs=["/home/william/miniconda3/envs/occPy/lib/"],
+                include_dirs=[include_path],
+                library_dirs=[library_path],
                 requires=['Cython']
                 )
     ]
 else:
+    include_path = os.path.join(env_path, "Library/include")
+    library_path = os.path.join(env_path, "Library/lib")
     extensions = [
         Extension("raytr",
-                sources=["raytr.pyx",
-                            "Raytracer.cpp",
-                            "Pulse.cpp",
-                            "Echo.cpp"
+                sources=["src/raytr.pyx",
+                            "src/Raytracer.cpp",
+                            "src/Pulse.cpp",
+                            "src/Echo.cpp"
                         ],
                 libraries=[],  # refers to "liblas.2.3.0.dylib"
                 language="c++",  # remove this if C and not C++
@@ -113,7 +125,7 @@ def addRieglRXPDriver(extModules, cxxFlags):
 
         rieglModule = Extension(name='riegl_rxp', 
                 define_macros=[NUMPY_MACROS],
-                sources=['riegl_io/riegl_rxp.cpp', 'riegl_io/pylidar.c'],
+                sources=['src/riegl_io/riegl_rxp.cpp', 'src/riegl_io/pylidar.c'],
                 include_dirs=[os.path.join(rivlibRoot, 'include'), numpy.get_include()],
                 extra_compile_args=cxxFlags,
                 libraries=rivlibs,
@@ -144,7 +156,7 @@ def addRieglRDBDriver(extModules, cxxFlags):
 
         rieglRDBModule = Extension(name='riegl_rdb',
                 define_macros=defines,
-                sources=['riegl_io/riegl_rdb.cpp', 'riegl_io/pylidar.c'],
+                sources=['src/riegl_io/riegl_rdb.cpp', 'src/riegl_io/pylidar.c'],
                 include_dirs=[os.path.join(rdblibRoot, 'interface', 'c'), numpy.get_include()],
                 extra_compile_args=cxxFlags,
                 libraries=[rdbLibName],
@@ -204,15 +216,18 @@ cxxFlags = getExtraCXXFlags()
 
 # External modules
 pre_riegl_ext_len = len(extensions)
-addRieglRXPDriver(extensions, cxxFlags)
-addRieglRDBDriver(extensions, cxxFlags)
+ext_cy = cythonize(extensions)
+# addRieglRXPDriver(ext_cy, cxxFlags)
+# addRieglRDBDriver(ext_cy, cxxFlags)
 
-if len(extensions) == pre_riegl_ext_len:
-    print('RiVLib and/or RDBLib not found. RIEGL I/O will not be supported.')
+# if len(extensions) == pre_riegl_ext_len:
+#     print('RiVLib and/or RDBLib not found. RIEGL I/O will not be supported.')
 
 setup(
-    name = 'raytr',
+    name = 'occpy',
+    version= occpy.__version__,
+    packages = ["occpy"],
     cmdclass = {'build_ext': build_ext},
-    ext_modules = cythonize(extensions),
+    ext_modules = ext_cy,
     install_requires=['Cython', 'numpy']
 )

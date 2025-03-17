@@ -20,4 +20,5 @@ OcclusionMapping_Holstein.py
 riegl_tests/
 scripts/
 test_out/
-src/
+occpy.egg-info
+*.so
