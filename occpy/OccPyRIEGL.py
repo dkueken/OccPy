@@ -1,6 +1,7 @@
 import os
 import glob
 import logging
+import cv2
 
 import pandas as pd
 import numpy as np
@@ -46,13 +47,17 @@ class OccPyRIEGL:
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
-        # ---
+
+        # --- prepare input
+
+        self.prepare_input()
+
+        # --- init dimensions and raytracer
 
         # TODO: TEMP: read csv with scan positions
         if csv_positions is not None:
             self.csv_positions = csv_positions
 
-        self.prepare_input()
 
         # TODO: TEST
         # if self.auto_dim:
@@ -85,11 +90,18 @@ class OccPyRIEGL:
                               self.vox_dim)
 
     def prepare_input(self):
-        # TODO: test rdbx reading and SOP reading
+
         # get all rdbx
         self.rdbx_scans = {}
         self.scan_pos_mapping = {}
-        for folder in glob.glob(os.path.join(self.riscan_folder, "project.rdb", "SCANS", "**")):
+
+        rdbx_scan_list = glob.glob(os.path.join(self.riscan_folder, "project.rdb", "SCANS", "**"))
+        if len(rdbx_scan_list) == 0:
+            self.logger.error(f"No rdbx files found in riscan folder {self.riscan_folder}")
+            self.logger.debug(f'path checked: {os.path.join(self.riscan_folder, "project.rdb", "SCANS", "**")}')
+            os._exit(1)
+
+        for folder in rdbx_scan_list:
             folder_name = os.path.basename(folder)
             scan_pos_base = folder_name[:10]
             if scan_pos_base != folder_name:
@@ -137,7 +149,6 @@ class OccPyRIEGL:
                 self.logger.debug(f"Path checked: {os.path.join(self.riscan_folder, f'{scan_pos_base}.DAT')}")
             self.transform_files[scan_pos_name] = transform_file[0]
 
-
         # get rxp's and optionally previews
         self.rxp_scans = {}
         if self.model_empty_pulses:
@@ -171,6 +182,88 @@ class OccPyRIEGL:
 
                 self.png_scans[scan_pos_base] = png_file
 
+    def rdbx_rxp_to_df(self, rdbx, rxp):
+        columns_rxp = ["beam_origin_x", "beam_origin_y", "beam_origin_z", "beam_direction_x", "beam_direction_y", "beam_direction_z", "scanline", "scanline_idx"]
+        subset_rxp = {k: rxp.pulses[k] for k in columns_rxp}
+        df_rxp = pd.DataFrame.from_dict(subset_rxp)
+
+        columns_rdbx = ["x", "y", "z", "scanline", "scanline_idx", "reflectance"]
+        subset_rdbx = {k: rdbx.points[k] for k in columns_rdbx}
+        df_rdbx = pd.DataFrame.from_dict(subset_rdbx)
+
+        min_scanline = df_rdbx[["scanline"]].to_numpy().min()
+        if min_scanline < -1:
+            # scanline in rdbx is in reverse (not sure if this is due to rotation of scanner or just bug)
+            # shift (for vis)
+            df_rdbx[["scanline"]] = df_rdbx[["scanline"]] + abs(df_rdbx[["scanline"]].min())
+            max_scanline = df_rdbx[["scanline"]].to_numpy().max()
+            # then invert rxp scanline + shift
+            df_rxp[["scanline"]] = df_rxp[["scanline"]]*(-1)
+            df_rxp[["scanline"]] = df_rxp[["scanline"]] + max_scanline
+
+            if df_rxp[["scanline"]].to_numpy().max() > df_rdbx[["scanline"]].to_numpy().max():
+                # drop last column
+                df_rxp.drop(df_rxp.loc[df_rxp['scanline'] > df_rdbx["scanline"].to_numpy().max()].index, inplace=True)
+
+        return df_rdbx, df_rxp
+
+    def merge_df_rdbx_rxp(self, df_rdbx, df_rxp):
+        merged_df = df_rxp.merge(df_rdbx, how="left", on=["scanline", "scanline_idx"])
+
+        na_mask = merged_df["reflectance"].isna()
+        point_df = merged_df[~na_mask]
+        empty_pulse_df = merged_df[na_mask]
+
+        # for points, keep x,y,z, beam_origin and reflectance
+        point_df = point_df.drop(["timestamp_x", "timestamp_y", "scanline", "scanline_idx", "beam_direction_x", "beam_direction_y", "beam_direction_z"], axis=1)
+        # for empty pulses, just keep beam_origin and beam_direction
+        empty_pulse_df = empty_pulse_df.drop(["x", "y", "z", "timestamp_x", "timestamp_y", "reflectance"], axis=1)
+
+        return point_df, empty_pulse_df
+
+    def mask_empty_pulses_preview(self, df_empty, preview_png, max_scanline_idx, max_scanline):
+        image = cv2.imread(preview_png)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert to RGB
+
+        blue_lower = np.array([0, 0, 255])
+        blue_upper = np.array([0, 0, 255])
+
+        blue_mask = cv2.inRange(image, blue_lower, blue_upper)
+        blue_mask = blue_mask > 0
+
+        h,w = blue_mask.shape
+
+        scanline_idx_mask_idxs, scanline_mask_idxs = blue_mask.nonzero()
+
+        h_scale = (max_scanline_idx+1)/h
+        w_scale= (max_scanline+1)/w
+
+        scanline_idx_lower_h = np.ceil(scanline_idx_mask_idxs*h_scale).astype(int)
+        scanline_idx_upper_h = np.floor((scanline_idx_mask_idxs+1)*h_scale).astype(int)
+        scanline_lower_h = np.ceil(scanline_mask_idxs*w_scale).astype(int)
+        scanline_upper_h = np.floor((scanline_mask_idxs+1)*w_scale).astype(int)
+
+        img_upscaled_manual = np.zeros(shape=(max_scanline_idx+1, max_scanline+1), dtype=bool)
+
+        for i in range(len(scanline_lower_h)):
+            img_upscaled_manual[scanline_idx_lower_h[i]:scanline_idx_upper_h[i], scanline_lower_h[i]:scanline_upper_h[i]] = 1
+
+        # filter empty pulses df
+        mask = np.any(
+            (df_empty["scanline"].values[:, None] >= scanline_lower_h) & 
+            (df_empty["scanline"].values[:, None] <= scanline_upper_h) & 
+            (df_empty["scanline_idx"].values[:, None] >= scanline_idx_lower_h) & 
+            (df_empty["scanline_idx"].values[:, None] <= scanline_idx_upper_h), 
+            axis=1
+        )
+
+        # Apply the mask to keep only rows that match
+        df_filtered = df_empty[mask]
+
+        # TODO: debug: save fig of mask to debug folder
+
+        return df_filtered
+
     def do_raytracing(self):
 
         # TODO: implement raytracing similar to occpy class
@@ -192,9 +285,30 @@ class OccPyRIEGL:
 
             self.logger.info(f"Processing {scan}")
 
+            rdbx = riegl_io.RDBFile(self.rdbx_scans[scan], self.transform_files[scan])
+            max_scanline = rdbx.maxc
+            max_scanline_idx = rdbx.maxr
 
+            if scan in self.rxp_scans:
+                rxp = riegl_io.RXPFile(self.rxp_scans[scan], self.transform_files[scan])
+                # TODO: model empty pulses
+            else:
+                self.logger.warning(f"RXP not found for pos {scan}, skipping.")
+                continue
 
-            # RDBX_file = riegl_io.RDBFile()
+            df_rdbx, df_rxp = self.rdbx_rxp_to_df(rdbx, rxp)
+
+            point_df, empty_pulse_df = self.merge_df_rdbx_rxp(df_rdbx, df_rxp)
+
+            if self.model_empty_pulses:
+                if scan not in self.png_scans:
+                    self.logger.error(f"Model empty pulses on but scan preview not found for {scan}, exiting.")
+                    os._exit(1)
+                empty_pulse_df = self.mask_empty_pulses_preview(empty_pulse_df, self.png_scans[scan], max_scanline_idx, max_scanline)
+
+            # TODO: do raytracing with point_df here
+
+            # TODO: if model_empty_pulses, do raytracing with empty pulses (likely have to modify Raytracer.cpp)
             
 
         return
@@ -219,10 +333,11 @@ class OccPyRIEGL:
 
 if __name__ == "__main__":
     proj_folder = "/Stor1/wout/occlusion/cls_raw/Ficus/2023-04-30_LOT_peru2.PROJ"
+    riscan_folder  = "/Stor1/wout/occlusion/oxa_occpy_test.RiSCAN"
 
-    occpy_riegl = OccPyRIEGL("", proj_folder, model_empty_pulses=True, debug=True)
+    occpy_riegl = OccPyRIEGL(riscan_folder, proj_folder, model_empty_pulses=True, debug=True)
 
-    # occpy_riegl.read_input()
+    occpy_riegl.do_raytracing()
 
 
 
