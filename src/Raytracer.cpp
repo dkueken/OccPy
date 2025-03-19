@@ -216,16 +216,16 @@ void Raytracer::getIncompletePulseDatasetReport(){
 void Raytracer::cleanUpPulseDataset(){
     //This function should clean up the incomplete pulses in order to include them within the voxel traversal
 
-    // iterate through incompletePulses
-    for (map<double,boost::shared_ptr<Pulse> >::iterator it = this->incompletePulses.begin(); it != this->incompletePulses.end(); ++it){
+    // Iterate over incomplete pulses and clean up
+    for (auto it = this->incompletePulses.begin(); it != this->incompletePulses.cend();){
         it->second->cleanupPulse();
 
         // check if pulse is now complete
         if (it->second->iscomplete()){
             this->pulsedataset.insert(std::make_pair(it->second->getGPSTime(), it->second));
-            this->incompletePulses.erase(it);
+            it = this->incompletePulses.erase(it);
         } else {
-            cout << "#### Pulse cleanup not successful! ####" << endl;
+            ++it;
         }
     }
 }
@@ -602,6 +602,7 @@ void Raytracer::doRaytracing()
             }
 
         }
+        // TODO: fix this here similar to incomplete pulse fix - use auto iterator and re assign
         // The pulse has been traversed and can now be dropped from the map - !!! It seems that this causes problems!
         // - deleting an entry while iterating over the map. TODO: figure out how we could handle this.
         //it = this->pulsedataset.erase(it);
