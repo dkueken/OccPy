@@ -14,3 +14,7 @@ dependencies:
   - matplotlib
   - gdal
 prefix: C:\Users\kueken\Miniconda3\envs\occPy
+variables:
+  RIVLIB_ROOT: /home/wcherlet/libs/rivlib-2_8_0-x86_64-linux-gcc9/ #ADAPT: path to rivlib here
+  RDBLIB_ROOT: /home/wcherlet/libs/rdblib-2.4.5-x86_64-linux/ #ADAPT: path to rdblib here
+  PYLIDAR_CXX_FLAGS: -std=c++11 

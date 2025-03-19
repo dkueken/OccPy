@@ -32,6 +32,9 @@ class OccPyRIEGL:
         self.proj_folder = proj_folder
         self.model_empty_pulses = model_empty_pulses
 
+        self.verbose = verbose
+        self.debug = debug
+
         # -- config logging 
         if debug:
             logging_level = logging.DEBUG
@@ -56,7 +59,7 @@ class OccPyRIEGL:
 
         # TODO: TEMP: read csv with scan positions
         if csv_positions is not None:
-            self.csv_positions = csv_positions
+            self.csv_positions = pd.read_csv(csv)
 
 
         # TODO: TEST
@@ -183,11 +186,11 @@ class OccPyRIEGL:
                 self.png_scans[scan_pos_base] = png_file
 
     def rdbx_rxp_to_df(self, rdbx, rxp):
-        columns_rxp = ["beam_origin_x", "beam_origin_y", "beam_origin_z", "beam_direction_x", "beam_direction_y", "beam_direction_z", "scanline", "scanline_idx"]
+        columns_rxp = ["beam_origin_x", "beam_origin_y", "beam_origin_z", "beam_direction_x", "beam_direction_y", "beam_direction_z", "scanline", "scanline_idx", "timestamp"]
         subset_rxp = {k: rxp.pulses[k] for k in columns_rxp}
         df_rxp = pd.DataFrame.from_dict(subset_rxp)
 
-        columns_rdbx = ["x", "y", "z", "scanline", "scanline_idx", "reflectance"]
+        columns_rdbx = ["x", "y", "z", "scanline", "scanline_idx", "reflectance", "target_index", "target_count"]
         subset_rdbx = {k: rdbx.points[k] for k in columns_rdbx}
         df_rdbx = pd.DataFrame.from_dict(subset_rdbx)
 
@@ -214,10 +217,15 @@ class OccPyRIEGL:
         point_df = merged_df[~na_mask]
         empty_pulse_df = merged_df[na_mask]
 
-        # for points, keep x,y,z, beam_origin and reflectance
-        point_df = point_df.drop(["timestamp_x", "timestamp_y", "scanline", "scanline_idx", "beam_direction_x", "beam_direction_y", "beam_direction_z"], axis=1)
-        # for empty pulses, just keep beam_origin and beam_direction
-        empty_pulse_df = empty_pulse_df.drop(["x", "y", "z", "timestamp_x", "timestamp_y", "reflectance"], axis=1)
+        # for points, keep x,y,z, beam_origin and reflectance, timestamp
+        if not self.debug:
+            point_df = point_df.drop(["scanline", "scanline_idx", "beam_direction_x", "beam_direction_y", "beam_direction_z"], axis=1)
+        else:
+            # if debug: also keep beam_direction to check colinearity
+            point_df = point_df.drop(["scanline", "scanline_idx"], axis=1)
+
+        # for empty pulses, just keep beam_origin and beam_direction and timestamp
+        empty_pulse_df = empty_pulse_df.drop(["x", "y", "z", "reflectance"], axis=1)
 
         return point_df, empty_pulse_df
 
@@ -264,10 +272,27 @@ class OccPyRIEGL:
 
         return df_filtered
 
+    def test_colinearity(self, point_df, n_points=None):
+        def check_parallel(beam_origin, beam_direction, point, epsilon=1e-6):
+            vector_point_origin = point - beam_origin
+            return (np.dot(beam_direction, vector_point_origin))/(np.linalg.norm(vector_point_origin)*np.linalg.norm(beam_direction)) > 1 - epsilon
+
+        beam_origin = point_df[["beam_origin_x", "beam_origin_y", "beam_origin_z"]].to_numpy()
+        beam_direction = point_df[["beam_direction_x", "beam_direction_y", "beam_direction_z"]].to_numpy()
+        point = point_df[["x", "y", "z"]].to_numpy()
+
+        count = 0
+        if n_points is None:
+            n_points = len(point_df)
+        for i in range(n_points):
+            if not check_parallel(beam_origin[i,:], beam_direction[i,:], point[i,:]):
+                count += 1
+        return count
+        
+
     def do_raytracing(self):
 
-        # TODO: implement raytracing similar to occpy class
-
+        # TODO:
         # tests to do:
             # 1. 1 rdbx with single scan position and grid around scan
             # 2. multiple rdbx's with multiple scan position
@@ -278,13 +303,21 @@ class OccPyRIEGL:
 
         for scan in self.rdbx_scans:
             # read rdbx file for point data
-
+            
+            # TODO: test
             scan_test = ["ScanPos001"]
             if scan not in scan_test:
                 continue
 
             self.logger.info(f"Processing {scan}")
 
+            scan_pos_location_arr = self.csv_positions.loc[self.csv_positions['scanPosName'] == scan, ['x', 'y', 'z']].values
+            scanpos_X, scanpos_Y, scanpos_Z = scan_pos_location_arr[0]
+
+            self.logger.info(f"Reading RDBX and RXP")
+            
+            # TODO: test: do we actually need to give the transform file here? as the rdb points should already be transformed!!
+            # can test with colinearity test, do for all files (will take long but worth it)
             rdbx = riegl_io.RDBFile(self.rdbx_scans[scan], self.transform_files[scan])
             max_scanline = rdbx.maxc
             max_scanline_idx = rdbx.maxr
@@ -296,17 +329,59 @@ class OccPyRIEGL:
                 self.logger.warning(f"RXP not found for pos {scan}, skipping.")
                 continue
 
+            
+            self.logger.info(f"Merging RDBX and RXP")
+
             df_rdbx, df_rxp = self.rdbx_rxp_to_df(rdbx, rxp)
 
             point_df, empty_pulse_df = self.merge_df_rdbx_rxp(df_rdbx, df_rxp)
 
+            # test colinearity to see if rdbx and rxp merge succesfull
+            if self.debug:
+                # n_tested = len(point_df) # TODO: adapt
+                n_tested = 100000
+                self.logger.debug(f"Testing collinearity for {n_tested} points")
+                n = self.test_colinearity(point_df, n_points=n_tested)
+                if n > 0:
+                    self.logger.warning(f"Collinearity test for {scan} returned {n} non-colinear points out of {n_tested} tested")
+
             if self.model_empty_pulses:
+                self.logger.info("Reading preview and masking empty pulses")
                 if scan not in self.png_scans:
                     self.logger.error(f"Model empty pulses on but scan preview not found for {scan}, exiting.")
                     os._exit(1)
                 empty_pulse_df = self.mask_empty_pulses_preview(empty_pulse_df, self.png_scans[scan], max_scanline_idx, max_scanline)
 
-            # TODO: do raytracing with point_df here
+            self.logger.info("Adding point data")
+
+            x = point_df["x"].to_numpy()
+            y = point_df["y"].to_numpy()
+            z = point_df["z"].to_numpy()
+            gps_time = point_df["timestamp"].to_numpy()
+            self.logger.debug(f"Number of points in rdbx: {len(df_rdbx)}")
+            unique_gps = np.unique(gps_time)
+            self.logger.debug(f"Number of unique gps entries in point_df: {len(unique_gps)}")
+            self.logger.debug(f"Number of pulses in rxp: {len(df_rxp)}, number of empty pulses: {len(empty_pulse_df)}, diff: {len(df_rxp)-len(empty_pulse_df)}")
+
+            return_number = point_df["target_index"].to_numpy()
+            number_of_returns = point_df["target_count"].to_numpy()
+
+            # TODO: TEMP: use scanpos from csv for test, replace with beam_origin_x,y,z later
+            sensor_x = np.ones(gps_time.shape) * scanpos_X
+            sensor_y = np.ones(gps_time.shape) * scanpos_Y
+            sensor_z = np.ones(gps_time.shape) * scanpos_Z
+
+            self.RayTr.addPointData(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)
+
+            self.RayTr.getPulseDatasetReport()
+
+            self.logger.info("Fixing incomplete pulses (number of returns not correct, likely due to filtered points)")
+
+            self.RayTr.cleanUpPulseDataset()
+
+            self.RayTr.getPulseDatasetReport()
+
+
 
             # TODO: if model_empty_pulses, do raytracing with empty pulses (likely have to modify Raytracer.cpp)
             
@@ -335,7 +410,9 @@ if __name__ == "__main__":
     proj_folder = "/Stor1/wout/occlusion/cls_raw/Ficus/2023-04-30_LOT_peru2.PROJ"
     riscan_folder  = "/Stor1/wout/occlusion/oxa_occpy_test.RiSCAN"
 
-    occpy_riegl = OccPyRIEGL(riscan_folder, proj_folder, model_empty_pulses=True, debug=True)
+    csv = os.path.join(riscan_folder, "BACKUP", "SOP", "Backup.csv")
+
+    occpy_riegl = OccPyRIEGL(riscan_folder, proj_folder, csv_positions=csv, model_empty_pulses=False, debug=True)
 
     occpy_riegl.do_raytracing()
 

@@ -209,11 +209,10 @@ class RXPFile:
         """
         Read file and get global stats
         """
-        self.meta, points, pulses, empty_pulses = riegl_rxp.readFile(self.filename)
+        self.meta, points, pulses = riegl_rxp.readFile(self.filename)
 
         self.points = {}
         self.pulses = {}
-        self.empty_pulses = {}
         if self.query_str is not None:
     
             valid = self.run_query(points)
@@ -260,21 +259,6 @@ class RXPFile:
             self.pulses['beam_origin_z'] = z_t_o + self.transform[3,2]
 
             _, self.pulses['zenith'], self.pulses['azimuth'] = xyz2rza(x_t, y_t, z_t)
-
-            # also apply to empty pulses
-            x_t,y_t,z_t = apply_transformation(empty_pulses['beam_direction_x'], empty_pulses['beam_direction_y'], 
-                empty_pulses['beam_direction_z'], empty_pulses['beam_direction_x'].shape[0], self.transform)
-            self.empty_pulses['beam_direction_x'] = x_t
-            self.empty_pulses['beam_direction_y'] = y_t
-            self.empty_pulses['beam_direction_z'] = z_t
-            
-            x_t_o,y_t_o,z_t_o = apply_transformation(empty_pulses['beam_origin_x'], empty_pulses['beam_origin_y'], 
-                empty_pulses['beam_origin_z'], empty_pulses['beam_origin_x'].shape[0], self.transform)
-            self.empty_pulses['beam_origin_x'] = x_t_o + self.transform[3,0] 
-            self.empty_pulses['beam_origin_y'] = y_t_o + self.transform[3,1]
-            self.empty_pulses['beam_origin_z'] = z_t_o + self.transform[3,2]
-
-            _, self.empty_pulses['zenith'], self.empty_pulses['azimuth'] = xyz2rza(x_t, y_t, z_t)
         else:
             _, self.pulses['zenith'], self.pulses['azimuth'] = xyz2rza(pulses['beam_direction_x'],
                 pulses['beam_direction_y'], pulses['beam_direction_z'])
@@ -286,10 +270,6 @@ class RXPFile:
             self.points['x'] = x_t + self.transform[3,0]
             self.points['y'] = y_t + self.transform[3,1]
             self.points['z'] = z_t + self.transform[3,2]
-
-        for name in empty_pulses.dtype.names:
-            if name not in self.empty_pulses:
-                self.empty_pulses[name] = empty_pulses[name]
 
         for name in pulses.dtype.names:
             if name not in self.pulses:

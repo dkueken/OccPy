@@ -47,7 +47,7 @@ struct RieglRXPState
 /* Structure for pulses */
 typedef struct {
     npy_uint64 pulse_id;
-    npy_uint64 timestamp;
+    double timestamp;
     npy_uint8 prism_facet;
     npy_int32 scanline;
     npy_uint16 scanline_idx;
@@ -59,21 +59,6 @@ typedef struct {
     double beam_direction_z;
     npy_uint8 target_count;
 } SRieglRXPPulse;
-
-/* Structure for empty pulses */
-typedef struct {
-    npy_uint64 pulse_id;
-    npy_uint64 timestamp;
-    npy_uint8 prism_facet;
-    npy_int32 scanline;
-    npy_uint16 scanline_idx;
-    double beam_origin_x;
-    double beam_origin_y;
-    double beam_origin_z;
-    double beam_direction_x;
-    double beam_direction_y;
-    double beam_direction_z;
-} SRieglRXPEmptyPulse;
 
 /* Structure for points */
 typedef struct {
@@ -92,7 +77,7 @@ typedef struct {
 /* field info for CVector::getNumpyArray */
 static SpylidarFieldDefn RieglPulseFields[] = {
     CREATE_FIELD_DEFN(SRieglRXPPulse, pulse_id, 'u'),
-    CREATE_FIELD_DEFN(SRieglRXPPulse, timestamp, 'u'),
+    CREATE_FIELD_DEFN(SRieglRXPPulse, timestamp, 'f'),
     CREATE_FIELD_DEFN(SRieglRXPPulse, prism_facet, 'u'),
     CREATE_FIELD_DEFN(SRieglRXPPulse, scanline, 'i'),
     CREATE_FIELD_DEFN(SRieglRXPPulse, scanline_idx, 'u'),
@@ -121,24 +106,6 @@ static SpylidarFieldDefn RieglPointFields[] = {
     {NULL} // Sentinel
 };
 
-/* field info for CVector::getNumpyArray */
-static SpylidarFieldDefn RieglEmptyPulseFields[] = {
-    CREATE_FIELD_DEFN(SRieglRXPEmptyPulse, pulse_id, 'u'),
-    CREATE_FIELD_DEFN(SRieglRXPEmptyPulse, timestamp, 'u'),
-    CREATE_FIELD_DEFN(SRieglRXPEmptyPulse, prism_facet, 'u'),
-    CREATE_FIELD_DEFN(SRieglRXPEmptyPulse, scanline, 'i'),
-    CREATE_FIELD_DEFN(SRieglRXPEmptyPulse, scanline_idx, 'u'),
-    CREATE_FIELD_DEFN(SRieglRXPEmptyPulse, beam_origin_x, 'f'),
-    CREATE_FIELD_DEFN(SRieglRXPEmptyPulse, beam_origin_y, 'f'),
-    CREATE_FIELD_DEFN(SRieglRXPEmptyPulse, beam_origin_z, 'f'),
-    CREATE_FIELD_DEFN(SRieglRXPEmptyPulse, beam_direction_x, 'f'),
-    CREATE_FIELD_DEFN(SRieglRXPEmptyPulse, beam_direction_y, 'f'),
-    CREATE_FIELD_DEFN(SRieglRXPEmptyPulse, beam_direction_z, 'f'),
-    {NULL} // Sentinel
-};
-
-
-
 // Our reader class. Gets the header info and the actual data
 class RieglRXPReader : public scanlib::pointcloud
 {
@@ -160,17 +127,13 @@ public:
         m_thetaInc(0),
         m_phiInc(0),
         m_scanline(-1),
-        m_prev_scanline(-1),
         m_scanlineIdx(0),
-        m_prev_scanlineIdx(0),
         m_maxScanlineIdx(0),
         m_numPulses(0),
-        m_numEmptyPulses(0),
         m_bHaveData(false),
         m_scanStarted(false),
         m_Points(nInitSize, nInitSize),
-        m_Pulses(nInitSize, nInitSize),
-        m_EmptyPulses(nInitSize, nInitSize)
+        m_Pulses(nInitSize, nInitSize)
     {
 
     }
@@ -371,9 +334,6 @@ public:
             PyDict_SetItemString(pDict, "NUMBER_OF_PULSES", pVal);
             Py_DECREF(pVal);
         }
-        pVal = PyLong_FromLong(m_numEmptyPulses);
-        PyDict_SetItemString(pDict, "NUMBER_OF_EMPTY_PULSES", pVal);
-        Py_DECREF(pVal);
         return pDict;
     }
     
@@ -385,11 +345,6 @@ public:
     PyArrayObject *getPulses()
     {
         return m_Pulses.getNumpyArray(RieglPulseFields);
-    }
-
-    PyArrayObject *getEmptyPulses()
-    {
-        return m_EmptyPulses.getNumpyArray(RieglEmptyPulseFields);
     }
     
 protected:
@@ -454,9 +409,7 @@ protected:
     void on_line_start_up(const scanlib::line_start_up<iterator_type>& arg) 
     {
         scanlib::pointcloud::on_line_start_up(arg);
-        m_prev_scanline = m_scanline;
         ++m_scanline;
-        m_prev_scanlineIdx = m_scanlineIdx;
         m_scanlineIdx = 0;
     }
     
@@ -464,9 +417,7 @@ protected:
     void on_line_start_dn(const scanlib::line_start_dn<iterator_type>& arg) 
     {
         scanlib::pointcloud::on_line_start_dn(arg);
-        m_prev_scanline = m_scanline;
         ++m_scanline;
-        m_prev_scanlineIdx = m_scanlineIdx;
         m_scanlineIdx = 0;
     }
 
@@ -493,7 +444,6 @@ protected:
         pulse.scanline_idx = m_scanlineIdx; 
         pulse.target_count = 0;    
         
-        m_prev_scanlineIdx = m_scanlineIdx;
         m_scanlineIdx++;
         if( m_scanlineIdx > m_maxScanlineIdx )
         {
@@ -560,28 +510,6 @@ protected:
         }
     }
 
-    void on_gap()
-    {
-        scanlib::pointcloud::on_gap();
-        // documentation is a bit vague, but hope this gets called whenever a pulse is detected that has no return
-        m_numEmptyPulses++;
-        SRieglRXPEmptyPulse pulse;
-        pulse.pulse_id = m_numPulses;
-        pulse.timestamp = time;
-        pulse.prism_facet = facet;        
-        pulse.beam_direction_x = beam_direction[0];
-        pulse.beam_direction_y = beam_direction[1];
-        pulse.beam_direction_z = beam_direction[2];
-        pulse.beam_origin_x = beam_origin[0];
-        pulse.beam_origin_y = beam_origin[1];
-        pulse.beam_origin_z = beam_origin[2];
-        // not sure if this will always be linked to the previous scanline, check using beam_origin and beam_direction_values
-        pulse.scanline = m_prev_scanline;
-        pulse.scanline_idx = m_prev_scanlineIdx; 
-   
-        m_EmptyPulses.push(&pulse);
-    }
-
 private:
     double m_fLat;
     double m_fLong;
@@ -599,17 +527,13 @@ private:
     double m_thetaInc;
     double m_phiInc;
     long m_scanline;
-    long m_prev_scanline;
     long m_scanlineIdx;
-    long m_prev_scanlineIdx;
     long m_maxScanlineIdx;
     long m_numPulses;
-    long m_numEmptyPulses;
     bool m_bHaveData;
     bool m_scanStarted;
     pylidar::CVector<SRieglRXPPoint> m_Points;
     pylidar::CVector<SRieglRXPPulse> m_Pulses;
-    pylidar::CVector<SRieglRXPEmptyPulse> m_EmptyPulses;
 };
 
 // reads through the whole file and returns a tuple with header
@@ -646,14 +570,12 @@ static PyObject *rieglrxp_readFile(PyObject *self, PyObject *args)
 
     PyObject *pHeader = reader.getInfoDictionary();
     PyArrayObject *pPoints = reader.getPoints();
-    PyArrayObject *pPulses = reader.getPulses(); 
-    PyArrayObject *pEmptyPulses = reader.getEmptyPulses(); 
+    PyArrayObject *pPulses = reader.getPulses();
    
-    PyObject *pTuple = PyTuple_Pack(4, pHeader, pPoints, pPulses, pEmptyPulses);
+    PyObject *pTuple = PyTuple_Pack(3, pHeader, pPoints, pPulses);
     Py_DECREF(pHeader);
     Py_DECREF(pPoints);
     Py_DECREF(pPulses);
-    Py_DECREF(pEmptyPulses);
 
     return pTuple;
 }
