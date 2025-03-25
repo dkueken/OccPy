@@ -2,11 +2,14 @@ import os
 import glob
 import logging
 import cv2
+import time
 
 import pandas as pd
 import numpy as np
+import OSToolBox as ost
 
 from occpy import riegl_io
+from occpy.PreparePly import prepare_ply
 
 from raytr import PyRaytracer
 
@@ -14,8 +17,11 @@ from raytr import PyRaytracer
 # TODO:
 # 4. custom configexception? for when config is not correct, like with autodim and plot_dim
 
+# TODO: inherit from OccPy class? only save and viz functions are the same
+# alternatively, viz functions could/should be in seperate module imo
+
 class OccPyRIEGL:
-    def __init__(self, riscan_folder, proj_folder, model_empty_pulses=False, csv_positions=None, verbose=False, debug=False):
+    def __init__(self, riscan_folder, proj_folder, model_empty_pulses=False, verbose=False, debug=False, odir=None, output_voxels=False):
 
         # TODO: other inputs as config file or parameters
         self.vox_dim = 0.1
@@ -34,6 +40,14 @@ class OccPyRIEGL:
 
         self.verbose = verbose
         self.debug = debug
+
+        self.output_voxels = output_voxels
+
+        if odir is None:
+            odir = os.path.join(os.getcwd(), "out")
+            if not os.path.exists(odir):
+                os.makedirs(odir, exist_ok=True)
+        self.out_dir = odir 
 
         # -- config logging 
         if debug:
@@ -56,11 +70,6 @@ class OccPyRIEGL:
         self.prepare_input()
 
         # --- init dimensions and raytracer
-
-        # TODO: TEMP: read csv with scan positions
-        if csv_positions is not None:
-            self.csv_positions = pd.read_csv(csv)
-
 
         # TODO: TEST
         # if self.auto_dim:
@@ -294,10 +303,6 @@ class OccPyRIEGL:
 
         # TODO:
         # tests to do:
-            # 1. 1 rdbx with single scan position and grid around scan
-            # 2. multiple rdbx's with multiple scan position
-            # 3. 1 rdbx+rxp with pulse from beam_origin to point (requires editing raytracer)
-            # 4. multiple rdbx's + rxp's
             # 5. single rdbx + rxp with empty pulse modelling (requires editing raytracer further)
             # 6. multiple rdbx's + rxp's with empty pulse modelling
 
@@ -305,14 +310,11 @@ class OccPyRIEGL:
             # read rdbx file for point data
             
             # TODO: test
-            scan_test = ["ScanPos001"]
+            scan_test = ["ScanPos001", "ScanPos002"]
             if scan not in scan_test:
                 continue
 
             self.logger.info(f"Processing {scan}")
-
-            scan_pos_location_arr = self.csv_positions.loc[self.csv_positions['scanPosName'] == scan, ['x', 'y', 'z']].values
-            scanpos_X, scanpos_Y, scanpos_Z = scan_pos_location_arr[0]
 
             self.logger.info(f"Reading RDBX and RXP")
             
@@ -324,16 +326,13 @@ class OccPyRIEGL:
 
             if scan in self.rxp_scans:
                 rxp = riegl_io.RXPFile(self.rxp_scans[scan], self.transform_files[scan])
-                # TODO: model empty pulses
             else:
                 self.logger.warning(f"RXP not found for pos {scan}, skipping.")
                 continue
-
             
             self.logger.info(f"Merging RDBX and RXP")
 
             df_rdbx, df_rxp = self.rdbx_rxp_to_df(rdbx, rxp)
-
             point_df, empty_pulse_df = self.merge_df_rdbx_rxp(df_rdbx, df_rxp)
 
             # test colinearity to see if rdbx and rxp merge succesfull
@@ -366,14 +365,11 @@ class OccPyRIEGL:
             return_number = point_df["target_index"].to_numpy()
             number_of_returns = point_df["target_count"].to_numpy()
 
-            # TODO: TEMP: use scanpos from csv for test, replace with beam_origin_x,y,z later
-            sensor_x = np.ones(gps_time.shape) * scanpos_X
-            sensor_y = np.ones(gps_time.shape) * scanpos_Y
-            sensor_z = np.ones(gps_time.shape) * scanpos_Z
+            sensor_x = point_df["beam_origin_x"].to_numpy()
+            sensor_y = point_df["beam_origin_y"].to_numpy()
+            sensor_z = point_df["beam_origin_z"].to_numpy()
 
             self.RayTr.addPointData(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)
-
-            self.RayTr.getPulseDatasetReport()
 
             self.logger.info("Fixing incomplete pulses (number of returns not correct, likely due to filtered points)")
 
@@ -381,11 +377,21 @@ class OccPyRIEGL:
 
             self.RayTr.getPulseDatasetReport()
 
+            self.logger.info("Perform raytracing")
+            tic = time.time()
+            self.RayTr.doRaytracing()
+            toc = time.time()
+            self.logger.info("Time elapsed for raytracing: {:.2f} seconds".format(toc - tic))
+
+            self.RayTr.clearPulseDataset()
+
+        self.logger.info("Report on traversal:")
+        self.RayTr.reportOnTraversal()
+
 
 
             # TODO: if model_empty_pulses, do raytracing with empty pulses (likely have to modify Raytracer.cpp)
-            
-
+        
         return
     
     def determine_grid(self, csv_positions, buffer):
@@ -401,7 +407,76 @@ class OccPyRIEGL:
         # should probably be util/helper function in seperate module
         raise NotImplementedError
 
+    def save_raytracing_output(self):
+        self.logger.info("Saving output")
+        print("Extracting Nhit")
+        tic = time.time()
+        self.Nhit = self.RayTr.getNhit()
+        self.Nhit = np.array(self.Nhit, dtype=np.int32)
 
+        toc = time.time()
+        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+
+        print("Extracting Nocc")
+        tic = time.time()
+        self.Nocc = self.RayTr.getNocc()
+        self.Nocc = np.array(self.Nocc, dtype=np.int32)
+
+        toc = time.time()
+        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+
+        print("Extracting Nmiss")
+        tic = time.time()
+        self.Nmiss = self.RayTr.getNmiss()
+        self.Nmiss = np.array(self.Nmiss, dtype=np.int32)
+
+        toc = time.time()
+        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+
+        print("Saving Occlusion Outputs As .npy")
+        tic = time.time()
+        np.save(f"{self.out_dir}/Nhit.npy", self.Nhit)
+        np.save(f"{self.out_dir}/Nmiss.npy", self.Nmiss)
+        np.save(f"{self.out_dir}/Nocc.npy", self.Nocc)
+        toc = time.time()
+        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+
+        # Create Classification grid
+        print("Classify Grid")
+        tic = time.time()
+        self.Classification = np.zeros((self.grid_dim['ny'], self.grid_dim['nx'], self.grid_dim['nz']), dtype=int)
+
+        self.Classification[np.logical_and.reduce((self.Nhit > 0, self.Nmiss >= 0, self.Nocc >= 0))] = 1  # voxels that were observed
+        self.Classification[np.logical_and.reduce((self.Nhit == 0, self.Nmiss > 0, self.Nocc >= 0))] = 2  # voxels that are empty
+        self.Classification[
+            np.logical_and.reduce((self.Nhit == 0, self.Nmiss == 0, self.Nocc > 0))] = 3  # voxels that are hidden (occluded)
+        self.Classification[np.logical_and.reduce((self.Nhit == 0, self.Nmiss == 0,
+                                            self.Nocc == 0))] = 4  # voxels that were not observed # TODO: Figure out, why this overwrites voxels that are classified as occluded! -> this was because np.logical_and only takes in 2 arrays as input, not 3! use np.logical_and.reduce() for that!
+
+        np.save(f"{self.out_dir}/Classification.npy", self.Classification)
+        toc = time.time()
+        print("Elapsed Time: " + str(toc - tic) + " seconds")
+
+        # write ply file
+        if self.output_voxels:
+            print("Saving Occlusion Outputs As .ply")
+            tic = time.time()
+            verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Nhit)
+            ost.write_ply(f"{self.out_dir}/Nhit.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Nmiss)
+            ost.write_ply(f"{self.out_dir}/Nmiss.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Nocc)
+            ost.write_ply(f"{self.out_dir}/Nocc.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            # TODO: TEMP disable: these take up a lot of space, so disable for now
+            # verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Classification)
+            # ost.write_ply(f"{self.out_dir}/Classification.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            # self.occl = np.zeros(shape=self.Classification.shape)
+            # x4, y4, z4 = np.where(self.Classification == 4)
+            # self.occl[x4, y4, z4] = self.Classification[x4, y4, z4]
+            # verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.occl)
+            # ost.write_ply(f"{self.out_dir}/Occl.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            toc = time.time()
+            print("Elapsed Time: " + str(toc - tic) + " seconds")
 
 
 # TODO: TEMP TEST
@@ -410,11 +485,18 @@ if __name__ == "__main__":
     proj_folder = "/Stor1/wout/occlusion/cls_raw/Ficus/2023-04-30_LOT_peru2.PROJ"
     riscan_folder  = "/Stor1/wout/occlusion/oxa_occpy_test.RiSCAN"
 
-    csv = os.path.join(riscan_folder, "BACKUP", "SOP", "Backup.csv")
+    # odir = "/Stor1/wout/occlusion/output_test/OXA"
+    odir = "./test_out/OXA/2_pos_origin"
+    if not os.path.exists(odir):
+        os.makedirs(odir, exist_ok=True)
 
-    occpy_riegl = OccPyRIEGL(riscan_folder, proj_folder, csv_positions=csv, model_empty_pulses=False, debug=True)
+    OUTPUT_VOXELS = True
+
+    occpy_riegl = OccPyRIEGL(riscan_folder, proj_folder, model_empty_pulses=False, debug=True, odir=odir, output_voxels=OUTPUT_VOXELS)
 
     occpy_riegl.do_raytracing()
+
+    occpy_riegl.save_raytracing_output()
 
 
 
