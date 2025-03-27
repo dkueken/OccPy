@@ -1123,19 +1123,22 @@ void Raytracer::doRaytracingEmptyPulses(){
 
     // the code has a lot of overlap, so could potentially be merged, but this would complicate the doRaytracing function
     // and currently this code is only used for RIEGL scanners in an experimental setup anyways
-    // sooo for now seperate functions and duplicate code
+    // sooo for now seperate functions and some duplicate code
 
     int pulsecount = 0;
     int traversedPulses = 0;
     int numNoGridIntersection = 0;
 
     int total_pulses2iterate = (int)this->emptypulsedataset.size();
-    int regHit = 0; //Number of registered hit voxels
-
-    // init: TODO: set boxsize and voxelsize
-    double voxelSizeX = 0;
-    double voxelSizeY = 0;
-    double voxelSizeZ = 0;
+    // init boxsize and voxelsize, remains constant for all pulses
+    vector<double> boxSize (3,0);
+    boxSize.at(0) = (double)this->gridDim.maxBound.at(0) - (double)this->gridDim.minBound.at(0);
+    boxSize.at(1) = (double)this->gridDim.maxBound.at(1) - (double)this->gridDim.minBound.at(1);
+    boxSize.at(2) = (double)this->gridDim.maxBound.at(2) - (double)this->gridDim.minBound.at(2);
+    vector<double> voxelSize (3,0);
+    voxelSize.at(0) = boxSize.at(0)/(double)this->gridDim.ny;
+    voxelSize.at(1) = boxSize.at(1)/(double)this->gridDim.nx;
+    voxelSize.at(2) = boxSize.at(2)/(double)this->gridDim.nx;
 
     for (map<double,boost::shared_ptr<Pulse> >::iterator it = this->emptypulsedataset.begin(); it != this->emptypulsedataset.end(); ++it) {
         pulsecount++;
@@ -1149,25 +1152,6 @@ void Raytracer::doRaytracingEmptyPulses(){
         int flag = 0;               //flag whether pulse crosses voxel grid or not
         double tmin = 0;             //how far along the pulse direction we have to travel until we reach the voxel grid. based on the vector representation of a line: y = u + tmin*v (y,u and v are vectors)
 
-        double tVoxelX = 0;
-        double tVoxelY = 0;
-        double tVoxelZ = 0;
-        int stepX = 0;
-        int stepY = 0;
-        int stepZ = 0;
-
-        double voxelMaxX = 0;
-        double voxelMaxY = 0;
-        double voxelMaxZ = 0;
-
-        double tDeltaX = 0;
-        double tDeltaY = 0;
-        double tDeltaZ = 0;
-
-        double tMaxX = 0;
-        double tMaxY = 0;
-        double tMaxZ = 0;
-
         vector<double> origin (3,0);
         vector<double> direction (3,0);
 
@@ -1180,9 +1164,161 @@ void Raytracer::doRaytracingEmptyPulses(){
         direction.at(1) = it->second->getDirectionX();
         direction.at(2) = it->second->getDirectionZ();
 
+        // if direction vector is == 0 assign a very small number to overcome problems with division through 0 in later steps.
+        if (direction.at(0)==0) { direction.at(0) = numeric_limits<double>::min(); }
+        if (direction.at(1)==0) { direction.at(1) = numeric_limits<double>::min(); }
+        if (direction.at(2)==0) { direction.at(2) = numeric_limits<double>::min(); }
+        
+        //check if pulse intersects voxel grid
+        rayBoxIntersection(origin, direction, this->gridDim.minBound, this->gridDim.maxBound, flag, tmin);
+        // if no intersection, go to next pulse
+        if (flag==0) {
+            numNoGridIntersection++;
+            continue;
+        }
 
+        traversedPulses++;
+        if (tmin<0) {
+            tmin = 0;
+        }
+
+        vector<double> start (3,0);
+        start.at(0) = origin.at(0) + (tmin*direction.at(0)); //+ tmin*direction.at(1) + tmin*direction.at(2);
+        start.at(1) = origin.at(1) + (tmin*direction.at(1)); //+ tmin*direction.at(1) + tmin*direction.at(2);
+        start.at(2) = origin.at(2) + (tmin*direction.at(2)); //+ tmin*direction.at(1) + tmin*direction.at(2);
+        
+        // get voxel indices of start
+        int y = floor( ((start.at(0)-(double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.ny );
+        int x = floor( ((start.at(1)-(double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.nx );
+        int z = floor( ((start.at(2)-(double)this->gridDim.minBound.at(2))/boxSize.at(2))*(double)this->gridDim.nz );
+
+        if (x==(this->gridDim.nx)) {
+            x = x-1;
+        }
+        if (y==(this->gridDim.ny)){
+            y = y-1;
+        }
+        if (z==(this->gridDim.nz)){
+            z = z-1;
+        }
+
+        // initialize step direction for all three dimensions, 
+        // also get tVoxel, denotes the fractional voxel index of the next voxel along the ray in each dimension
+        double tVoxelX = 0;
+        double tVoxelY = 0;
+        double tVoxelZ = 0;
+        int stepX = 0;
+        int stepY = 0;
+        int stepZ = 0;
+        if (direction.at(0)>=0) {
+            tVoxelY = (double)(y+1)/(double)this->gridDim.ny;
+            stepY = 1;
+        } else {
+            tVoxelY = ((double)(y+1)-1)/(double)this->gridDim.ny;
+            stepY = -1;
+        }
+
+        if (direction.at(1)>=0) {
+            tVoxelX = (double)(x+1)/(double)this->gridDim.nx;
+            stepX = 1;
+        } else {
+            tVoxelX = ((double)(x+1)-1)/(double)this->gridDim.nx;
+            stepX = -1;
+        }
+
+        if (direction.at(2)>=0) {
+            tVoxelZ = (double)(z+1)/(double)this->gridDim.nz;
+            stepZ = 1;
+        } else {
+            tVoxelZ = ((double)(z+1)-1)/(double)this->gridDim.nz;
+            stepZ = -1;
+        }
+
+        // voxelmax denotes the coordinate of the next voxel start along the ray
+        double voxelMaxY = (double)this->gridDim.minBound.at(0) + tVoxelY*boxSize.at(0);
+        double voxelMaxX = (double)this->gridDim.minBound.at(1) + tVoxelX*boxSize.at(1);
+        double voxelMaxZ = (double)this->gridDim.minBound.at(2) + tVoxelZ*boxSize.at(2);
+
+        // tMax denotes the distance we have to travel along the ray to reach the next voxel, in each dimension
+        // will be used to determine which voxel change occurs first, and updated when we move along ray
+        double tMaxY = tmin + (voxelMaxY-start.at(0))/direction.at(0);
+        double tMaxX = tmin + (voxelMaxX-start.at(1))/direction.at(1);
+        double tMaxZ = tmin + (voxelMaxZ-start.at(2))/direction.at(2);
+
+        vector<double> absDirection (3,0);
+        absDirection.at(0) = (direction.at(0)<0) ? -1*direction.at(0) : direction.at(0);
+        absDirection.at(1) = (direction.at(1)<0) ? -1*direction.at(1) : direction.at(1);
+        absDirection.at(2) = (direction.at(2)<0) ? -1*direction.at(2) : direction.at(2);
+        // tdelta denotes how far along ray we have to move so the component equals a voxel length in that direction
+        // if we change voxel in a dimension, we have to add tDelta to tMax in that dimension
+        double tDeltaY = voxelSize.at(0)/absDirection.at(0);
+        double tDeltaX = voxelSize.at(1)/absDirection.at(1);
+        double tDeltaZ = voxelSize.at(2)/absDirection.at(2);
+
+        // travel along ray as long as we are in voxelgrid
+        while ( (x<this->gridDim.nx)&&(x>=0) && (y<this->gridDim.ny)&&(y>=0) && (z<this->gridDim.nz)&&(z>=0) && (!this->hasDTM || (this->hasDTM && z>=this->DTMind.at(y).at(x)))) {
+            
+            // as we are modelling an empty pulse, every traversal here is a miss
+            this->Nmiss.at(y).at(x).at(z)++;
+
+            // make next step
+            if (tMaxX < tMaxY) {
+                if (tMaxX < tMaxZ) {
+                    x = x + stepX;
+                    tMaxX = tMaxX + tDeltaX;
+                } else if (tMaxX > tMaxZ) {
+                    z = z + stepZ;
+                    tMaxZ = tMaxZ + tDeltaZ;
+                } else { // if they are equal
+                    x = x + stepX;
+                    z = z + stepZ;
+                    tMaxX = tMaxX + tDeltaX;
+                    tMaxZ = tMaxZ + tDeltaZ;
+                }
+
+            } else if (tMaxX > tMaxY){
+                if (tMaxY < tMaxZ) {
+                    y = y + stepY;
+                    tMaxY = tMaxY + tDeltaY;
+                } else if ( tMaxY > tMaxZ) {
+                    z = z + stepZ;
+                    tMaxZ = tMaxZ + tDeltaZ;
+                } else { //if they are equal
+                    y = y + stepY;
+                    z = z + stepZ;
+                    tMaxY = tMaxY + tDeltaY;
+                    tMaxZ = tMaxZ + tDeltaZ;
+                }
+            } else { // if they are equal
+                if (tMaxX < tMaxZ) {
+                    x = x + stepX;
+                    tMaxX = tMaxX + tDeltaX;
+                    y = y + stepY;
+                    tMaxY = tMaxY + tDeltaY;
+                } else if (tMaxX > tMaxZ) {
+                    z = z + stepZ;
+                    tMaxZ = tMaxZ + tDeltaZ;
+                } else if (tMaxX == tMaxZ) { // if all tMax are equal
+                    x = x + stepX;
+                    z = z + stepZ;
+                    y = y + stepY;
+                    tMaxX = tMaxX + tDeltaX;
+                    tMaxZ = tMaxZ + tDeltaZ;
+                    tMaxY = tMaxY + tDeltaY;
+                }
+            }
+        }
     }
 
-
+    // update feedback on voxel traversl
+    this->traversedPulses = this->traversedPulses + traversedPulses;
+    this->totalPulsesInDataset = this->totalPulsesInDataset + pulsecount;
+    this->numNoGridIntersection = this->numNoGridIntersection + numNoGridIntersection;
 }
 
+
+// TODO: change tMax, step and tDelta to vectors
+// then move to seperate function we can use in both raytracing functions
+// def Raytracer::stepVoxel(tMax, step, tDelta){
+
+// }
