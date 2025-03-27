@@ -3,6 +3,7 @@ import glob
 import logging
 import cv2
 import time
+import json
 
 import pandas as pd
 import numpy as np
@@ -15,46 +16,53 @@ from visualization import plot_riegl_grid
 
 from raytr import PyRaytracer
 
-# TODO: inherit from OccPy class? only save and viz functions are the same
-# alternatively, viz functions could/should be in seperate module imo
 
 class OccPyRIEGL:
-    def __init__(self, riscan_folder, proj_folder, model_empty_pulses=False, verbose=False, debug=False, odir=None, output_voxels=False):
 
-        # TODO: other inputs as config file or parameters
-        self.vox_dim = 0.1
-        self.lower_threshold = 1
-        self.buffer = [10,10,10,10,5,40] # [x_min, x_max, y_min, y_max, z_min, z_max]
-        self.plot_dim = dict(minX=-10,
-                                maxX=10,
-                                minY=-10,
-                                maxY=10,
-                                minZ=-5,
-                                maxZ=30)
+    def __init__(self, config_file):
+        with open(config_file) as f:
+            config = json.load(f)
+            print(config)
 
-        self.riscan_folder = riscan_folder
-        self.proj_folder = proj_folder
-        self.model_empty_pulses = model_empty_pulses
+        necessary_args = ["proj_folder", "riscan_folder", "vox_dim"]
+        missing = []
+        for key in necessary_args:
+            if key not in config:
+                missing.append(key)
 
-        self.verbose = verbose
-        self.debug = debug
+        if len(missing) > 0:
+            print(f"Please complete the config file with the following entries: {missing}")
+            os._exit(1)
 
-        self.output_voxels = output_voxels
+        optional_args = ["model_empty_pulses", "verbose", "debug", "output_voxels", "lower_threshold", "odir", "auto_dim", "buffer", "plot_dim"]
 
-        if odir is None:
+        print(f"INFO: optional arguments: {optional_args}")
+
+        self.riscan_folder = config["riscan_folder"]
+        self.proj_folder = config["proj_folder"]
+        self.vox_dim = config["vox_dim"]
+
+        self.model_empty_pulses = config["model_empty_pulses"] if "model_empty_pulses" in config else False
+        self.verbose = config["verbose"] if "verbose" in config else False
+        self.debug = config["debug"] if "debug" in config else False
+        self.output_voxels = config["output_voxels"] if "output_voxels" in config else False
+        self.lower_threshold = config["lower_threshold"] if "lower_threshold" in config else 0
+
+        if "odir" not in config:
             odir = os.path.join(os.getcwd(), "out")
             if not os.path.exists(odir):
                 os.makedirs(odir, exist_ok=True)
-        self.out_dir = odir 
+            self.odir = odir
+        else:
+            self.odir = config["odir"]
 
         # -- config logging 
-        if debug:
+        if self.debug:
             logging_level = logging.DEBUG
-        elif verbose:
+        elif self.verbose:
             logging_level = logging.INFO
         else:
             logging_level = logging.WARNING
-
         self.logger = logging.getLogger('occpy_logger')
         self.logger.setLevel(logging_level)
         console_handler = logging.StreamHandler()
@@ -63,29 +71,33 @@ class OccPyRIEGL:
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
 
+
         # --- prepare input
 
         self.prepare_input()
 
         # --- init dimensions and raytracer
 
-        # TODO: TEST
-        # if self.auto_dim:
-        #     if csv_positions is None or self.buffer is None:
-        #         self.logger.error("Must provide csv file and buffer in config if auto_dim is false")
-        #         os._exit(1)
-        #     plot_dim = self.determine_grid(csv_positions)
-        # else:
-        #     if plot_dim is None:
-        #         self.logger.error("must provide plot dimensions in config if auto_dim is false")
-        #         os._exit(1)
-        #     # format of plot_dim in config: [minX, minY, minZ, maxX, maxY, maxZ]
-        #     self.plot_dim = dict(minX=plot_dim[0],
-        #                         maxX=plot_dim[3],
-        #                         minY=plot_dim[1],
-        #                         maxY=plot_dim[4],
-        #                         minZ=plot_dim[2],
-        #                         maxZ=plot_dim[5])
+        if "auto_dim" in config and config["auto_dim"] is True:
+            if "buffer" in config:
+                buffer = config["buffer"]
+            else:
+                buffer = [0,0,0,0]
+            # TODO: implement
+            plot_dim = self.determine_grid(buffer)
+        else:
+            if "plot_dim" not in config or len(config["plot_dim"]) != 6:
+                self.logger.error("Must provide plot dimensions in config if auto_dim is false")
+                self.logger.error("format: [minX, minY, minZ, maxX, maxY, maxZ]")
+                os._exit(1)
+            # format of plot_dim in config: [minX, minY, minZ, maxX, maxY, maxZ]
+            plot_dim = config["plot_dim"]
+            self.plot_dim = dict(minX=plot_dim[0],
+                                maxX=plot_dim[3],
+                                minY=plot_dim[1],
+                                maxY=plot_dim[4],
+                                minZ=plot_dim[2],
+                                maxZ=plot_dim[5])
         
         self.grid_dim = dict(nx=int((self.plot_dim['maxX'] - self.plot_dim['minX']) / self.vox_dim),
                              ny=int((self.plot_dim['maxY'] - self.plot_dim['minY']) / self.vox_dim),
@@ -277,7 +289,7 @@ class OccPyRIEGL:
 
         if self.debug:
             # write image to output folder
-            ofolder = os.path.join(self.out_dir, "debug")
+            ofolder = os.path.join(self.odir, "debug")
             if not os.path.exists(ofolder):
                 os.makedirs(ofolder)
             opath = os.path.join(ofolder, f"preview_mask_{os.path.basename(preview_png)}")
@@ -407,7 +419,7 @@ class OccPyRIEGL:
         
         return
     
-    def determine_grid(self, csv_positions, buffer):
+    def determine_grid(self, buffer):
         # TODO: automatically derive grid from scan_positions
         # Take predefined buffer in x,y,z direction (configurable)
         # then find x,y,z extremes of scan positions and define grid based on this
@@ -448,9 +460,9 @@ class OccPyRIEGL:
 
         print("Saving Occlusion Outputs As .npy")
         tic = time.time()
-        np.save(f"{self.out_dir}/Nhit.npy", self.Nhit)
-        np.save(f"{self.out_dir}/Nmiss.npy", self.Nmiss)
-        np.save(f"{self.out_dir}/Nocc.npy", self.Nocc)
+        np.save(f"{self.odir}/Nhit.npy", self.Nhit)
+        np.save(f"{self.odir}/Nmiss.npy", self.Nmiss)
+        np.save(f"{self.odir}/Nocc.npy", self.Nocc)
         toc = time.time()
         print("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
@@ -466,7 +478,7 @@ class OccPyRIEGL:
         self.Classification[np.logical_and.reduce((self.Nhit == 0, self.Nmiss == 0,
                                             self.Nocc == 0))] = 4  # voxels that were not observed # TODO: Figure out, why this overwrites voxels that are classified as occluded! -> this was because np.logical_and only takes in 2 arrays as input, not 3! use np.logical_and.reduce() for that!
 
-        np.save(f"{self.out_dir}/Classification.npy", self.Classification)
+        np.save(f"{self.odir}/Classification.npy", self.Classification)
         toc = time.time()
         print("Elapsed Time: " + str(toc - tic) + " seconds")
 
@@ -475,19 +487,19 @@ class OccPyRIEGL:
             print("Saving Occlusion Outputs As .ply")
             tic = time.time()
             verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Nhit)
-            ost.write_ply(f"{self.out_dir}/Nhit.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(f"{self.odir}/Nhit.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Nmiss)
-            ost.write_ply(f"{self.out_dir}/Nmiss.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(f"{self.odir}/Nmiss.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Nocc)
-            ost.write_ply(f"{self.out_dir}/Nocc.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(f"{self.odir}/Nocc.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             # TODO: TEMP disable: these take up a lot of space, so disable for now
             # verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Classification)
-            # ost.write_ply(f"{self.out_dir}/Classification.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            # ost.write_ply(f"{self.odir}/Classification.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             # self.occl = np.zeros(shape=self.Classification.shape)
             # x4, y4, z4 = np.where(self.Classification == 4)
             # self.occl[x4, y4, z4] = self.Classification[x4, y4, z4]
             # verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.occl)
-            # ost.write_ply(f"{self.out_dir}/Occl.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            # ost.write_ply(f"{self.odir}/Occl.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             toc = time.time()
             print("Elapsed Time: " + str(toc - tic) + " seconds")
 
@@ -499,13 +511,15 @@ if __name__ == "__main__":
     riscan_folder  = "/Stor1/wout/occlusion/oxa_occpy_test.RiSCAN"
 
     # odir = "/Stor1/wout/occlusion/output_test/OXA"
-    odir = "./test_out/OXA/2pos_empty_test"
+    odir = "./test_out/OXA/test_config"
     if not os.path.exists(odir):
         os.makedirs(odir, exist_ok=True)
 
     OUTPUT_VOXELS = False
 
-    occpy_riegl = OccPyRIEGL(riscan_folder, proj_folder, model_empty_pulses=True, debug=True, odir=odir, output_voxels=OUTPUT_VOXELS)
+    config_file = "/home/wcherlet/repos/OccPy/config/OXA.JSON"
+
+    occpy_riegl = OccPyRIEGL(config_file)
 
     occpy_riegl.do_raytracing()
 
