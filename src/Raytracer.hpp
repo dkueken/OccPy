@@ -40,6 +40,7 @@ class Raytracer {
 
     map<double,boost::shared_ptr<Pulse> > pulsedataset;
     map<double,boost::shared_ptr<Pulse> > incompletePulses;
+    map<double,boost::shared_ptr<Pulse> > emptypulsedataset;
     //TODO: Check if these flags are necessary
     int invalidPoints = 0;
     int storedPoints = 0;
@@ -107,4 +108,6 @@ class Raytracer {
         void clearPulseDataset();
 
         string reportOnTraversal();
+
+        void doRaytracingEmptyPulses();
 };

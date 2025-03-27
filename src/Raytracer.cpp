@@ -1118,3 +1118,71 @@ vector<double> Raytracer::getPulsesIntersectingBox(vector<double> x, vector<doub
 
 
 
+void Raytracer::doRaytracingEmptyPulses(){
+    // this function works very similar to doRaytracing, except that these pulses have no returns and should always move to edge of voxelgrid
+
+    // the code has a lot of overlap, so could potentially be merged, but this would complicate the doRaytracing function
+    // and currently this code is only used for RIEGL scanners in an experimental setup anyways
+    // sooo for now seperate functions and duplicate code
+
+    int pulsecount = 0;
+    int traversedPulses = 0;
+    int numNoGridIntersection = 0;
+
+    int total_pulses2iterate = (int)this->emptypulsedataset.size();
+    int regHit = 0; //Number of registered hit voxels
+
+    // init: TODO: set boxsize and voxelsize
+    double voxelSizeX = 0;
+    double voxelSizeY = 0;
+    double voxelSizeZ = 0;
+
+    for (map<double,boost::shared_ptr<Pulse> >::iterator it = this->emptypulsedataset.begin(); it != this->emptypulsedataset.end(); ++it) {
+        pulsecount++;
+
+        bool isfound = false;
+
+        //update progressbar
+        loadbar(pulsecount, total_pulses2iterate, 20);
+
+        //init several necessary variables befor starting
+        int flag = 0;               //flag whether pulse crosses voxel grid or not
+        double tmin = 0;             //how far along the pulse direction we have to travel until we reach the voxel grid. based on the vector representation of a line: y = u + tmin*v (y,u and v are vectors)
+
+        double tVoxelX = 0;
+        double tVoxelY = 0;
+        double tVoxelZ = 0;
+        int stepX = 0;
+        int stepY = 0;
+        int stepZ = 0;
+
+        double voxelMaxX = 0;
+        double voxelMaxY = 0;
+        double voxelMaxZ = 0;
+
+        double tDeltaX = 0;
+        double tDeltaY = 0;
+        double tDeltaZ = 0;
+
+        double tMaxX = 0;
+        double tMaxY = 0;
+        double tMaxZ = 0;
+
+        vector<double> origin (3,0);
+        vector<double> direction (3,0);
+
+        origin.at(0) = it->second->getSensorY();
+        origin.at(1) = it->second->getSensorX();
+        origin.at(2) = it->second->getSensorZ();
+
+        // get direction directly from pulse, as we have no returns
+        direction.at(0) = it->second->getDirectionY();
+        direction.at(1) = it->second->getDirectionX();
+        direction.at(2) = it->second->getDirectionZ();
+
+
+    }
+
+
+}
+

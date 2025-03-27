@@ -34,6 +34,10 @@ Pulse::Pulse (double gps, double sensX, double sensY, double sensZ, int numRet, 
     
     this->hasSensorPosition = true;
 
+    // note: empty does not indicate a normal pulse with missing returns, but an intentionally empty pulse
+    // never set this based on echo map
+    this->empty = false;
+
     //this->wasTraversed = false;
 
     
@@ -49,22 +53,32 @@ Pulse::Pulse(int numRets) {
     this->hasSensorPosition = false;
 
     //this->wasTraversed = false;
+
+    this->empty = false;
     
+}
+
+Pulse::Pulse(double gps, double sensX, double sensY, double sensZ, double directionX, double directionY, double directionZ){
+    this->GPSTime = gps;
+    this->SensorX = sensX;
+    this->SensorY = sensY;
+    this->SensorZ = sensZ;
+    this->SensorX = directionX;
+    this->SensorY = directionY;
+    this->SensorZ = directionZ;
+
+    this->empty = true;
 }
 
 
 Pulse::~Pulse() {
-    
-    
-//    cout << "Deallocating Pulse object " << endl;
-    
-    map<int,boost::shared_ptr<Echo> >::iterator it = this->Echoes.begin();
-    
-    while ( it != this->Echoes.end() ){
-        //Iterate thorugh all Echoes and delete them
-        this->Echoes.erase(it++);
-//        delete it->second;
-//        this->Echoes->erase(it);
+
+    if (!this->empty) {
+        map<int,boost::shared_ptr<Echo> >::iterator it = this->Echoes.begin();
+        while ( it != this->Echoes.end() ){
+            //Iterate thorugh all Echoes and delete them
+            this->Echoes.erase(it++);
+        }
     }
     
 }
@@ -199,6 +213,34 @@ double Pulse::getSensorShiftZ(){
         return this->SensorShift_Z;
     } else {
         return 0;
+    }
+}
+
+
+double Pulse::getDirectionX(){
+    if (this->empty) {
+        return this->DirectionX;
+    } else {
+        //calculate based on last return
+        return this->getEchoes().at(this->getNumberOfReturns())->getX() - this->getSensorX();
+    }
+}
+
+double Pulse::getDirectionY(){
+    if (this->empty) {
+        return this->DirectionY;
+    } else {
+        //calculate based on last return
+        return this->getEchoes().at(this->getNumberOfReturns())->getY() - this->getSensorY();
+    }
+}
+
+double Pulse::getDirectionZ(){
+    if (this->empty) {
+        return this->DirectionZ;
+    } else {
+        //calculate based on last return
+        return this->getEchoes().at(this->getNumberOfReturns())->getZ() - this->getSensorZ();
     }
 }
 

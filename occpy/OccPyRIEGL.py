@@ -13,10 +13,6 @@ from occpy.PreparePly import prepare_ply
 
 from raytr import PyRaytracer
 
-
-# TODO:
-# 4. custom configexception? for when config is not correct, like with autodim and plot_dim
-
 # TODO: inherit from OccPy class? only save and viz functions are the same
 # alternatively, viz functions could/should be in seperate module imo
 

@@ -42,6 +42,14 @@ class Pulse {
     double SensorShift_Y;
     double SensorShift_Z;
 
+    // indicator for wether pulse is empty, i.e. has no returns.
+    // different then pulse with no echoes! this is to indicate intentional empty pulse
+    bool empty;
+    // direction is usually calculated from sensorpos to last return, must be given for empty pulse
+    double DirectionX;
+    double DirectionY;
+    double DirectionZ;
+
     //bool wasTraversed;
 
     
@@ -53,6 +61,9 @@ public:
     
     Pulse ();
     Pulse(int); //Constructor only taking the number of returns inside this pulse
+
+    Pulse(double, double, double, double, double, double, double) ; 
+    //contructor for empty pulse, takes gpstime, sensor position and direction
 
     void addSensorXPosition (double);
     void addSensorYPosition (double);
@@ -77,6 +88,10 @@ public:
     double getSensorShiftX();
     double getSensorShiftY();
     double getSensorShiftZ();
+
+    double getDirectionX();
+    double getDirectionY();
+    double getDirectionZ();
 
     map<int,boost::shared_ptr<Echo> > getEchoes(){return this->Echoes;}
     
