@@ -11,6 +11,8 @@ import OSToolBox as ost
 from occpy import riegl_io
 from occpy.PreparePly import prepare_ply
 
+from visualization import plot_riegl_grid
+
 from raytr import PyRaytracer
 
 # TODO: inherit from OccPy class? only save and viz functions are the same
@@ -273,7 +275,15 @@ class OccPyRIEGL:
         # Apply the mask to keep only rows that match
         df_filtered = df_empty[mask]
 
-        # TODO: debug: save fig of mask to debug folder
+        if self.debug:
+            # write image to output folder
+            ofolder = os.path.join(self.out_dir, "debug")
+            if not os.path.exists(ofolder):
+                os.makedirs(ofolder)
+            opath = os.path.join(ofolder, f"preview_mask_{os.path.basename(preview_png)}")
+            self.logger.debug(f"Filtering done using preview {preview_png}, saved at {opath}")
+
+            plot_riegl_grid(df_empty, max_scanline, max_scanline_idx, blue_mask, out_path=opath)
 
         return df_filtered
 
@@ -297,16 +307,11 @@ class OccPyRIEGL:
 
     def do_raytracing(self):
 
-        # TODO:
-        # tests to do:
-            # 5. single rdbx + rxp with empty pulse modelling (requires editing raytracer further)
-            # 6. multiple rdbx's + rxp's with empty pulse modelling
-
         for scan in self.rdbx_scans:
             # read rdbx file for point data
             
             # TODO: test
-            scan_test = ["ScanPos001"]
+            scan_test = ["ScanPos001", "ScanPos002"]
             if scan not in scan_test:
                 continue
 
@@ -330,6 +335,7 @@ class OccPyRIEGL:
 
             df_rdbx, df_rxp = self.rdbx_rxp_to_df(rdbx, rxp)
             point_df, empty_pulse_df = self.merge_df_rdbx_rxp(df_rdbx, df_rxp)
+            max_scanline = df_rdbx[["scanline"]].to_numpy().max()
 
             # test colinearity to see if rdbx and rxp merge succesfull
             if self.debug:
@@ -493,7 +499,7 @@ if __name__ == "__main__":
     riscan_folder  = "/Stor1/wout/occlusion/oxa_occpy_test.RiSCAN"
 
     # odir = "/Stor1/wout/occlusion/output_test/OXA"
-    odir = "./test_out/OXA/1_pos_empty_test"
+    odir = "./test_out/OXA/2pos_empty_test"
     if not os.path.exists(odir):
         os.makedirs(odir, exist_ok=True)
 
