@@ -306,7 +306,7 @@ class OccPyRIEGL:
             # read rdbx file for point data
             
             # TODO: test
-            scan_test = ["ScanPos001", "ScanPos002"]
+            scan_test = ["ScanPos001"]
             if scan not in scan_test:
                 continue
 
@@ -379,14 +379,25 @@ class OccPyRIEGL:
             toc = time.time()
             self.logger.info("Time elapsed for raytracing: {:.2f} seconds".format(toc - tic))
 
+            if self.model_empty_pulses:
+
+                self.logger.info("Running raytracing for empty pulses")
+
+                sensor_x = empty_pulse_df["beam_origin_x"].to_numpy()
+                sensor_y = empty_pulse_df["beam_origin_y"].to_numpy()
+                sensor_z = empty_pulse_df["beam_origin_z"].to_numpy()
+                direction_x = empty_pulse_df["beam_direction_x"].to_numpy()
+                direction_y = empty_pulse_df["beam_direction_y"].to_numpy()
+                direction_z = empty_pulse_df["beam_direction_z"].to_numpy()
+                gps_time = empty_pulse_df["timestamp"].to_numpy()
+
+                self.RayTr.addEmptyPulseData(sensor_x, sensor_y, sensor_z, direction_x, direction_y, direction_z, gps_time)
+                self.RayTr.doRaytracingEmptyPulses()
+
             self.RayTr.clearPulseDataset()
 
         self.logger.info("Report on traversal:")
         self.RayTr.reportOnTraversal()
-
-
-
-            # TODO: if model_empty_pulses, do raytracing with empty pulses (likely have to modify Raytracer.cpp)
         
         return
     
@@ -482,13 +493,13 @@ if __name__ == "__main__":
     riscan_folder  = "/Stor1/wout/occlusion/oxa_occpy_test.RiSCAN"
 
     # odir = "/Stor1/wout/occlusion/output_test/OXA"
-    odir = "./test_out/OXA/2_pos_origin"
+    odir = "./test_out/OXA/1_pos_empty_test"
     if not os.path.exists(odir):
         os.makedirs(odir, exist_ok=True)
 
-    OUTPUT_VOXELS = True
+    OUTPUT_VOXELS = False
 
-    occpy_riegl = OccPyRIEGL(riscan_folder, proj_folder, model_empty_pulses=False, debug=True, odir=odir, output_voxels=OUTPUT_VOXELS)
+    occpy_riegl = OccPyRIEGL(riscan_folder, proj_folder, model_empty_pulses=True, debug=True, odir=odir, output_voxels=OUTPUT_VOXELS)
 
     occpy_riegl.do_raytracing()
 

@@ -652,6 +652,7 @@ string Raytracer::reportOnTraversal(){
 void Raytracer::clearPulseDataset()
 {
     this->pulsedataset.clear();
+    this->emptypulsedataset.clear();
 }
 
 void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double> Y, vector<double> Z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time)
@@ -1166,8 +1167,6 @@ void Raytracer::doRaytracingEmptyPulses(){
 
     for (map<double,boost::shared_ptr<Pulse> >::iterator it = this->emptypulsedataset.begin(); it != this->emptypulsedataset.end(); ++it) {
         pulsecount++;
-
-        bool isfound = false;
 
         //update progressbar
         loadbar(pulsecount, total_pulses2iterate, 20);

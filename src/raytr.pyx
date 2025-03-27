@@ -42,6 +42,9 @@ cdef extern from "Raytracer.hpp":
         vector[vector[double]]& reportSensorShifts()
         vector[double] getPulsesIntersectingBox(vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[int], vector[int])
 
+        void addEmptyPulseData(vector[double] sensor_x, vector[double] sensor_y, vector[double] sensor_z, vector[double] direction_x, vector[double] direction_y, vector[double] direction_z, vector[double] gps_time)
+        void doRaytracingEmptyPulses()
+
 
 
 # creating a cython wrapper class
@@ -83,4 +86,8 @@ cdef class PyRaytracer:
         return self.thisptr.reportOnTraversal()
     def getPulsesIntersectingBox(self, x, y, z, sensor_x, sensor_y, sensor_z, gps_time, vmin, vmax):
         return self.thisptr.getPulsesIntersectingBox(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, vmin, vmax)
+    def addEmptyPulseData(self, sensor_x, sensor_y, sensor_z, direction_x, direction_y, direction_z, gps_time):
+        return self.thisptr.addEmptyPulseData(sensor_x, sensor_y, sensor_z, direction_x, direction_y, direction_z, gps_time)
+    def doRaytracingEmptyPulses(self):
+        return self.thisptr.doRaytracingEmptyPulses()
 
