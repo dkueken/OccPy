@@ -62,7 +62,7 @@ public:
     Pulse ();
     Pulse(int); //Constructor only taking the number of returns inside this pulse
 
-    Pulse(double, double, double, double, double, double, double) ; 
+    Pulse(double gps, double sensX, double sensY, double sensZ, double directionX, double directionY, double directionZ) ; 
     //contructor for empty pulse, takes gpstime, sensor position and direction
 
     void addSensorXPosition (double);

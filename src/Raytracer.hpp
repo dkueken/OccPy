@@ -109,5 +109,6 @@ class Raytracer {
 
         string reportOnTraversal();
 
+        void addEmptyPulseData(vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> direction_x, vector<double> direction_y, vector<double> direction_z, vector<double> gps_time);
         void doRaytracingEmptyPulses();
 };

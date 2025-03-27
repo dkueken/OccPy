@@ -1118,6 +1118,30 @@ vector<double> Raytracer::getPulsesIntersectingBox(vector<double> x, vector<doub
 
 
 
+
+void Raytracer::addEmptyPulseData(vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> direction_x, vector<double> direction_y, vector<double> direction_z, vector<double> gps_time){
+    // add empty pulses
+    int duplicate_empty_pulses = 0;
+    for (int i = 0; i < gps_time.size(); i++) {
+        map<double,boost::shared_ptr<Pulse> >::iterator it;
+
+        double gps = gps_time.at(i);
+
+        it = this->emptypulsedataset.find(gps);
+
+        if (it != this->emptypulsedataset.end()) {
+            duplicate_empty_pulses++;
+        } else {
+            boost::shared_ptr<Pulse> p = boost::make_shared<Pulse>(gps, sensor_x.at(i), sensor_y.at(i), sensor_z.at(i), direction_x.at(i), direction_y.at(i), direction_z.at(i));
+            this->emptypulsedataset.insert(std::make_pair(p->getGPSTime(),p));
+        }
+    }
+    if (duplicate_empty_pulses > 0) {
+        cout << "Found " << duplicate_empty_pulses << "number of duplicate pulses (based on gps time), only first occurence is kept" << endl;
+    }
+
+}
+
 void Raytracer::doRaytracingEmptyPulses(){
     // this function works very similar to doRaytracing, except that these pulses have no returns and should always move to edge of voxelgrid
 
@@ -1320,5 +1344,3 @@ void Raytracer::doRaytracingEmptyPulses(){
 // TODO: change tMax, step and tDelta to vectors
 // then move to seperate function we can use in both raytracing functions
 // def Raytracer::stepVoxel(tMax, step, tDelta){
-
-// }
