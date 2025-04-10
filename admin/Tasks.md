@@ -37,4 +37,4 @@
 - [x] update requirements.txt    -> @Jonas
 
 ## Ubuntu
-- [ ] make code run on ubuntu -> @William
+- [x] make code run on ubuntu -> @William
