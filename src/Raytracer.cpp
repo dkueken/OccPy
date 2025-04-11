@@ -33,10 +33,6 @@ Raytracer::~Raytracer()
 }
 
 void Raytracer::defineGrid(vector<int> minBound, vector<int> maxBound, int nx, int ny, int nz, float voxSize){
-
-    //CAUTION!!! First dimension is always associated with the Y coordinates!!!
-
-
     //Test without adapting the grid origin: Meaning, we will take the minBound vector as the grid origin
     this->gridDim.origin = minBound;
 
@@ -44,39 +40,15 @@ void Raytracer::defineGrid(vector<int> minBound, vector<int> maxBound, int nx, i
     this->gridDim.maxBound = maxBound;
     this->gridDim.voxSize = voxSize;
 
-
     this->gridDim.nx = nx;
     this->gridDim.ny = ny;
     this->gridDim.nz = nz;
 
-
-    this->Nhit.resize(this->gridDim.ny, vector<vector<int > >(this->gridDim.nx, vector<int>(this->gridDim.nz,0)));
-    this->Nmiss.resize(this->gridDim.ny, vector<vector<int > >(this->gridDim.nx, vector<int>(this->gridDim.nz,0)));
-    this->Nocc.resize(this->gridDim.ny, vector<vector<int > >(this->gridDim.nx, vector<int>(this->gridDim.nz,0)));
-
-}
-
-/*
-void Raytracer_MLS::readDTM(vector<vector< double > > DTM){
-    this->hasDTM = true;
-
-    //extract DTM indices
-
-    this->DTMind.resize(this->gridDim.ny, vector< double >(this->gridDim.nx,0));
-
-
-    for (int y=0; y<this->DTMind.size(); y++) {
-        for (int x=0; x<this->DTMind.at(y).size(); x++) {
-
-            this->DTMind.at(y).at(x) = floor( ((DTM.at(y).at(x) - this->gridDim.minBound.at(2)) / (this->gridDim.maxBound.at(2) - this->gridDim.minBound.at(2))) * this->gridDim.nz ) - 4; //The index of where the DTM is located for each (y,x) coordinate pair. Additionally we subtract four voxels from this index in order to assure that we traverse far enough so that we have a thorough Classification grid until a few meters below the DTM.
-
-        }
-    }
-
-
+    this->Nhit.resize(this->gridDim.nx, vector<vector<int > >(this->gridDim.ny, vector<int>(this->gridDim.nz,0)));
+    this->Nmiss.resize(this->gridDim.nx, vector<vector<int > >(this->gridDim.ny, vector<int>(this->gridDim.nz,0)));
+    this->Nocc.resize(this->gridDim.nx, vector<vector<int > >(this->gridDim.ny, vector<int>(this->gridDim.nz,0)));
 
 }
-*/
 
 static inline void loadbar(unsigned int x, unsigned int n, unsigned int w = 50)
 {
@@ -130,6 +102,10 @@ void Raytracer::addPointData(vector<double> X, vector<double> Y, vector<double> 
             }
         } else {
             // Pulse is not yet within the pulsedataset and should be added, before adding the echo
+
+            // TODO: check if pulse already in completePulses set 
+            // (so we can warn user that gps_time has duplicates which overwrites the pulses that are already in the set)
+
 
             // extract general pulse information
             boost::shared_ptr<Pulse> p = boost::make_shared<Pulse>();
@@ -286,14 +262,14 @@ void Raytracer::doRaytracing()
         vector<double> direction (3,0);
 
         if (it->second->hasSensorPosition) {
-            origin.at(0) = it->second->getSensorY();
-            origin.at(1) = it->second->getSensorX();
+            origin.at(0) = it->second->getSensorX();
+            origin.at(1) = it->second->getSensorY();
             origin.at(2) = it->second->getSensorZ();
 
             //TODO: check if we should have to subtract 1 from the Number of Returns, because the vector indices are also 0 based
             //TODO: this should work, as the getEchoes() function returns a map with a shared ptr.
-            direction.at(0) = it->second->getEchoes().at(it->second->getNumberOfReturns())->getY() - origin.at(0);
-            direction.at(1) = it->second->getEchoes().at(it->second->getNumberOfReturns())->getX() - origin.at(1);
+            direction.at(0) = it->second->getEchoes().at(it->second->getNumberOfReturns())->getX() - origin.at(0);
+            direction.at(1) = it->second->getEchoes().at(it->second->getNumberOfReturns())->getY() - origin.at(1);
             direction.at(2) = it->second->getEchoes().at(it->second->getNumberOfReturns())->getZ() - origin.at(2);
 
             /*
@@ -332,17 +308,6 @@ void Raytracer::doRaytracing()
             //TODO: implement traversal if sensor position is not known -> this should not be promoted as we should advocate
             // that the sensor position should always be known!
         }
-
-        /* old implementation! TODO: delete commented part once ready!
-        // We are assuming that we do know the exact sensor position
-        origin.at(0) = sensor_y.at(i);
-        origin.at(1) = sensor_x.at(i);
-        origin.at(2) = sensor_z.at(i);
-
-        direction.at(0) = Y.at(i) - origin.at(0);
-        direction.at(1) = X.at(i) - origin.at(1);
-        direction.at(2) = Z.at(i) - origin.at(2);
-        */
 
         // if direction vector is == 0 assign a very small number to overcome problems with division through 0 in later steps. TODO: Check if this value is small enough. This could be a problem especially with TLS data!
         if (direction.at(0)==0) { direction.at(0) = numeric_limits<double>::min(); }
@@ -387,8 +352,8 @@ void Raytracer::doRaytracing()
             ZInd.resize(it->second->getNumberOfReturns());
 
             for (int j=1; j<=it->second->getNumberOfReturns(); j++){
-                YInd.at(j-1) = floor( ((it->second->getEchoes().at(j)->getY() - (double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.ny );
-                XInd.at(j-1) = floor( ((it->second->getEchoes().at(j)->getX() - (double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.nx );
+                XInd.at(j-1) = floor( ((it->second->getEchoes().at(j)->getX() - (double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.nx );
+                YInd.at(j-1) = floor( ((it->second->getEchoes().at(j)->getY() - (double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.ny );
                 ZInd.at(j-1) = floor( ((it->second->getEchoes().at(j)->getZ() - (double)this->gridDim.minBound.at(2))/boxSize.at(2))*(double)this->gridDim.nz );
 
                 if (YInd.at(j-1)>=this->gridDim.ny || YInd.at(j-1)<0 || XInd.at(j-1)>=this->gridDim.nx || XInd.at(j-1)<0 ||
@@ -404,8 +369,8 @@ void Raytracer::doRaytracing()
             int y;
             int z;
 
-            y = floor( ((start.at(0)-(double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.ny );
-            x = floor( ((start.at(1)-(double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.nx );
+            x = floor( ((start.at(0)-(double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.nx );
+            y = floor( ((start.at(1)-(double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.ny );
             z = floor( ((start.at(2)-(double)this->gridDim.minBound.at(2))/boxSize.at(2))*(double)this->gridDim.nz );
 
             if (x==(this->gridDim.nx)) {
@@ -419,21 +384,19 @@ void Raytracer::doRaytracing()
             }
 
             if (direction.at(0)>=0) {
-                tVoxelY = (double)(y+1)/(double)this->gridDim.ny;
-                stepY = 1;
-            } else {
-                tVoxelY = ((double)(y+1)-1)/(double)this->gridDim.ny;
-                stepY = -1;
-            }
-
-            if (direction.at(1)>=0) {
                 tVoxelX = (double)(x+1)/(double)this->gridDim.nx;
                 stepX = 1;
             } else {
                 tVoxelX = ((double)(x+1)-1)/(double)this->gridDim.nx;
                 stepX = -1;
             }
-
+            if (direction.at(1)>=0) {
+                tVoxelY = (double)(y+1)/(double)this->gridDim.ny;
+                stepY = 1;
+            } else {
+                tVoxelY = ((double)(y+1)-1)/(double)this->gridDim.ny;
+                stepY = -1;
+            }
             if (direction.at(2)>=0) {
                 tVoxelZ = (double)(z+1)/(double)this->gridDim.nz;
                 stepZ = 1;
@@ -442,16 +405,16 @@ void Raytracer::doRaytracing()
                 stepZ = -1;
             }
 
-            voxelMaxY = (double)this->gridDim.minBound.at(0) + tVoxelY*boxSize.at(0);
-            voxelMaxX = (double)this->gridDim.minBound.at(1) + tVoxelX*boxSize.at(1);
+            voxelMaxX = (double)this->gridDim.minBound.at(0) + tVoxelX*boxSize.at(0);
+            voxelMaxY = (double)this->gridDim.minBound.at(1) + tVoxelY*boxSize.at(1);
             voxelMaxZ = (double)this->gridDim.minBound.at(2) + tVoxelZ*boxSize.at(2);
 
-            tMaxY = tmin + (voxelMaxY-start.at(0))/direction.at(0);
-            tMaxX = tmin + (voxelMaxX-start.at(1))/direction.at(1);
+            tMaxX = tmin + (voxelMaxX-start.at(0))/direction.at(0);
+            tMaxY = tmin + (voxelMaxY-start.at(1))/direction.at(1);
             tMaxZ = tmin + (voxelMaxZ-start.at(2))/direction.at(2);
 
-            voxelSizeY = boxSize.at(0)/(double)this->gridDim.ny;
-            voxelSizeX = boxSize.at(1)/(double)this->gridDim.nx;
+            voxelSizeX = boxSize.at(0)/(double)this->gridDim.nx;
+            voxelSizeY = boxSize.at(1)/(double)this->gridDim.ny;
             voxelSizeZ = boxSize.at(2)/(double)this->gridDim.nz;
 
             vector<double> absDirection (3,0);
@@ -459,8 +422,8 @@ void Raytracer::doRaytracing()
             absDirection.at(1) = (direction.at(1)<0) ? -1*direction.at(1) : direction.at(1);
             absDirection.at(2) = (direction.at(2)<0) ? -1*direction.at(2) : direction.at(2);
 
-            tDeltaY = voxelSizeY/absDirection.at(0);
-            tDeltaX = voxelSizeX/absDirection.at(1);
+            tDeltaX = voxelSizeX/absDirection.at(0);
+            tDeltaY = voxelSizeY/absDirection.at(1);
             tDeltaZ = voxelSizeZ/absDirection.at(2);
 
             // First check, if the return is before the voxel grid
@@ -470,7 +433,7 @@ void Raytracer::doRaytracing()
             for (int j=1; j<=it->second->getNumberOfReturns(); j++){
 
                 //Distance Between origin and laser return
-                double dP = sqrt( pow( (it->second->getEchoes().at(j)->getY())-origin.at(0), 2 ) + pow( (it->second->getEchoes().at(j)->getX())-origin.at(1), 2 ) + pow( (it->second->getEchoes().at(j)->getZ())-origin.at(2), 2) );
+                double dP = sqrt( pow( (it->second->getEchoes().at(j)->getX())-origin.at(0), 2 ) + pow( (it->second->getEchoes().at(j)->getY())-origin.at(1), 2 ) + pow( (it->second->getEchoes().at(j)->getZ())-origin.at(2), 2) );
                 //Distance between origin and the first traversed voxel (if origin == first return and origin inside voxel grid origin==start
                 double dS = sqrt( pow( (start.at(0) - origin.at(0)), 2) + pow( (start.at(1) - origin.at(1)), 2) + pow( (start.at(2) - origin.at(2)), 2) );
 
@@ -485,7 +448,7 @@ void Raytracer::doRaytracing()
             vector<int> traversedZ;
             */
             // TODO: add support for DTM!
-            while ( (x<this->gridDim.nx)&&(x>=0) && (y<this->gridDim.ny)&&(y>=0) && (z<this->gridDim.nz)&&(z>=0) && (!this->hasDTM || (this->hasDTM && z>=this->DTMind.at(y).at(x)))) {
+            while ( (x<this->gridDim.nx)&&(x>=0) && (y<this->gridDim.ny)&&(y>=0) && (z<this->gridDim.nz)&&(z>=0) && (!this->hasDTM || (this->hasDTM && z>=this->DTMind.at(x).at(y)))) {
 
                 //TODO: Implement path length estimation inside voxel
                 //TODO: Implement the estimation of the average incidence anlge output grid
@@ -501,7 +464,7 @@ void Raytracer::doRaytracing()
                     //cover the case where multiple returns are inside the same voxel:
                     while (retNum <= it->second->getNumberOfReturns() && x==XInd.at(retNum-1) && y==YInd.at(retNum-1) && z==ZInd.at(retNum-1)) {
 
-                        this->Nhit.at(y).at(x).at(z)++;
+                        this->Nhit.at(x).at(y).at(z)++;
 
                         //TODO: implement NhitWeigh and NhitWeighPathL!
 
@@ -514,12 +477,12 @@ void Raytracer::doRaytracing()
 
                     // if there are still hits that were not yet traversed:
                     if (retNum <= it->second->getNumberOfReturns()) {
-                        this->Nmiss.at(y).at(x).at(z)++;
+                        this->Nmiss.at(x).at(y).at(z)++;
 
                         //TODO: Implement NmissWeigh and NmissWeighPathL!
 
                     } else { //If all returns were traversed, the voxel is occluded for this pulse
-                        this->Nocc.at(y).at(x).at(z)++;
+                        this->Nocc.at(x).at(y).at(z)++;
                     }
                 }
 
@@ -706,12 +669,12 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
         vector<double> direction (3,0);
 
         // We are assuming that we do know the exact sensor position
-        origin.at(0) = sensor_y.at(i);
-        origin.at(1) = sensor_x.at(i);
+        origin.at(0) = sensor_x.at(i);
+        origin.at(1) = sensor_y.at(i);
         origin.at(2) = sensor_z.at(i);
 
-        direction.at(0) = Y.at(i) - origin.at(0);
-        direction.at(1) = X.at(i) - origin.at(1);
+        direction.at(0) = X.at(i) - origin.at(1);
+        direction.at(1) = Y.at(i) - origin.at(0);
         direction.at(2) = Z.at(i) - origin.at(2);
 
         // if direction vector is == 0 assign a very small number to overcome problems with division through 0 in later steps. TODO: Check if this value is small enough. This could be a problem especially with TLS data!
@@ -751,8 +714,8 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
             int YInd = 0;
             int ZInd = 0;
 
-            YInd = floor( ((Y.at(i) - (double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.ny );
-            XInd = floor( ((X.at(i) - (double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.nx );
+            XInd = floor( ((X.at(i) - (double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.nx );
+            YInd = floor( ((Y.at(i) - (double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.ny );
             ZInd = floor( ((Z.at(i) - (double)this->gridDim.minBound.at(2))/boxSize.at(2))*(double)this->gridDim.nz );
 
             if ( YInd >= this->gridDim.ny || YInd < 0 || XInd >= this->gridDim.nx || XInd < 0 || ZInd >= this->gridDim.nz || ZInd < 0 ){
@@ -764,8 +727,8 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
             int y;
             int z;
 
-            y = floor( ((start.at(0)-(double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.ny );
-            x = floor( ((start.at(1)-(double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.nx );
+            x = floor( ((start.at(1)-(double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.nx );
+            y = floor( ((start.at(0)-(double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.ny );
             z = floor( ((start.at(2)-(double)this->gridDim.minBound.at(2))/boxSize.at(2))*(double)this->gridDim.nz );
 
             if (x==(this->gridDim.nx)) {
@@ -779,21 +742,19 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
             }
 
             if (direction.at(0)>=0) {
-                tVoxelY = (double)(y+1)/(double)this->gridDim.ny;
-                stepY = 1;
-            } else {
-                tVoxelY = ((double)(y+1)-1)/(double)this->gridDim.ny;
-                stepY = -1;
-            }
-
-            if (direction.at(1)>=0) {
                 tVoxelX = (double)(x+1)/(double)this->gridDim.nx;
                 stepX = 1;
             } else {
                 tVoxelX = ((double)(x+1)-1)/(double)this->gridDim.nx;
                 stepX = -1;
             }
-
+            if (direction.at(1)>=0) {
+                tVoxelY = (double)(y+1)/(double)this->gridDim.ny;
+                stepY = 1;
+            } else {
+                tVoxelY = ((double)(y+1)-1)/(double)this->gridDim.ny;
+                stepY = -1;
+            }
             if (direction.at(2)>=0) {
                 tVoxelZ = (double)(z+1)/(double)this->gridDim.nz;
                 stepZ = 1;
@@ -802,16 +763,16 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
                 stepZ = -1;
             }
 
-            voxelMaxY = (double)this->gridDim.minBound.at(0) + tVoxelY*boxSize.at(0);
-            voxelMaxX = (double)this->gridDim.minBound.at(1) + tVoxelX*boxSize.at(1);
+            voxelMaxX = (double)this->gridDim.minBound.at(0) + tVoxelX*boxSize.at(0);
+            voxelMaxY = (double)this->gridDim.minBound.at(1) + tVoxelY*boxSize.at(1);
             voxelMaxZ = (double)this->gridDim.minBound.at(2) + tVoxelZ*boxSize.at(2);
 
-            tMaxY = tmin + (voxelMaxY-start.at(0))/direction.at(0);
-            tMaxX = tmin + (voxelMaxX-start.at(1))/direction.at(1);
+            tMaxX = tmin + (voxelMaxX-start.at(0))/direction.at(0);
+            tMaxY = tmin + (voxelMaxY-start.at(1))/direction.at(1);
             tMaxZ = tmin + (voxelMaxZ-start.at(2))/direction.at(2);
 
-            voxelSizeY = boxSize.at(0)/(double)this->gridDim.ny;
-            voxelSizeX = boxSize.at(1)/(double)this->gridDim.nx;
+            voxelSizeX = boxSize.at(0)/(double)this->gridDim.nx;
+            voxelSizeY = boxSize.at(1)/(double)this->gridDim.ny;
             voxelSizeZ = boxSize.at(2)/(double)this->gridDim.nz;
 
             vector<double> absDirection (3,0);
@@ -819,8 +780,8 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
             absDirection.at(1) = (direction.at(1)<0) ? -1*direction.at(1) : direction.at(1);
             absDirection.at(2) = (direction.at(2)<0) ? -1*direction.at(2) : direction.at(2);
 
-            tDeltaY = voxelSizeY/absDirection.at(0);
-            tDeltaX = voxelSizeX/absDirection.at(1);
+            tDeltaX = voxelSizeX/absDirection.at(0);
+            tDeltaY = voxelSizeY/absDirection.at(1);
             tDeltaZ = voxelSizeZ/absDirection.at(2);
 
             // First check, if the return is before the voxel grid
@@ -828,7 +789,7 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
             int retNum = 1;
 
             //Distance Between origin and laser return
-            double dP = sqrt( pow(Y.at(i)-origin.at(0), 2) + pow(X.at(i)-origin.at(1), 2) + pow(Z.at(i)-origin.at(2), 2));
+            double dP = sqrt( pow(X.at(i)-origin.at(0), 2) + pow(Y.at(i)-origin.at(1), 2) + pow(Z.at(i)-origin.at(2), 2));
             //Distance between origin and the first traversed voxel (if origin == first return and origin inside voxel grid origin==start
             double dS = sqrt( pow( (start.at(0) - origin.at(0)), 2) + pow( (start.at(1) - origin.at(1)), 2) + pow( (start.at(2) - origin.at(2)), 2) );
 
@@ -836,15 +797,7 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
                 retNum++;
             }
 
-            //vector<int> traversedX;
-            //vector<int> traversedY;
-            //vector<int> traversedZ;
-
-            while ( (x<this->gridDim.nx)&&(x>=0) && (y<this->gridDim.ny)&&(y>=0) && (z<this->gridDim.nz)&&(z>=0) && (!this->hasDTM || (this->hasDTM && z>=this->DTMind.at(y).at(x)))) {
-
-                //traversedX.push_back(x);
-                //traversedY.push_back(y);
-                //traversedZ.push_back(z);
+            while ( (x<this->gridDim.nx)&&(x>=0) && (y<this->gridDim.ny)&&(y>=0) && (z<this->gridDim.nz)&&(z>=0) && (!this->hasDTM || (this->hasDTM && z>=this->DTMind.at(x).at(y)))) {
 
                 if ( retNum <= 1 && x==XInd && y==YInd && z==ZInd) {
                     //the return is inside this voxel, feed information from return into this voxel
@@ -852,7 +805,7 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
                     //cover the case where multiple returns are inside the same voxel:
                     while (retNum <= 1 && x==XInd && y==YInd && z==ZInd) {
 
-                        this->Nhit.at(y).at(x).at(z)++;
+                        this->Nhit.at(x).at(y).at(z)++;
 
                         //TODO: implement NhitWeigh and NhitWeighPathL!
 
@@ -865,12 +818,12 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
 
                     // if there are still hits that were not yet traversed:
                     if (retNum <= 1) {
-                        this->Nmiss.at(y).at(x).at(z)++;
+                        this->Nmiss.at(x).at(y).at(z)++;
 
                         //TODO: Implement NmissWeigh and NmissWeighPathL!
 
                     } else { //If all returns were traversed, the voxel is occluded for this pulse
-                        this->Nocc.at(y).at(x).at(z)++;
+                        this->Nocc.at(x).at(y).at(z)++;
                     }
                 }
 
@@ -1035,8 +988,8 @@ vector<vector<double > >& Raytracer::reportSensorShifts(){
 
 vector<int >& Raytracer::getGridDimensions(){
     vector<int> grid_dim (3,0);
-    grid_dim.at(0) = this->gridDim.ny;
-    grid_dim.at(1) = this->gridDim.nx;
+    grid_dim.at(0) = this->gridDim.nx;
+    grid_dim.at(1) = this->gridDim.ny;
     grid_dim.at(2) = this->gridDim.nz;
 
     return grid_dim;
@@ -1069,12 +1022,12 @@ vector<double> Raytracer::getPulsesIntersectingBox(vector<double> x, vector<doub
         vector<double> direction (3,0);
 
         // We are assuming that we do know the exact sensor position
-        origin.at(0) = sensor_y.at(i);
-        origin.at(1) = sensor_x.at(i);
+        origin.at(0) = sensor_x.at(i);
+        origin.at(1) = sensor_y.at(i);
         origin.at(2) = sensor_z.at(i);
 
-        direction.at(0) = y.at(i) - origin.at(0);
-        direction.at(1) = x.at(i) - origin.at(1);
+        direction.at(0) = x.at(i) - origin.at(0);
+        direction.at(1) = y.at(i) - origin.at(1);
         direction.at(2) = z.at(i) - origin.at(2);
 
         // if direction vector is == 0 assign a very small number to overcome problems with division through 0 in later steps. TODO: Check if this value is small enough. This could be a problem especially with TLS data!
@@ -1137,6 +1090,7 @@ void Raytracer::addEmptyPulseData(vector<double> sensor_x, vector<double> sensor
             this->emptypulsedataset.insert(std::make_pair(p->getGPSTime(),p));
         }
     }
+    // TODO: verbose flag
     if (duplicate_empty_pulses > 0) {
         cout << "Found " << duplicate_empty_pulses << "number of duplicate pulses (based on gps time), only first occurence is kept" << endl;
     }
@@ -1161,8 +1115,8 @@ void Raytracer::doRaytracingEmptyPulses(){
     boxSize.at(1) = (double)this->gridDim.maxBound.at(1) - (double)this->gridDim.minBound.at(1);
     boxSize.at(2) = (double)this->gridDim.maxBound.at(2) - (double)this->gridDim.minBound.at(2);
     vector<double> voxelSize (3,0);
-    voxelSize.at(0) = boxSize.at(0)/(double)this->gridDim.ny;
-    voxelSize.at(1) = boxSize.at(1)/(double)this->gridDim.nx;
+    voxelSize.at(0) = boxSize.at(0)/(double)this->gridDim.nx;
+    voxelSize.at(1) = boxSize.at(1)/(double)this->gridDim.ny;
     voxelSize.at(2) = boxSize.at(2)/(double)this->gridDim.nx;
 
     for (map<double,boost::shared_ptr<Pulse> >::iterator it = this->emptypulsedataset.begin(); it != this->emptypulsedataset.end(); ++it) {
@@ -1178,13 +1132,13 @@ void Raytracer::doRaytracingEmptyPulses(){
         vector<double> origin (3,0);
         vector<double> direction (3,0);
 
-        origin.at(0) = it->second->getSensorY();
-        origin.at(1) = it->second->getSensorX();
+        origin.at(0) = it->second->getSensorX();
+        origin.at(1) = it->second->getSensorY();
         origin.at(2) = it->second->getSensorZ();
 
         // get direction directly from pulse, as we have no returns
-        direction.at(0) = it->second->getDirectionY();
-        direction.at(1) = it->second->getDirectionX();
+        direction.at(0) = it->second->getDirectionX();
+        direction.at(1) = it->second->getDirectionY();
         direction.at(2) = it->second->getDirectionZ();
 
         // if direction vector is == 0 assign a very small number to overcome problems with division through 0 in later steps.
@@ -1211,8 +1165,8 @@ void Raytracer::doRaytracingEmptyPulses(){
         start.at(2) = origin.at(2) + (tmin*direction.at(2)); //+ tmin*direction.at(1) + tmin*direction.at(2);
         
         // get voxel indices of start
-        int y = floor( ((start.at(0)-(double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.ny );
-        int x = floor( ((start.at(1)-(double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.nx );
+        int x = floor( ((start.at(0)-(double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.nx );
+        int y = floor( ((start.at(1)-(double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.ny );
         int z = floor( ((start.at(2)-(double)this->gridDim.minBound.at(2))/boxSize.at(2))*(double)this->gridDim.nz );
 
         if (x==(this->gridDim.nx)) {
@@ -1233,22 +1187,21 @@ void Raytracer::doRaytracingEmptyPulses(){
         int stepX = 0;
         int stepY = 0;
         int stepZ = 0;
-        if (direction.at(0)>=0) {
-            tVoxelY = (double)(y+1)/(double)this->gridDim.ny;
-            stepY = 1;
-        } else {
-            tVoxelY = ((double)(y+1)-1)/(double)this->gridDim.ny;
-            stepY = -1;
-        }
 
-        if (direction.at(1)>=0) {
+        if (direction.at(0)>=0) {
             tVoxelX = (double)(x+1)/(double)this->gridDim.nx;
             stepX = 1;
         } else {
             tVoxelX = ((double)(x+1)-1)/(double)this->gridDim.nx;
             stepX = -1;
         }
-
+        if (direction.at(1)>=0) {
+            tVoxelY = (double)(y+1)/(double)this->gridDim.ny;
+            stepY = 1;
+        } else {
+            tVoxelY = ((double)(y+1)-1)/(double)this->gridDim.ny;
+            stepY = -1;
+        }
         if (direction.at(2)>=0) {
             tVoxelZ = (double)(z+1)/(double)this->gridDim.nz;
             stepZ = 1;
@@ -1258,14 +1211,14 @@ void Raytracer::doRaytracingEmptyPulses(){
         }
 
         // voxelmax denotes the coordinate of the next voxel start along the ray
-        double voxelMaxY = (double)this->gridDim.minBound.at(0) + tVoxelY*boxSize.at(0);
-        double voxelMaxX = (double)this->gridDim.minBound.at(1) + tVoxelX*boxSize.at(1);
+        double voxelMaxX = (double)this->gridDim.minBound.at(0) + tVoxelX*boxSize.at(0);
+        double voxelMaxY = (double)this->gridDim.minBound.at(1) + tVoxelY*boxSize.at(1);
         double voxelMaxZ = (double)this->gridDim.minBound.at(2) + tVoxelZ*boxSize.at(2);
 
         // tMax denotes the distance we have to travel along the ray to reach the next voxel, in each dimension
         // will be used to determine which voxel change occurs first, and updated when we move along ray
-        double tMaxY = tmin + (voxelMaxY-start.at(0))/direction.at(0);
-        double tMaxX = tmin + (voxelMaxX-start.at(1))/direction.at(1);
+        double tMaxX = tmin + (voxelMaxX-start.at(0))/direction.at(0);
+        double tMaxY = tmin + (voxelMaxY-start.at(1))/direction.at(1);
         double tMaxZ = tmin + (voxelMaxZ-start.at(2))/direction.at(2);
 
         vector<double> absDirection (3,0);
@@ -1274,15 +1227,15 @@ void Raytracer::doRaytracingEmptyPulses(){
         absDirection.at(2) = (direction.at(2)<0) ? -1*direction.at(2) : direction.at(2);
         // tdelta denotes how far along ray we have to move so the component equals a voxel length in that direction
         // if we change voxel in a dimension, we have to add tDelta to tMax in that dimension
-        double tDeltaY = voxelSize.at(0)/absDirection.at(0);
-        double tDeltaX = voxelSize.at(1)/absDirection.at(1);
+        double tDeltaX = voxelSize.at(0)/absDirection.at(0);
+        double tDeltaY = voxelSize.at(1)/absDirection.at(1);
         double tDeltaZ = voxelSize.at(2)/absDirection.at(2);
 
         // travel along ray as long as we are in voxelgrid
-        while ( (x<this->gridDim.nx)&&(x>=0) && (y<this->gridDim.ny)&&(y>=0) && (z<this->gridDim.nz)&&(z>=0) && (!this->hasDTM || (this->hasDTM && z>=this->DTMind.at(y).at(x)))) {
+        while ( (x<this->gridDim.nx)&&(x>=0) && (y<this->gridDim.ny)&&(y>=0) && (z<this->gridDim.nz)&&(z>=0) && (!this->hasDTM || (this->hasDTM && z>=this->DTMind.at(x).at(y)))) {
             
             // as we are modelling an empty pulse, every traversal here is a miss
-            this->Nmiss.at(y).at(x).at(z)++;
+            this->Nmiss.at(x).at(y).at(z)++;
 
             // make next step
             if (tMaxX < tMaxY) {
@@ -1343,3 +1296,27 @@ void Raytracer::doRaytracingEmptyPulses(){
 // TODO: change tMax, step and tDelta to vectors
 // then move to seperate function we can use in both raytracing functions
 // def Raytracer::stepVoxel(tMax, step, tDelta){
+
+
+
+
+
+
+/*
+void Raytracer_MLS::readDTM(vector<vector< double > > DTM){
+    this->hasDTM = true;
+
+    //extract DTM indices
+
+    this->DTMind.resize(this->gridDim.ny, vector< double >(this->gridDim.nx,0));
+
+
+    for (int y=0; y<this->DTMind.size(); y++) {
+        for (int x=0; x<this->DTMind.at(y).size(); x++) {
+
+            this->DTMind.at(y).at(x) = floor( ((DTM.at(y).at(x) - this->gridDim.minBound.at(2)) / (this->gridDim.maxBound.at(2) - this->gridDim.minBound.at(2))) * this->gridDim.nz ) - 4; //The index of where the DTM is located for each (y,x) coordinate pair. Additionally we subtract four voxels from this index in order to assure that we traverse far enough so that we have a thorough Classification grid until a few meters below the DTM.
+
+        }
+    }
+}
+*/
