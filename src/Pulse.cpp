@@ -63,9 +63,9 @@ Pulse::Pulse(double gps, double sensX, double sensY, double sensZ, double direct
     this->SensorX = sensX;
     this->SensorY = sensY;
     this->SensorZ = sensZ;
-    this->SensorX = directionX;
-    this->SensorY = directionY;
-    this->SensorZ = directionZ;
+    this->DirectionX = directionX;
+    this->DirectionY = directionY;
+    this->DirectionZ = directionZ;
 
     this->empty = true;
 }
