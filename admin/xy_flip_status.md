@@ -19,13 +19,13 @@ output variables order changed:
 
 ## python side
 
-[] Occpy.py  
-[] occpyriegl.py  
-[] prepare_trajectory.py  
-[] prepareply.py  
-[] riegl_io.py  
-[] terrainmodel.py  
-[] visualization.py  
+[x] Occpy.py  
+[x] occpyriegl.py  
+[x] prepare_trajectory.py  
+[x] prepareply.py  
+[x] riegl_io.py  
+[x] terrainmodel.py  
+[x] visualization.py  
 
 ## notebooks
 

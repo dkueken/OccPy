@@ -19,12 +19,10 @@ try:
 except ImportError:
     print('RIEGL RiVlib is not available')
 
-import os
 import re
 import sys
 import json
 import numpy as np
-from numba import njit
 
 
 class RDBFile:
@@ -327,28 +325,6 @@ class RXPFile:
             sys.exit()
         
         return data[valid]
-
-
-@njit
-def reindex_targets(target_index, target_count, scanline, scanline_idx):
-    """
-    Reindex the target index and count
-    Assumes the input data are time-sequential
-    """
-    new_target_index = np.ones_like(target_index)
-    new_target_count = np.ones_like(target_count)
-
-    n = 1
-    for i in range(1, target_index.shape[0], 1):
-        same_pulse = (scanline[i] == scanline[i-1]) & (scanline_idx[i] == scanline_idx[i-1])
-        if same_pulse:
-            new_target_index[i] = new_target_index[i-1] + 1 
-            new_target_count[i-n:i+1] = n + 1
-            n += 1
-        else:
-            n = 1
-        
-    return new_target_index,new_target_count
 
 
 def calc_transform_matrix(pitch, roll, yaw):

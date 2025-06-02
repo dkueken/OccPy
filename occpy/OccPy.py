@@ -30,6 +30,9 @@ import glob
 from raytr import PyRaytracer
 from occpy.TerrainModel import TerrainModel
 
+# TODO: change print statements to logging like in occpyRIEGL
+# TODO: check requirements and remove unused
+
 is_sorted = lambda a: np.all(a[:-1] <= a[1:])
 
 def last_nonzero(arr, axis, invalid_val=-1):
@@ -274,8 +277,8 @@ class OccPy:
         self.RayTr = PyRaytracer()
 
         # Define Grid
-        minBound = np.array([self.PlotDim['minY'], self.PlotDim['minX'], self.PlotDim['minZ']])
-        maxBound = np.array([self.PlotDim['maxY'], self.PlotDim['maxX'], self.PlotDim['maxZ']])
+        minBound = np.array([self.PlotDim['minX'], self.PlotDim['minY'], self.PlotDim['minZ']])
+        maxBound = np.array([self.PlotDim['maxX'], self.PlotDim['maxY'], self.PlotDim['maxZ']])
         self.RayTr.defineGrid(minBound, maxBound, self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz'],
                               self.vox_dim)
 
@@ -304,9 +307,7 @@ class OccPy:
             self.senspos = read_sensorpos_file(path2senspos=path2file, delimiter=delimiter, hdr_scanpos_id=hdr_scanpos_id, hdr_x=hdr_x, hdr_y=hdr_y, hdr_z=hdr_z, sens_pos_id_offset=sens_pos_id_offset)
             self.scan_pos_id_stridx = str_idx_ScanPosID
 
-
-
-
+    # TODO: change to structure of occpyRIEGL: read input las files and link to scan positions/ trajectory first (how to do this for MLS/ULS?) -> allows us to error out/log early when position link is not properly found
 
     def do_raytracing(self):
         run_raytraycing_after_loading = False
@@ -567,7 +568,7 @@ class OccPy:
         # Create Classification grid
         print("Classify Grid")
         tic = time.time()
-        self.Classification = np.zeros((self.grid_dim['ny'], self.grid_dim['nx'], self.grid_dim['nz']), dtype=int)
+        self.Classification = np.zeros((self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz']), dtype=int)
 
         self.Classification[np.logical_and.reduce((self.Nhit > 0, self.Nmiss >= 0, self.Nocc >= 0))] = 1  # voxels that were observed
         self.Classification[np.logical_and.reduce((self.Nhit == 0, self.Nmiss > 0, self.Nocc >= 0))] = 2  # voxels that are empty
@@ -638,8 +639,9 @@ class OccPy:
         dtm_file = dtm.get_terrainmodel_path()
 
         dtm_src = rasterio.open(dtm_file)
-        self.dtm = np.flipud(dtm_src.read(
-            1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
+        self.dtm = dtm_src.read(1)
+        # self.dtm = np.flipud(dtm_src.read(
+        #     1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
         # fill in data gaps in dtm
         self.dtm = fillnodata(self.dtm, mask=self.dtm != dtm_src.get_nodatavals()[0])
 
@@ -665,8 +667,9 @@ class OccPy:
 
             dsm_file = dsm.get_terrainmodel_path()
             dsm_src = rasterio.open(dsm_file)
-            self.dsm = np.flipud(dsm_src.read(
-                1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
+            self.dsm = dsm_src.read(1)
+            # self.dsm = np.flipud(dsm_src.read(
+            #     1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
             self.dsm = fillnodata(self.dsm, mask=self.dsm != dsm_src.get_nodatavals()[0])
 
             self.chm = self.dsm - self.dtm
@@ -677,27 +680,27 @@ class OccPy:
             self.Classification_norm = np.zeros((self.dtm.shape[0], self.dtm.shape[1], int(np.ceil(np.amax(self.chm) / self.vox_dim))), dtype=int)
 
             self.OcclFrac2D = np.zeros(self.dtm.shape)
-            for y in range(0, self.dsm.shape[0], 1):
-                for x in range(0, self.dsm.shape[1], 1):
+            for x in range(0, self.dsm.shape[0], 1):
+                for y in range(0, self.dsm.shape[1], 1):
                     # get zind where DTM is located in grid at x,y
-                    zind_dtm = int(np.floor((self.dtm[y, x] - self.PlotDim['minZ']) / self.vox_dim))
-                    zind_dsm = int(np.floor((self.dsm[y, x] - self.PlotDim['minZ']) / self.vox_dim))
+                    zind_dtm = int(np.floor((self.dtm[x, y] - self.PlotDim['minZ']) / self.vox_dim))
+                    zind_dsm = int(np.floor((self.dsm[x, y] - self.PlotDim['minZ']) / self.vox_dim))
                     # extract profile from grids
-                    prof_class = self.Classification[y, x, zind_dtm:zind_dsm]
-                    prof_class_buf = self.Classification[y, x, zind_dtm+int(np.ceil(self.lower_threshold/self.vox_dim)):zind_dsm]
+                    prof_class = self.Classification[x, y, zind_dtm:zind_dsm]
+                    prof_class_buf = self.Classification[x, y, zind_dtm+int(np.ceil(self.lower_threshold/self.vox_dim)):zind_dsm]
 
-                    self.Classification_norm[y, x, 0:len(prof_class)] = prof_class
+                    self.Classification_norm[x, y, 0:len(prof_class)] = prof_class
                     # Calculate occlusion fraction for z profile
                     num_occl =sum(prof_class_buf == 3)
 
                     if len(prof_class_buf)==0:
-                        self.OcclFrac2D[y, x] = 0
+                        self.OcclFrac2D[x, y] = 0
                     else:
-                        self.OcclFrac2D[y, x] = num_occl/len(prof_class_buf)
+                        self.OcclFrac2D[x, y] = num_occl/len(prof_class_buf)
 
-                    self.Nhit_norm[y, x, 0:len(prof_class)] = self.Nhit[y, x, zind_dtm:zind_dsm]
-                    self.Nmiss_norm[y, x, 0:len(prof_class)] = self.Nmiss[y, x, zind_dtm:zind_dsm]
-                    self.Nocc_norm[y, x, 0:len(prof_class)] = self.Nocc[y, x, zind_dtm:zind_dsm]
+                    self.Nhit_norm[x, y, 0:len(prof_class)] = self.Nhit[x, y, zind_dtm:zind_dsm]
+                    self.Nmiss_norm[x, y, 0:len(prof_class)] = self.Nmiss[x, y, zind_dtm:zind_dsm]
+                    self.Nocc_norm[x, y, 0:len(prof_class)] = self.Nocc[x, y, zind_dtm:zind_dsm]
 
                     self.__updateOccl_Volumes(prof_class)
 
@@ -713,36 +716,36 @@ class OccPy:
             self.chm = np.zeros(self.dtm.shape)
 
             max_len_prof = 0
-            for y in range(0, self.dtm.shape[0], 1):
-                for x in range(0, self.dtm.shape[1], 1):
+            for x in range(0, self.dtm.shape[0], 1):
+                for y in range(0, self.dtm.shape[1], 1):
                     # get zind where DTM is located in grid at x,y
-                    zind_dtm = int(np.floor((self.dtm[y, x] - self.PlotDim['minZ']) / self.vox_dim))
-                    zind_dsm = last_nonzero(self.Nhit[y, x, :], axis=0) # If no dsm is provided, we take the DSM from the same
+                    zind_dtm = int(np.floor((self.dtm[x, y] - self.PlotDim['minZ']) / self.vox_dim))
+                    zind_dsm = last_nonzero(self.Nhit[x, y, :], axis=0) # If no dsm is provided, we take the DSM from the same
                     # acquisition. This will introduce an under estimation of occlusion for ground based acquisitions
                     # as occlusion on top of canopy is not counted.
-                    self.chm[y,x] = (zind_dsm - zind_dtm) * self.vox_dim
+                    self.chm[x,y] = (zind_dsm - zind_dtm) * self.vox_dim
 
                     # extract profile from grids
-                    prof_class = self.Classification[y, x, zind_dtm:zind_dsm]
-                    prof_class_buf = self.Classification[y, x,
+                    prof_class = self.Classification[x, y, zind_dtm:zind_dsm]
+                    prof_class_buf = self.Classification[x, y,
                                      zind_dtm + int(np.ceil(self.lower_threshold / self.vox_dim)):zind_dsm]
 
-                    self.Classification_norm[y, x, 0:len(prof_class)] = prof_class
+                    self.Classification_norm[x, y, 0:len(prof_class)] = prof_class
                     # Calculate occlusion fraction for z profile
                     num_occl = sum(prof_class_buf == 3)
 
                     if len(prof_class_buf) == 0:
-                        self.OcclFrac2D[y, x] = 0
+                        self.OcclFrac2D[x, y] = 0
                     else:
-                        self.OcclFrac2D[y, x] = num_occl / len(prof_class_buf)
+                        self.OcclFrac2D[x, y] = num_occl / len(prof_class_buf)
 
                     if len(prof_class) > max_len_prof:
                         max_len_prof = len(prof_class)
 
                     self.Classification_norm[y, x, 0:len(prof_class)] = self.Classification[y, x, zind_dtm:zind_dsm]
-                    self.Nhit_norm[y, x, 0:len(prof_class)] = self.Nhit[y, x, zind_dtm:zind_dsm]
-                    self.Nmiss_norm[y, x, 0:len(prof_class)] = self.Nmiss[y, x, zind_dtm:zind_dsm]
-                    self.Nocc_norm[y, x, 0:len(prof_class)] = self.Nocc[y, x, zind_dtm:zind_dsm]
+                    self.Nhit_norm[x, y, 0:len(prof_class)] = self.Nhit[x, y, zind_dtm:zind_dsm]
+                    self.Nmiss_norm[x, y, 0:len(prof_class)] = self.Nmiss[x, y, zind_dtm:zind_dsm]
+                    self.Nocc_norm[x, y, 0:len(prof_class)] = self.Nocc[x, y, zind_dtm:zind_dsm]
 
                     self.__updateOccl_Volumes(prof_class)
 
@@ -801,18 +804,18 @@ class OccPy:
     def get_Occl_TransectFigure(self, start_ind, end_ind, axis=0, format="png", show_plots=False):
 
         chm_slice_ref = None
-        if axis==0: # get a slice of Y-Axis
+        if axis==0: # get a slice of X-Axis
             Nhit_Slice = np.sum(self.Nhit_norm[start_ind:end_ind, :, :], axis=axis)
             OcclFrac_Slice = np.sum(self.Classification_norm[start_ind:end_ind, :, :]==3, axis=axis) / (end_ind - start_ind)
             if self.chm is not None:
                 chm_slice_ref = np.max(self.chm[start_ind:end_ind, :], axis=0)
-        elif axis==1:
+        elif axis==1: # get a slice of Y-Axis
             Nhit_Slice = np.sum(self.Nhit_norm[:,start_ind:end_ind,:], axis=axis)
             OcclFrac_Slice = np.sum(self.Classification_norm[:, start_ind:end_ind, :] == 3, axis=axis) / (
                         end_ind - start_ind)
             if self.chm is not None:
                 chm_slice_ref = np.max(self.chm[:, start_ind:end_ind], axis=1)
-        else:
+        else: # get a slice of Z-Axis
             Nhit_Slice = np.sum(self.Nhit_norm[:, :, start_ind:end_ind], axis=axis)
             OcclFrac_Slice = np.sum(self.Classification_norm[:, :, start_ind:end_ind] == 3, axis=axis) / (
                     end_ind - start_ind)
@@ -827,18 +830,18 @@ class OccPy:
         ax = fig.add_subplot(1,1,1)
         x_axis_vect = None
         if axis==0:
-            ax.set_xlabel(f"X [m]")
-            ax.set_ylabel(f"Z [m]")
-            extent = [self.PlotDim['minX'], self.PlotDim['maxX'], 0, OcclFrac_Slice.shape[0]*self.vox_dim]
-            ax.axis(extent)
-            x_axis_vect = np.linspace(start=self.PlotDim['minX'], stop=self.PlotDim['maxX'], num=self.grid_dim['nx'])
-
-        elif axis==1:
             ax.set_xlabel(f"Y [m]")
             ax.set_ylabel(f"Z [m]")
-            extent = [self.PlotDim['minY'], self.PlotDim['maxY'], 0, OcclFrac_Slice.shape[0] * self.vox_dim]
+            extent = [self.PlotDim['minY'], self.PlotDim['maxY'], 0, OcclFrac_Slice.shape[0]*self.vox_dim]
             ax.axis(extent)
-            x_axis_vect = np.linspace(start=self.PlotDim['minY'], stop=self.PlotDim['maxY'], num=self.grid_dim['ny'])
+            x_axis_vect = np.linspace(start=self.PlotDim['minY'], stop=self.PlotDim['maxY'], num=self.grid_dim['nx'])
+
+        elif axis==1:
+            ax.set_xlabel(f"X [m]")
+            ax.set_ylabel(f"Z [m]")
+            extent = [self.PlotDim['minX'], self.PlotDim['maxX'], 0, OcclFrac_Slice.shape[0] * self.vox_dim]
+            ax.axis(extent)
+            x_axis_vect = np.linspace(start=self.PlotDim['minX'], stop=self.PlotDim['maxX'], num=self.grid_dim['ny'])
         else:
             ax.set_xlabel(f"X [m]")
             ax.set_ylabel(f"Y [m]")
@@ -884,11 +887,11 @@ class OccPy:
         # save figure
         if axis==0:
             plt.savefig(
-                f"{self.out_dir}/Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels.{format}",
+                f"{self.out_dir}/Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels.{format}",
                 dpi=300, format=format)
         elif axis==1:
             plt.savefig(
-                f"{self.out_dir}/Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels.{format}",
+                f"{self.out_dir}/Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels.{format}",
                 dpi=300, format=format)
         else:
             plt.savefig(
