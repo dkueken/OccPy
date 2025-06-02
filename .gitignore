@@ -22,3 +22,4 @@ scripts/
 test_out/
 occpy.egg-info
 data/RIEGL_TLS
+vis_out/

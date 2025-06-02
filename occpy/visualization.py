@@ -186,9 +186,9 @@ def plot_riegl_grid(data : pd.DataFrame, max_scanline, max_scanline_idx, image2=
 
 if __name__ == '__main__':
     
-    tree = "COL"
-    DATA_DIR = f"/Stor1/wout/data/occpy_barbara/{tree}"
-    AXIS = 1
-    odir = os.path.join(DATA_DIR, "output", "all")
+    # tree = "COL"
+    # DATA_DIR = f"/Stor1/wout/data/occpy_barbara/{tree}"
+    # AXIS = 1
+    # odir = os.path.join(DATA_DIR, "output", "all")
 
-    interactive_figure(odir, axis=AXIS)
+    # interactive_figure(odir, axis=AXIS)

@@ -9,6 +9,10 @@
 - improve readme.md installation instructionsv - Wout, Daniel
 - XY flip - Wout, Daniel
 
+NOTES:
+- new TODO: refactor Occpy class as it does not work currently for MLS
+- notebooks do not work with test data currently
+
 ## Musts for 1.0
 
 - Install through pip - Wout

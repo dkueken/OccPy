@@ -11,7 +11,11 @@ import OSToolBox as ost
 
 # import plotting functions
 import matplotlib
-matplotlib.use('TkAgg')
+try:
+    matplotlib.use('TkAgg')
+except ImportError:
+    print("couldn't change matplotlib backend")
+
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
