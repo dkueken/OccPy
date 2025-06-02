@@ -106,8 +106,8 @@ class OccPyRIEGL:
         self.RayTr = PyRaytracer()
 
         # Define Grid
-        min_bound = np.array([self.plot_dim['minY'], self.plot_dim['minX'], self.plot_dim['minZ']])
-        max_bound = np.array([self.plot_dim['maxY'], self.plot_dim['maxX'], self.plot_dim['maxZ']])
+        min_bound = np.array([self.plot_dim['minX'], self.plot_dim['minY'], self.plot_dim['minZ']])
+        max_bound = np.array([self.plot_dim['maxX'], self.plot_dim['maxY'], self.plot_dim['maxZ']])
         self.RayTr.defineGrid(min_bound, max_bound, self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz'],
                               self.vox_dim)
 
@@ -469,7 +469,7 @@ class OccPyRIEGL:
         # Create Classification grid
         print("Classify Grid")
         tic = time.time()
-        self.Classification = np.zeros((self.grid_dim['ny'], self.grid_dim['nx'], self.grid_dim['nz']), dtype=int)
+        self.Classification = np.zeros((self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz']), dtype=int)
 
         self.Classification[np.logical_and.reduce((self.Nhit > 0, self.Nmiss >= 0, self.Nocc >= 0))] = 1  # voxels that were observed
         self.Classification[np.logical_and.reduce((self.Nhit == 0, self.Nmiss > 0, self.Nocc >= 0))] = 2  # voxels that are empty

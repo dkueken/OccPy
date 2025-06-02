@@ -16,7 +16,7 @@ def interactive_figure(output_dir, axis=0):
     classification_arr = np.load(os.path.join(output_dir, "Classification.npy"))
     nhit_arr = np.load(os.path.join(output_dir, "Nhit.npy"))
 
-    print("Shapes: (Y,X,Z)")
+    print("Shapes: (X,Y,Z)")
     print(f"Classification: {classification_arr.shape}")
     print(f"NHIT: {nhit_arr.shape}")
     
@@ -27,13 +27,13 @@ def interactive_figure(output_dir, axis=0):
         max_ind = classification_arr.shape[axis] - 1 
         end_ind = int(min(max_ind, start_ind+depth))
 
-        if axis==0: # get a slice of Y-Axis, XZ image
+        if axis==0: # get a slice of X-Axis, YZ image
             Nhit_Slice = np.sum(nhit_arr[start_ind:end_ind, :, :], axis=axis)
             OcclFrac_Slice = np.sum(classification_arr[start_ind:end_ind, :, :]==3, axis=axis) / (end_ind - start_ind)
-        elif axis==1: # YZ image
+        elif axis==1: # XZ image
             Nhit_Slice = np.sum(nhit_arr[:,start_ind:end_ind,:], axis=axis)
             OcclFrac_Slice = np.sum(classification_arr[:, start_ind:end_ind, :] == 3, axis=axis) / (end_ind - start_ind)
-        else: # XZ image
+        else: # XY image
             Nhit_Slice = np.sum(nhit_arr[:, :, start_ind:end_ind], axis=axis)
             OcclFrac_Slice = np.sum(classification_arr[:, :, start_ind:end_ind] == 3, axis=axis) / (end_ind - start_ind)
         
@@ -72,19 +72,19 @@ def interactive_figure(output_dir, axis=0):
 
     # --- define extent
     if axis==0:
-        ax.set_xlabel(f"X (m)")
+        ax.set_xlabel(f"Y (m)")
         ax.set_ylabel(f"Z (m)")
         extent = [0, classification_arr.shape[1]*VOX_DIM, 0, classification_arr.shape[2]*VOX_DIM]
         ax.axis(extent)
     elif axis==1:
-        ax.set_xlabel(f"Y (m)")
+        ax.set_xlabel(f"X (m)")
         ax.set_ylabel(f"Z (m)")
         extent = [0, classification_arr.shape[0]*VOX_DIM, 0, classification_arr.shape[2]*VOX_DIM]
         ax.axis(extent)
     else:
         ax.set_xlabel(f"X (m)")
         ax.set_ylabel(f"Y (m)")
-        extent = [0, classification_arr.shape[1]*VOX_DIM, 0, classification_arr.shape[0]*VOX_DIM]
+        extent = [0, classification_arr.shape[0]*VOX_DIM, 0, classification_arr.shape[1]*VOX_DIM]
         ax.axis(extent)
     
     # --- generate initial image and show
