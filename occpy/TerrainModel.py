@@ -1,8 +1,6 @@
 from osgeo import gdal
 import rasterio
 from rasterio.enums import Resampling
-from rasterio.fill import fillnodata
-import lidario as lio
 
 class TerrainModel():
     def __init__(self, path2geotiff):
@@ -24,7 +22,12 @@ class TerrainModel():
 
     # crop to extent and change resolution if not None
     def crop2extent(self, extent, out_file, res):
-        gdal.Translate(out_file, self.path2tiff, projWin=extent)
+        min_x, max_y, max_x, min_y = extent
+        window = rasterio.windows.from_bounds(min_x, min_y, max_x, max_y, self.dtm.transform)
+
+        dataset = self.dtm.read(window)
+        # Calculate the transform for the window
+        out_transform = dataset.transform * self.dtm.window_transform(window)
 
         if res!=None:
             with rasterio.open(out_file) as dataset:
@@ -43,26 +46,29 @@ class TerrainModel():
                 )
 
                 # scale image transform
-                transform = dataset.transform * dataset.transform.scale(
+                out_transform = out_transform * dataset.transform.scale(
                     (1 / scale_factor_x),
                     (1 / scale_factor_y)
                 )
                 profile.update({"height": data.shape[-2],
                                 "width": data.shape[-1],
-                                "transform": transform})
-            with rasterio.open(out_file, "w", **profile) as dataset:
-                dataset.write(data)
+                                "transform": out_transform})
+        else:
+            profile = self.dtm.profile.copy()
+            profile.update({
+                "height": data.shape[-2],
+                "width": data.shape[-1],
+                "transform": out_transform
+            })
+        
+        with rasterio.open(out_file, "w", **profile) as dataset:
+            dataset.write(data)
+
         # overwrite self.path2tiff to cropped file
         self.path2tiff = out_file
         self.dtm = rasterio.open(out_file)
         return data
 
-
-    def convert2PC(self):
-        translator = lio.Translator("geotiff", "dataframe")
-        point_cloud = translator.translate(self.path2tiff)
-        return point_cloud
-    
 
 
 
