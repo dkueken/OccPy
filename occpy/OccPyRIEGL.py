@@ -12,7 +12,7 @@ import OSToolBox as ost
 from occpy import riegl_io
 from occpy.PreparePly import prepare_ply
 
-from visualization import plot_riegl_grid
+from occpy.visualization import plot_riegl_grid
 
 from raytr import PyRaytracer
 
@@ -50,11 +50,11 @@ class OccPyRIEGL:
 
         if "odir" not in config:
             odir = os.path.join(os.getcwd(), "out")
-            if not os.path.exists(odir):
-                os.makedirs(odir, exist_ok=True)
             self.odir = odir
         else:
             self.odir = config["odir"]
+        if not os.path.exists(self.odir):
+            os.makedirs(self.odir, exist_ok=True)
 
         # -- config logging 
         if self.debug:
@@ -323,7 +323,8 @@ class OccPyRIEGL:
             # read rdbx file for point data
             
             # TODO: test
-            scan_test = ["ScanPos001", "ScanPos002"]
+            # scan_test = ["ScanPos001"]
+            scan_test = ["ScanPos001", "ScanPos002", "ScanPos003", "ScanPos004", "ScanPos005", "ScanPos006", "ScanPos007", "ScanPos008", "ScanPos009", "ScanPos010"]
             if scan not in scan_test:
                 continue
 
@@ -331,8 +332,6 @@ class OccPyRIEGL:
 
             self.logger.info(f"Reading RDBX and RXP")
             
-            # TODO: test: do we actually need to give the transform file here? as the rdb points should already be transformed!!
-            # can test with colinearity test, do for all files (will take long but worth it)
             rdbx = riegl_io.RDBFile(self.rdbx_scans[scan], self.transform_files[scan])
             max_scanline = rdbx.maxc
             max_scanline_idx = rdbx.maxr
@@ -506,24 +505,24 @@ class OccPyRIEGL:
 
 # TODO: TEMP TEST
 
-if __name__ == "__main__":
-    proj_folder = "/Stor1/wout/occlusion/cls_raw/Ficus/2023-04-30_LOT_peru2.PROJ"
-    riscan_folder  = "/Stor1/wout/occlusion/oxa_occpy_test.RiSCAN"
+# if __name__ == "__main__":
+#     # proj_folder = "/Stor1/wout/occlusion/cls_raw/Ficus/2023-04-30_LOT_peru2.PROJ"
+#     # riscan_folder  = "/Stor1/wout/occlusion/oxa_occpy_test.RiSCAN"
 
-    # odir = "/Stor1/wout/occlusion/output_test/OXA"
-    odir = "./test_out/OXA/test_config"
-    if not os.path.exists(odir):
-        os.makedirs(odir, exist_ok=True)
+#     # # odir = "/Stor1/wout/occlusion/output_test/OXA"
+#     # odir = "./test_out/OXA/test_config"
+#     # if not os.path.exists(odir):
+#     #     os.makedirs(odir, exist_ok=True)
 
-    OUTPUT_VOXELS = False
+#     # OUTPUT_VOXELS = False
 
-    config_file = "/home/wcherlet/repos/OccPy/config/OXA.JSON"
+#     config_file = "/home/wcherlet/repos/OccPy/config/OXA.JSON"
 
-    occpy_riegl = OccPyRIEGL(config_file)
+#     occpy_riegl = OccPyRIEGL(config_file)
 
-    occpy_riegl.do_raytracing()
+#     occpy_riegl.do_raytracing()
 
-    occpy_riegl.save_raytracing_output()
+#     occpy_riegl.save_raytracing_output()
 
 
 

@@ -184,7 +184,7 @@ def plot_riegl_grid(data : pd.DataFrame, max_scanline, max_scanline_idx, image2=
 
 # TODO: TEMP TEST
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
     
     # tree = "COL"
     # DATA_DIR = f"/Stor1/wout/data/occpy_barbara/{tree}"
