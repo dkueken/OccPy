@@ -4,6 +4,7 @@ import logging
 import cv2
 import time
 import json
+from random import randrange
 
 import pandas as pd
 import numpy as np
@@ -55,6 +56,9 @@ class OccPyRIEGL:
             self.odir = config["odir"]
         if not os.path.exists(self.odir):
             os.makedirs(self.odir, exist_ok=True)
+        # copy config file for future reference
+        with open(os.path.join(self.odir, "config.json"), "w") as to:
+            json.dump(config, to)
 
         # -- config logging 
         if self.debug:
@@ -287,6 +291,12 @@ class OccPyRIEGL:
         # Apply the mask to keep only rows that match
         df_filtered = df_empty[mask]
 
+        # also mask out the lower few lines
+        # on upright scans, this consistently seems to be the first 5 scanlines
+        # on tilts, sometimes up to 50-60
+        # -> filter out lowest 80 to be sure
+        df_filtered_lower = df_filtered[df_filtered["scanline_idx"]<max_scanline_idx-80]
+
         if self.debug:
             # write image to output folder
             ofolder = os.path.join(self.odir, "debug")
@@ -297,7 +307,7 @@ class OccPyRIEGL:
 
             plot_riegl_grid(df_empty, max_scanline, max_scanline_idx, blue_mask, out_path=opath)
 
-        return df_filtered
+        return df_filtered_lower
 
     def test_colinearity(self, point_df, n_points=None):
         def check_parallel(beam_origin, beam_direction, point, epsilon=1e-6):
@@ -309,10 +319,17 @@ class OccPyRIEGL:
         point = point_df[["x", "y", "z"]].to_numpy()
 
         count = 0
+        s = len(point_df)
         if n_points is None:
             n_points = len(point_df)
         for i in range(n_points):
-            if not check_parallel(beam_origin[i,:], beam_direction[i,:], point[i,:]):
+            if n_points is None:
+                # check all points
+                idx = i
+            else:
+                # generate random index to check
+                idx = randrange(len(point_df))
+            if not check_parallel(beam_origin[idx,:], beam_direction[idx,:], point[idx,:]):
                 count += 1
         return count
         
@@ -332,10 +349,8 @@ class OccPyRIEGL:
 
             self.logger.info(f"Reading RDBX and RXP")
             
+            # read rdbx and optionally rxp
             rdbx = riegl_io.RDBFile(self.rdbx_scans[scan], self.transform_files[scan])
-            max_scanline = rdbx.maxc
-            max_scanline_idx = rdbx.maxr
-
             if scan in self.rxp_scans:
                 rxp = riegl_io.RXPFile(self.rxp_scans[scan], self.transform_files[scan])
             else:
@@ -344,9 +359,12 @@ class OccPyRIEGL:
             
             self.logger.info(f"Merging RDBX and RXP")
 
+            # merge rxp and rdbx
             df_rdbx, df_rxp = self.rdbx_rxp_to_df(rdbx, rxp)
             point_df, empty_pulse_df = self.merge_df_rdbx_rxp(df_rdbx, df_rxp)
-            max_scanline = df_rdbx[["scanline"]].to_numpy().max()
+            # get max scanline and idx
+            max_scanline = max(df_rdbx[["scanline"]].to_numpy().max(), df_rxp[["scanline"]].to_numpy().max())
+            max_scanline_idx= max(df_rdbx[["scanline_idx"]].to_numpy().max(), df_rxp[["scanline_idx"]].to_numpy().max())
 
             # test colinearity to see if rdbx and rxp merge succesfull
             if self.debug:

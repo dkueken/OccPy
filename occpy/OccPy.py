@@ -644,8 +644,7 @@ class OccPy:
 
         dtm_src = rasterio.open(dtm_file)
         self.dtm = dtm_src.read(1)
-        # self.dtm = np.flipud(dtm_src.read(
-        #     1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
+        self.dtm = np.flipud(dtm_src.read(1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
         # fill in data gaps in dtm
         self.dtm = fillnodata(self.dtm, mask=self.dtm != dtm_src.get_nodatavals()[0])
 
@@ -672,23 +671,22 @@ class OccPy:
             dsm_file = dsm.get_terrainmodel_path()
             dsm_src = rasterio.open(dsm_file)
             self.dsm = dsm_src.read(1)
-            # self.dsm = np.flipud(dsm_src.read(
-            #     1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
+            self.dsm = np.flipud(dsm_src.read(1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
             self.dsm = fillnodata(self.dsm, mask=self.dsm != dsm_src.get_nodatavals()[0])
 
             self.chm = self.dsm - self.dtm
 
-            self.Nhit_norm = np.zeros((self.dtm.shape[0], self.dtm.shape[1], int(np.ceil(np.amax(self.chm) / self.vox_dim))), dtype=int)
-            self.Nmiss_norm = np.zeros((self.dtm.shape[0], self.dtm.shape[1], int(np.ceil(np.amax(self.chm) / self.vox_dim))), dtype=int)
-            self.Nocc_norm = np.zeros((self.dtm.shape[0], self.dtm.shape[1], int(np.ceil(np.amax(self.chm) / self.vox_dim))), dtype=int)
-            self.Classification_norm = np.zeros((self.dtm.shape[0], self.dtm.shape[1], int(np.ceil(np.amax(self.chm) / self.vox_dim))), dtype=int)
+            self.Nhit_norm = np.zeros((self.dtm.shape[1], self.dtm.shape[0], int(np.ceil(np.amax(self.chm) / self.vox_dim))), dtype=int)
+            self.Nmiss_norm = np.zeros_like(self.Nhit_norm)
+            self.Nocc_norm = np.zeros_like(self.Nhit_norm)
+            self.Classification_norm = np.zeros_like(self.Nhit_norm)
 
-            self.OcclFrac2D = np.zeros(self.dtm.shape)
-            for x in range(0, self.dsm.shape[0], 1):
-                for y in range(0, self.dsm.shape[1], 1):
+            self.OcclFrac2D = np.zeros((self.dtm.shape[1], self.dtm.shape[0]))
+            for y in range(0, self.dsm.shape[0], 1):
+                for x in range(0, self.dsm.shape[1], 1):
                     # get zind where DTM is located in grid at x,y
-                    zind_dtm = int(np.floor((self.dtm[x, y] - self.PlotDim['minZ']) / self.vox_dim))
-                    zind_dsm = int(np.floor((self.dsm[x, y] - self.PlotDim['minZ']) / self.vox_dim))
+                    zind_dtm = int(np.floor((self.dtm[y, x] - self.PlotDim['minZ']) / self.vox_dim))
+                    zind_dsm = int(np.floor((self.dsm[y, x] - self.PlotDim['minZ']) / self.vox_dim))
                     # extract profile from grids
                     prof_class = self.Classification[x, y, zind_dtm:zind_dsm]
                     prof_class_buf = self.Classification[x, y, zind_dtm+int(np.ceil(self.lower_threshold/self.vox_dim)):zind_dsm]
@@ -716,18 +714,20 @@ class OccPy:
             self.Nocc_norm = np.zeros(self.Nocc.shape, dtype=int)
             self.Classification_norm = np.zeros(self.Classification.shape, dtype=int)
 
-            self.OcclFrac2D = np.zeros(self.dtm.shape)
+            self.OcclFrac2D = np.zeros((self.dtm.shape[1], self.dtm.shape[0]))
             self.chm = np.zeros(self.dtm.shape)
 
             max_len_prof = 0
-            for x in range(0, self.dtm.shape[0], 1):
-                for y in range(0, self.dtm.shape[1], 1):
+            for y in range(0, self.dtm.shape[0], 1):
+                for x in range(0, self.dtm.shape[1], 1):
                     # get zind where DTM is located in grid at x,y
-                    zind_dtm = int(np.floor((self.dtm[x, y] - self.PlotDim['minZ']) / self.vox_dim))
-                    zind_dsm = last_nonzero(self.Nhit[x, y, :], axis=0) # If no dsm is provided, we take the DSM from the same
+                    zind_dtm = int(np.floor((self.dtm[y, x] - self.PlotDim['minZ']) / self.vox_dim))
+                    zind_dsm = last_nonzero(self.Nhit[x, y, :], axis=0) 
+                    
+                    # If no dsm is provided, we take the DSM from the same
                     # acquisition. This will introduce an under estimation of occlusion for ground based acquisitions
                     # as occlusion on top of canopy is not counted.
-                    self.chm[x,y] = (zind_dsm - zind_dtm) * self.vox_dim
+                    self.chm[y,x] = (zind_dsm - zind_dtm) * self.vox_dim
 
                     # extract profile from grids
                     prof_class = self.Classification[x, y, zind_dtm:zind_dsm]
@@ -808,17 +808,19 @@ class OccPy:
     def get_Occl_TransectFigure(self, start_ind, end_ind, axis=0, format="png", show_plots=False):
 
         chm_slice_ref = None
-        if axis==0: # get a slice of X-Axis
+        if axis==0: # get YZ, project axis X
             Nhit_Slice = np.sum(self.Nhit_norm[start_ind:end_ind, :, :], axis=axis)
             OcclFrac_Slice = np.sum(self.Classification_norm[start_ind:end_ind, :, :]==3, axis=axis) / (end_ind - start_ind)
             if self.chm is not None:
-                chm_slice_ref = np.max(self.chm[start_ind:end_ind, :], axis=0)
-        elif axis==1: # get a slice of Y-Axis
+                # chm is [ny, nx] so to get YZ we project axis 1
+                chm_slice_ref = np.max(self.chm[:, start_ind:end_ind], axis=1)
+        elif axis==1: # get XZ, project axis Y
             Nhit_Slice = np.sum(self.Nhit_norm[:,start_ind:end_ind,:], axis=axis)
             OcclFrac_Slice = np.sum(self.Classification_norm[:, start_ind:end_ind, :] == 3, axis=axis) / (
                         end_ind - start_ind)
             if self.chm is not None:
-                chm_slice_ref = np.max(self.chm[:, start_ind:end_ind], axis=1)
+                # chm is [ny, nx] so to get XZ we project axis 0
+                chm_slice_ref = np.max(self.chm[start_ind:end_ind, :], axis=0)
         else: # get a slice of Z-Axis
             Nhit_Slice = np.sum(self.Nhit_norm[:, :, start_ind:end_ind], axis=axis)
             OcclFrac_Slice = np.sum(self.Classification_norm[:, :, start_ind:end_ind] == 3, axis=axis) / (
