@@ -1,0 +1,12 @@
+site_name: Occpy documentation
+
+theme:
+  name: material
+# theme: readthedocs
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
