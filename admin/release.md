@@ -5,9 +5,9 @@
 - Testing notebooks with included data - Wout
 - Provide base visualization as seperate function - Wout
 - Documentation - Wout and Daniel
-- Consolidate environment (remove unnecesarry packages, less restrictive) - Wout, Daniel
-- improve readme.md installation instructionsv - Wout, Daniel
-- XY flip - Wout, Daniel
+- Consolidate environment (remove unnecessary packages, less restrictive) - Wout, Daniel
+- improve readme.md installation instructions - Wout, Daniel
+- XY flip - Wout, Daniel    [DONE, merged]
 
 NOTES:
 - new TODO: refactor Occpy class as it does not work currently for MLS

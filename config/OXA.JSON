@@ -2,11 +2,11 @@
     "plot_dim": [-10.0, -10.0, -5.0, 10.0, 10.0, 30.0],
     "output_voxels": false,
     "vox_dim": 0.1,
-    "odir": "./test_out/OXA/test_first10_no_empty",
+    "odir": "./test_out/OXA/all_no_empty_small_grid",
     "riscan_folder": "/Stor1/wout/occlusion/oxa_occpy_test.RiSCAN",
     "proj_folder": "/Stor1/wout/occlusion/cls_raw/Ficus/2023-04-30_LOT_peru2.PROJ",
     "debug": true,
     "verbose": true,
-    "model_empty_pulses": true,
+    "model_empty_pulses": false,
     "lower_threshold": 1.0
 }

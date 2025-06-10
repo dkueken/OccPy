@@ -915,8 +915,7 @@ class OccPy:
         OcclVertProf = np.sum(OcclVertProf, axis=0)
         OcclVertProf_Rel = OcclVertProf / ( (self.grid_dim['nx']) *
                                             (self.grid_dim['ny']))
-
-
+        
         sns.set_theme(style="darkgrid")
 
         vert_vect = np.arange(start=0, stop=self.Classification_norm.shape[2] * self.vox_dim, step=self.vox_dim)

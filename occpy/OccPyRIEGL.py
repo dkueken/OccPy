@@ -164,15 +164,21 @@ class OccPyRIEGL:
         # we assume rdbx already transformed (SOP backup applied in riscan pro) TODO: could make this customizable as well, not priority
         self.transform_files = {}
         for scan_pos_name in self.rdbx_scans:
-            transform_file = glob.glob(os.path.join(self.riscan_folder, f'{scan_pos_base}.DAT'))
+            transform_file = glob.glob(os.path.join(self.riscan_folder, f'{scan_pos_name}.DAT'))
             if len(transform_file) > 1:
                 # should never happen
-                self.logger.warning(f"Multiple DAT files found for {scan_pos_name}, skipping.") 
-                self.logger.debug(f"Path checked: {os.path.join(self.riscan_folder, f'{scan_pos_base}.DAT')}")
+                self.logger.warning(f"Multiple DAT files found for {scan_pos_name}, taking random one.") 
+                self.logger.debug(f"Path checked: {os.path.join(self.riscan_folder, f'{scan_pos_name}.DAT')}")
             if len(transform_file) == 0:
-                # TODO: what is desired behaviour here? report, but then use untransformed in raytracing? or exit out
-                self.logger.warning(f"No DAT files found for {scan_pos_name}, skipping.") 
-                self.logger.debug(f"Path checked: {os.path.join(self.riscan_folder, f'{scan_pos_base}.DAT')}")
+                self.logger.warning(f"No DAT files found for {scan_pos_name}, checking if any dat files contain scan position name.") 
+                self.logger.debug(f"Path checked: {os.path.join(self.riscan_folder, f'{scan_pos_name}.DAT')}")
+                # also check contains
+                transform_file = glob.glob(os.path.join(self.riscan_folder, f'*{scan_pos_name}*.DAT'))
+                if len(transform_file) == 0:
+                    self.logger.warning(f"Cant find DAT file for scan {scan_pos_name}, will not be processed")
+                    continue
+                self.logger.warning(f"Alternative path used for DAT file: {transform_file[0]}")
+
             self.transform_files[scan_pos_name] = transform_file[0]
 
         # get rxp's and optionally previews
@@ -341,21 +347,33 @@ class OccPyRIEGL:
             
             # TODO: test
             # scan_test = ["ScanPos001"]
-            scan_test = ["ScanPos001", "ScanPos002", "ScanPos003", "ScanPos004", "ScanPos005", "ScanPos006", "ScanPos007", "ScanPos008", "ScanPos009", "ScanPos010"]
-            if scan not in scan_test:
-                continue
+            # scan_test = ["ScanPos001", "ScanPos002", "ScanPos003"]
+            # scan_test = ["ScanPos001", "ScanPos002", "ScanPos003", "ScanPos004", "ScanPos005", "ScanPos006", "ScanPos007", "ScanPos008", "ScanPos009", "ScanPos010"]
+            # if scan not in scan_test:
+            #     continue
+            
 
             self.logger.info(f"Processing {scan}")
 
+            if scan not in self.transform_files:
+                self.logger.info(f"Transform file not found for pos {scan}, skipping.")
+                continue
+
             self.logger.info(f"Reading RDBX and RXP")
-            
+
+
             # read rdbx and optionally rxp
-            rdbx = riegl_io.RDBFile(self.rdbx_scans[scan], self.transform_files[scan])
+            rdbx = riegl_io.RDBFile(self.rdbx_scans[scan], transform_file=self.transform_files[scan])
             if scan in self.rxp_scans:
-                rxp = riegl_io.RXPFile(self.rxp_scans[scan], self.transform_files[scan])
+                rxp = riegl_io.RXPFile(self.rxp_scans[scan], transform_file=self.transform_files[scan])
             else:
                 self.logger.warning(f"RXP not found for pos {scan}, skipping.")
                 continue
+
+            if self.debug:
+                matrix = rdbx.transform
+                self.logger.debug(f"Transformation file: {self.transform_files[scan]}")
+                self.logger.debug(f"Transformation matrix: {matrix}")
             
             self.logger.info(f"Merging RDBX and RXP")
 
@@ -417,6 +435,7 @@ class OccPyRIEGL:
             if self.model_empty_pulses:
 
                 self.logger.info("Running raytracing for empty pulses")
+                tic = time.time()
 
                 sensor_x = empty_pulse_df["beam_origin_x"].to_numpy()
                 sensor_y = empty_pulse_df["beam_origin_y"].to_numpy()
@@ -428,6 +447,8 @@ class OccPyRIEGL:
 
                 self.RayTr.addEmptyPulseData(sensor_x, sensor_y, sensor_z, direction_x, direction_y, direction_z, gps_time)
                 self.RayTr.doRaytracingEmptyPulses()
+                toc = time.time()
+                self.logger.info("Time elapsed for raytracing empty pulses: {:.2f} seconds".format(toc - tic))
 
             self.RayTr.clearPulseDataset()
 
@@ -519,6 +540,7 @@ class OccPyRIEGL:
             # ost.write_ply(f"{self.odir}/Occl.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             toc = time.time()
             print("Elapsed Time: " + str(toc - tic) + " seconds")
+
 
 
 # TODO: TEMP TEST
