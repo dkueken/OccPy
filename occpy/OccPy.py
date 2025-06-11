@@ -213,12 +213,6 @@ def filterPointsIntersectingBox(laz_in, laz_out, min_bound, max_bound,sensor_pos
     This filter considers the sensor or trajectory position to compute which pulses intersect
     the bounding box defined by `min_bound` and `max_bound`.
 
-    .. note::
-        This filter does not work as intended for solid-state scanners (e.g., GeoSLAM ZebHorizon, FARO ORBIS)
-        where GPSTime is not a unique pulse identifier. To properly handle these,
-        pulse shooting directions should also be accounted for. This is partially implemented
-        on the C++ side but not yet passed to Python.
-
     Parameters
     ----------
     laz_in : str
@@ -242,6 +236,13 @@ def filterPointsIntersectingBox(laz_in, laz_out, min_bound, max_bound,sensor_pos
     -------
     list
         List of GPS times for pulses intersecting the bounding box.
+
+    Notes
+    -----
+    This filter does not work as intended for solid-state scanners (e.g., GeoSLAM ZebHorizon, FARO ORBIS)
+    where GPSTime is not a unique pulse identifier. To properly handle these,
+    pulse shooting directions should also be accounted for. This is partially implemented
+    on the C++ side but not yet passed to Python.
     """
     pulses_intersecting = []
     #TODO: check if data has already been loaded from an initial do_raytracing run (and pulse dataset is complete).
@@ -315,9 +316,60 @@ def filterPointsIntersectingBox(laz_in, laz_out, min_bound, max_bound,sensor_pos
 
     return pulses_intersecting
 
+# TODO: seperate class for occpy TLS, MLS and UAV-LS?
 
 class OccPy:
+    """
+    Main entry point for occlusion mapping for terrestrial laser scanning (TLS), MLS and ULS data
+
+    This class handles the full workflow of occlusion mapping using 3D point clouds, including:  
+    - Reading point cloud data and sensor positions  
+    - Performing voxel-based ray tracing  
+    - Saving classified voxel grids (hit, miss, occlusion)  
+    - Normalizing outputs using DTM/DSM data  
+    - Computing occlusion statistics and generating plots  
+
+    Parameters
+    ----------
+    laz_in : str
+        Path to the input LAZ file or directory of LAZ files.
+    out_dir : str
+        Directory to save all outputs (e.g., voxel grids, figures).
+    vox_dim : float, optional
+        Voxel size in meters (default is 0.1).
+    lower_threshold : float, optional
+        Minimum height (in meters) above ground to consider in occlusion metrics (default is 1).
+    points_per_iter : int, optional
+        Number of points processed per chunk (default is 10,000,000).
+    plot_dim : list[float] or None, optional
+        Plot bounding box as [minX, minY, minZ, maxX, maxY, maxZ]. If None, inferred from input file.
+    output_voxels : bool, optional
+        If True, saves voxel grids as `.ply` for visualization.
+    """
     def __init__(self, laz_in, out_dir, vox_dim=0.1, lower_threshold=1, points_per_iter=10000000, plot_dim=None, output_voxels=False):
+        """
+        Initialize an Occpy instance for occlusion mapping of TLS point clouds.
+
+        Initializes several attributes for occlusion volume computation, ray tracing, and grid definitions. Also sets up placeholders
+        for scan position data and occlusion statistics. If `plot_dim` is not provided, it will be read from the input file header.
+
+        Parameters
+        ----------
+        laz_in : str
+            Path to the input `.laz` point cloud file.
+        out_dir : str
+            Directory where outputs and intermediate results will be stored.
+        vox_dim : float, optional
+            Voxel dimension in meters. Defines the resolution of the voxel grid. Default is 0.1.
+        lower_threshold : float, optional
+            Minimum height (in meters) above ground to include points in occlusion analysis. Default is 1.
+        points_per_iter : int, optional
+            Number of points to read from the `.laz` file in each iteration. Useful for memory management. Default is 10,000,000.
+        plot_dim : list or None, optional
+            Plot bounding box in the format `[minX, minY, minZ, maxX, maxY, maxZ]`. If None, bounds are inferred from the `.laz` file header. Default is None.
+        output_voxels : bool, optional
+            If True, intermediate voxel files are saved to disk. Default is False.
+        """
         self.laz_in_f = laz_in
         self.out_dir = out_dir
         os.makedirs(out_dir, exist_ok=True)
@@ -393,19 +445,37 @@ class OccPy:
 
     def define_sensor_pos(self, path2file, is_mobile, single_return=None, delimiter=" ", hdr_time='%time', hdr_scanpos_id='', hdr_x='x', hdr_y='y', hdr_z='z', sens_pos_id_offset=0, str_idx_ScanPosID=0):
         """
+        Define the sensor positions or trajectory, depending on acquisition mode.
 
-        :param path2file: [mandatory] path to csv file with sensor position information
-        :param is_mobile: [mandatory] True or False whether platform is mobile (MLS, ULS) or static (TLS)
-        :param single_return: [adviced] True or False whether data is single return or multi return data
-        :param delimiter: csv delimiter [default: " "]
-        :param hdr_time: column header for time (only needed for mobile acquisition)
-        :param hdr_scanpos_id: column header for scan pos id (only needed for static acquisitions -> equivalent to hdr_time in mobile acquisitions
-        :param hdr_x: column header for x coordinates [default 'x']
-        :param hdr_y: column header for y coordinates [default 'y']
-        :param hdr_z: column header for z coordinates [default 'z']
-        :param sens_pos_id_offset: Very specific use case where Scan Pos ID in position file does not correspond with Scan Pos ID in LAZ files and we need to add an offset
-        :param str_idx_ScanPosID: string index of where the scan position identifier is written in the laz file name TODO: find a better way to handle this!
-        :return:
+        Parameters
+        ----------
+        path2file : str
+            Path to the CSV file containing sensor position or trajectory data.
+        is_mobile : bool
+            Whether the acquisition platform is mobile (e.g., MLS, ULS) or static (e.g., TLS).
+        single_return : bool, optional
+            Whether the dataset contains only single return points. Default is None.
+        delimiter : str, optional
+            Delimiter used in the CSV file. Default is a space (" ").
+        hdr_time : str, optional
+            Column header for timestamps (used only for mobile acquisitions). Default is '%time'.
+        hdr_scanpos_id : str, optional
+            Column header for scan position IDs (used only for static acquisitions). Default is ''.
+        hdr_x : str, optional
+            Column header for the X coordinate. Default is 'x'.
+        hdr_y : str, optional
+            Column header for the Y coordinate. Default is 'y'.
+        hdr_z : str, optional
+            Column header for the Z coordinate. Default is 'z'.
+        sens_pos_id_offset : int, optional
+            Offset to apply to scan position IDs, useful when IDs in the sensor position file do not match those in the LAZ file. Default is 0.
+        str_idx_ScanPosID : int, optional
+            Index position in the LAZ filename string where the scan position ID is encoded. Default is 0.
+
+        Returns
+        -------
+        None
+            Updates internal state with sensor or trajectory positions.
         """
         self.is_mobile = is_mobile
         self.single_return = single_return
@@ -419,6 +489,24 @@ class OccPy:
     # TODO: change to structure of occpyRIEGL: read input las files and link to scan positions/ trajectory first (how to do this for MLS/ULS?) -> allows us to error out/log early when position link is not properly found
 
     def do_raytracing(self):
+        """
+        Perform ray tracing.
+
+        This method processes either a directory of LAZ files (for TLS with known scan positions) or a single LAZ file 
+        (Single TLS position or MLS/ULS with a trajectory, depends on self.is_mobile). 
+        In the case of TLS, for each LAZ file, it extracts point positions and sensor positions, and 
+        then performs ray tracing, accounting for single or multi-return pulse information. Multi-return handling 
+        supports on-the-fly processing if the data is sorted by GPS time; otherwise, the full dataset must be loaded first.
+
+        Raises
+        ------
+        FileNotFoundError
+            If `self.laz_in_f` is not a valid file or directory.
+
+        RuntimeWarning
+            If multi-return data is detected but the LAZ file is not sorted by GPS time.
+
+        """
         run_raytraycing_after_loading = False
         if os.path.isdir(self.laz_in_f):
             ## get list of laz files in input directory
@@ -583,7 +671,16 @@ class OccPy:
                         if self.is_mobile:
                             SensorPos = interpolate_traj(self.traj['time'], self.traj['sensor_x'], self.traj['sensor_y'],
                                                               self.traj['sensor_z'], gps_time)
-                        # call interpolate function for trajectory to extract sensor position for each gps_time
+                        else:
+                            scan_name = os.path.basename(self.laz_in_f)
+                            # TODO: This is very specific to the test data and needs to be made generic!
+                            # Idea: give scan_id_stridx and scan_id_len, e.g. for riegl, scan file could be 'ScanPos001 - SINGELSCANS - 2023....ply"
+                            # scan_id_start_idx could then be 7, scan_id_len is 3
+                            end_of_scanID_idx = scan_name.rfind("_")
+                            scan_id = int(scan_name[self.scan_pos_id_stridx:end_of_scanID_idx])
+                            scanpos_X = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_x'].values[0]
+                            scanpos_Y = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_y'].values[0]
+                            scanpos_Z = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_z'].values[0]
 
 
 
@@ -638,10 +735,25 @@ class OccPy:
         self.save_raytracing_output()
 
     def get_raytracing_report(self):
+        """
+        Print or log report on occlusion mapping statistics.
+        """
         # Get report on traversal
         self.RayTr.reportOnTraversal()
 
     def save_raytracing_output(self):
+        """
+        Extract and save the outputs of the ray tracing process.
+
+        This method performs the following steps:  
+        1. Extracts the voxel-wise hit (`Nhit`), miss (`Nmiss`), and occlusion (`Nocc`) voxelgrids and saves as .npy in self.out_dir  
+        2. Creates a voxel classification grid based on the `Nhit`, `Nmiss`, and `Nocc` values:  
+        - 1 = observed (hit > 0)  
+        - 2 = empty (miss > 0, hit == 0)  
+        - 3 = occluded (occlusion > 0, hit == 0, miss == 0)  
+        - 4 = unobserved (all three == 0)  
+        3. Writes `.ply` files for all voxel outputs if `self.output_voxels` is True (takes long and creates large files)
+        """
         print("Extracting Nhit")
         tic = time.time()
         self.Nhit = self.RayTr.getNhit()
@@ -712,14 +824,21 @@ class OccPy:
 
     def normalize_occlusion_output(self, input_folder, dtm_file, dsm_file=None):
         """
-        normalize_occlusion_output normalizes all occlusion output grids (Nhit, Nmiss, Nocc, Classification) with the specified DTM
-        This function also calculates occlusion statistics for the total canopy volume (defined by the volume between DTM
-        and DSM). Currently only binary occlusion is analysed at the moment (TODO: implement also fractional occlusion),
-        i.e. only voxels that are completely occluded (Nhit==0 and Nmiss==0 and Nocc >0)
-        :param input_folder: directory to the output of the raytracing algorithm
-        :param dtm_file: DTM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
-        :param dsm_file: DSM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
-        :return:
+        Normalize occlusion output grids using a DTM and optionally a DSM.
+
+        Aligns and normalizes occlusion grids (Nhit, Nmiss, Nocc, Classification) 
+        to the terrain defined by the DTM. If provided, the DSM is used to 
+        define canopy height for normalization; otherwise, height is inferred 
+        from the data.
+
+        Parameters
+        ----------
+        input_folder : str
+            Directory containing the occlusion output grids (.npy files).
+        dtm_file : str
+            File path to the Digital Terrain Model (.tif).
+        dsm_file : str, optional
+            File path to the Digital Surface Model (.tif).
         """
 
         self.Nhit = np.load(f"{input_folder}/Nhit.npy")
@@ -888,6 +1007,20 @@ class OccPy:
     #def visualize_2d_occlusion_map(self, out_fig):
 
     def __updateOccl_Volumes(self, prof_class):
+        """
+        Update canopy volume and occlusion statistics based on a vertical profile.
+
+        Updates internal volume and occlusion counters stratified by height layers:  
+        - 0 to 3 m  
+        - 3 to 10 m  
+        - Above 10 m (if profile extends beyond)  
+
+        Parameters
+        ----------
+        prof_class : array-like
+            1D array representing classification values along a vertical profile,
+            where 3 indicates occluded voxels.
+        """
         # update canopy volume and occlusion statistics
         self.TotalVolume = self.TotalVolume + len(prof_class)
         self.TotalOcclusion = self.TotalOcclusion + sum(prof_class==3)
@@ -911,7 +1044,24 @@ class OccPy:
             self.Occlusion0_3 = self.Occlusion0_3 + sum(prof_class == 3)
 
     def get_Occl_TransectFigure(self, start_ind, end_ind, axis=0, format="png", show_plots=False):
+        """
+        Generate and save a 2D transect figure showing occlusion fraction and log number of hits.
+        Saves the figure to the output directory and optionally shows it.
 
+        Parameters
+        ----------
+        start_ind : int
+            Start index of the transect slice.
+        end_ind : int
+            End index of the transect slice.
+        axis : int, optional
+            Axis along which to project (0: YZ slice by projecting X, 1: XZ slice by projecting Y, else XY slice),
+            by default 0.
+        format : str, optional
+            Image file format to save (e.g., 'png', 'jpg'), by default "png".
+        show_plots : bool, optional
+            Whether to display the plot interactively, by default False.
+        """
         chm_slice_ref = None
         if axis==0: # get YZ, project axis X
             Nhit_Slice = np.sum(self.Nhit_norm[start_ind:end_ind, :, :], axis=axis)
@@ -1015,7 +1165,21 @@ class OccPy:
             plt.close()
 
     def get_Occlusion_Profile(self, format="png", show_plots=False):
+        """
+        Compute and plot the vertical occlusion profile from classification data.
 
+        Parameters
+        ----------
+        format : str, optional
+            File format for saving the plot (e.g., 'png', 'jpg'), by default "png".
+        show_plots : bool, optional
+            If True, display the plot interactively; otherwise, close the plot, by default False.
+
+        Returns
+        -------
+        pandas.DataFrame
+            DataFrame containing absolute occlusion counts and relative occlusion percentages.
+        """
         OcclVertProf = np.sum(self.Classification_norm == 3, axis=0)
         OcclVertProf = np.sum(OcclVertProf, axis=0)
         OcclVertProf_Rel = OcclVertProf / ( (self.grid_dim['nx']) *
@@ -1060,4 +1224,7 @@ class OccPy:
         return occl_vert_prof
 
     def clean_up_RayTr(self):
+        """
+        Free up raytracer memory
+        """
         del self.RayTr

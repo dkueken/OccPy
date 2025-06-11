@@ -540,30 +540,3 @@ class OccPyRIEGL:
             # ost.write_ply(f"{self.odir}/Occl.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             toc = time.time()
             print("Elapsed Time: " + str(toc - tic) + " seconds")
-
-
-
-# TODO: TEMP TEST
-
-# if __name__ == "__main__":
-#     # proj_folder = "/Stor1/wout/occlusion/cls_raw/Ficus/2023-04-30_LOT_peru2.PROJ"
-#     # riscan_folder  = "/Stor1/wout/occlusion/oxa_occpy_test.RiSCAN"
-
-#     # # odir = "/Stor1/wout/occlusion/output_test/OXA"
-#     # odir = "./test_out/OXA/test_config"
-#     # if not os.path.exists(odir):
-#     #     os.makedirs(odir, exist_ok=True)
-
-#     # OUTPUT_VOXELS = False
-
-#     config_file = "/home/wcherlet/repos/OccPy/config/OXA.JSON"
-
-#     occpy_riegl = OccPyRIEGL(config_file)
-
-#     occpy_riegl.do_raytracing()
-
-#     occpy_riegl.save_raytracing_output()
-
-
-
-

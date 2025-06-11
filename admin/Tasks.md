@@ -28,7 +28,7 @@
 
 ## Code clean-up
 - [ ] there is a lot of potential for cleaning up code   -> @Jonas
-- [ ] remove hard-coding of paths etc. (also on setup.py) -> @Jonas
+- [x] remove hard-coding of paths etc. (also on setup.py) -> @Jonas
 
 ## Packaging
 - [ ] How to package and distribute tool via pip and/or conda?

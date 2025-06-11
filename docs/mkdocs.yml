@@ -1,7 +1,12 @@
-site_name: Occpy documentation
+site_name: Occpy 0.1 documentation
 
-theme:
-  name: material
+nav:
+  - Home: index.md
+  - Documentation: reference.md
+
+
+# theme:
+#   name: material
 # theme: readthedocs
 plugins:
   - search
