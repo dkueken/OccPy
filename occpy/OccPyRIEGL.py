@@ -19,13 +19,44 @@ from raytr import PyRaytracer
 
 
 class OccPyRIEGL:
+    """
+    Voxel-based occlusion mapping from RIEGL terrestrial laser scanning data.
+
+    This class handles RIEGL-specific data workflows, including reading `.rdbx`, `.rxp`, and transformation files,
+    optionally modeling empty pulses using preview images, performing voxel-based ray tracing, and saving the output
+    grids. It provides preprocessing, collinearity checks, and output saving in `.npy` and `.ply` formats.
+    """
 
     def __init__(self, config_file):
+        """
+        Initialize an OccPyRIEGL instance for RIEGL TLS occlusion mapping.
+
+        Parameters in config file:  
+        Must include:  
+            - 'proj_folder' : path to RIEGL project directory with `.rdbx` and `.rxp` files  
+            - 'riscan_folder' : path to RiSCAN PRO scan directory with transformation files  
+            - 'vox_dim' : voxel size in meters  
+            - 'plot_dim': grid for occlusion mapping: [minX, minY, minZ, maxX, maxY, maxZ]  
+        Optional parameters:  
+            - 'buffer' : spatial buffer around point cloud   
+            - 'output_voxels' : whether to export `.ply` voxel grids  
+            - 'model_empty_pulses' : whether to model empty pulses  
+            - 'verbose': set logging level  
+            - 'debug': set logging level, run extra checks and output debug files  
+            - 'lower_threshold':   
+            - 'auto_dim': not implemented yet  
+            - 'buffer': not implemented yet  
+
+        Parameters
+        ----------
+        config_file : str
+            Path to a JSON configuration file containing processing parameters.
+        """
         with open(config_file) as f:
             config = json.load(f)
             print(config)
 
-        necessary_args = ["proj_folder", "riscan_folder", "vox_dim"]
+        necessary_args = ["proj_folder", "riscan_folder", "vox_dim", "plot_dim"]
         missing = []
         for key in necessary_args:
             if key not in config:
@@ -35,7 +66,7 @@ class OccPyRIEGL:
             print(f"Please complete the config file with the following entries: {missing}")
             os._exit(1)
 
-        optional_args = ["model_empty_pulses", "verbose", "debug", "output_voxels", "lower_threshold", "odir", "auto_dim", "buffer", "plot_dim"]
+        optional_args = ["model_empty_pulses", "verbose", "debug", "output_voxels", "lower_threshold", "odir", "auto_dim", "buffer"]
 
         print(f"INFO: optional arguments: {optional_args}")
 
@@ -116,6 +147,13 @@ class OccPyRIEGL:
                               self.vox_dim)
 
     def prepare_input(self):
+        """
+        Prepare input file mappings from project folder and scan directory.
+
+        Scans the RIEGL project folder for `.rdbx`, `.rxp`, `.DAT`, and `.png` files,
+        and builds dictionaries that map scan IDs to each file type based on consistent
+        filename structure.
+        """
 
         # get all rdbx
         self.rdbx_scans = {}
@@ -160,8 +198,7 @@ class OccPyRIEGL:
             rdbx_final = rdbx_files[0]
             self.rdbx_scans[scan_pos_base] = rdbx_final
         
-        # get transform files for rxp's
-        # we assume rdbx already transformed (SOP backup applied in riscan pro) TODO: could make this customizable as well, not priority
+        # get transform files
         self.transform_files = {}
         for scan_pos_name in self.rdbx_scans:
             transform_file = glob.glob(os.path.join(self.riscan_folder, f'{scan_pos_name}.DAT'))
@@ -215,6 +252,23 @@ class OccPyRIEGL:
                 self.png_scans[scan_pos_base] = png_file
 
     def rdbx_rxp_to_df(self, rdbx, rxp):
+        """
+        Convert RDBX and RXP binary scan files into DataFrames.
+
+        Parameters
+        ----------
+        rdbx : str
+            Path to the `.rdbx` file containing return information.
+        rxp : str
+            Path to the `.rxp` file containing pulse information.
+
+        Returns
+        -------
+        tuple of pandas.DataFrame  
+            A tuple of two DataFrames:  
+            - df_rdbx : Returns with coordinates and beam info.  
+            - df_rxp : Pulses with origin and beam direction.  
+        """
         columns_rxp = ["beam_origin_x", "beam_origin_y", "beam_origin_z", "beam_direction_x", "beam_direction_y", "beam_direction_z", "scanline", "scanline_idx", "timestamp"]
         subset_rxp = {k: rxp.pulses[k] for k in columns_rxp}
         df_rxp = pd.DataFrame.from_dict(subset_rxp)
@@ -240,6 +294,23 @@ class OccPyRIEGL:
         return df_rdbx, df_rxp
 
     def merge_df_rdbx_rxp(self, df_rdbx, df_rxp):
+        """
+        Merge return and pulse DataFrames to separate hits and empty pulses.
+
+        Parameters
+        ----------
+        df_rdbx : pandas.DataFrame
+            Return data from RDBX file.
+        df_rxp : pandas.DataFrame
+            Pulse data from RXP file.
+
+        Returns
+        -------
+        tuple of pandas.DataFrame
+            A tuple of two DataFrames:  
+            - df_hit : Pulses with associated returns.  
+            - df_empty : Pulses without any return.  
+        """
         merged_df = df_rxp.merge(df_rdbx, how="left", on=["scanline", "scanline_idx"])
 
         na_mask = merged_df["reflectance"].isna()
@@ -259,6 +330,25 @@ class OccPyRIEGL:
         return point_df, empty_pulse_df
 
     def mask_empty_pulses_preview(self, df_empty, preview_png, max_scanline_idx, max_scanline):
+        """
+        Mask out empty pulses that fall within occluded regions using preview image.
+
+        Parameters
+        ----------
+        df_empty : pandas.DataFrame
+            DataFrame of empty pulses.
+        preview_png : str
+            Path to preview PNG image showing occlusion pattern.
+        max_scanline_idx : int
+            Maximum scanline index in the data.
+        max_scanline : int
+            Maximum scanline value (image height).
+
+        Returns
+        -------
+        pandas.DataFrame
+            Filtered DataFrame with only empty pulses in non-occluded regions.
+        """
         image = cv2.imread(preview_png)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert to RGB
 
@@ -316,6 +406,21 @@ class OccPyRIEGL:
         return df_filtered_lower
 
     def test_colinearity(self, point_df, n_points=None):
+        """
+        Check geometric collinearity between pulse origin, beam direction, and return point.
+
+        Parameters
+        ----------
+        point_df : pandas.DataFrame
+            DataFrame containing pulse origin, direction, and return coordinates.
+        n_points : int or None, optional
+            If specified, tests only the first `n_points` entries.
+
+        Returns
+        -------
+        int
+            number of points failing collinearity check
+        """
         def check_parallel(beam_origin, beam_direction, point, epsilon=1e-6):
             vector_point_origin = point - beam_origin
             return (np.dot(beam_direction, vector_point_origin))/(np.linalg.norm(vector_point_origin)*np.linalg.norm(beam_direction)) > 1 - epsilon
@@ -341,6 +446,15 @@ class OccPyRIEGL:
         
 
     def do_raytracing(self):
+        """
+        Perform voxel-based ray tracing for all scan positions.
+
+        For each scan position:  
+        - Reads RDBX and RXP data.  
+        - Optionally models empty pulses using preview image.  
+        - Adds pulses to ray tracer and performs traversal.  
+        - Clears memory after each scan.  
+        """
 
         for scan in self.rdbx_scans:
             # read rdbx file for point data
@@ -471,6 +585,16 @@ class OccPyRIEGL:
         raise NotImplementedError
 
     def save_raytracing_output(self):
+        """
+        Save ray tracing results (`Nhit`, `Nmiss`, `Nocc`, `Classification`) to disk.
+
+        Saves the voxel outputs as `.npy` arrays, and optionally writes `.ply` files
+        for visualization if `self.output_voxels` is True.
+
+        Returns
+        -------
+        None
+        """
         self.logger.info("Saving output")
         print("Extracting Nhit")
         tic = time.time()
