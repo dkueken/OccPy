@@ -210,6 +210,195 @@ def filterPointsIntersectingBox(laz_in, laz_out, min_bound, max_bound,sensor_pos
 
     return pulses_intersecting
 
+def normalize_occlusion_output(input_folder, PlotDim, vox_dim, dtm_file, dsm_file=None, lower_threshold=0, output_voxels=False):
+    """
+    normalize_occlusion_output normalizes all occlusion output grids (Nhit, Nmiss, Nocc, Classification) with the specified DTM
+    This function also calculates occlusion statistics for the total canopy volume (defined by the volume between DTM
+    and DSM). Currently only binary occlusion is analysed at the moment (TODO: implement also fractional occlusion),
+    i.e. only voxels that are completely occluded (Nhit==0 and Nmiss==0 and Nocc >0)
+    :param input_folder: directory to the output of the raytracing algorithm
+    :param PlotDim: Plot Dimensions defined as a list: (minX, minY, minZ, maxX, maxY, maxZ)
+    :param dtm_file: DTM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
+    :param dsm_file: DSM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
+    :param lower_threshold: minimum Z coordinate to cut off lower part of the canopy, i.e. Voxels lieing at or below DTM. default=0
+    :param output_voxels: if the voxel grids should be outputted as a ply file. default=False -> not yet working properly, recommend leaving this to False!
+    :return:
+    """
+
+    Nhit = np.load(f"{input_folder}/Nhit.npy")
+    Nmiss = np.load(f"{input_folder}/Nmiss.npy")
+    Nocc = np.load(f"{input_folder}/Nocc.npy")
+    Classification = np.load(f"{input_folder}/Classification.npy")
+
+    # Get extent of voxel grid
+    extent_voxgrid = (PlotDim[0], PlotDim[4], PlotDim[3], PlotDim[1])
+
+    # This is a bit of a quick and dirty solution to check on the compatibility of voxel size and pixel size of terrain models. TODO: improve that!
+    dtm = TerrainModel(dtm_file)
+    gt = dtm.dtm.res
+    pix_size = gt[0]
+
+    dtm_fname = os.path.basename(dtm_file)
+
+    if pix_size != vox_dim:
+        dtm.crop2extent(
+            extent=extent_voxgrid,
+            out_file=f"{input_folder}\\{dtm_fname[:-4]}_resc_{vox_dim}.tif",
+            res=vox_dim)
+
+    ext = dtm.get_extent()
+    extent_dtm = (ext.left, ext.top, ext.right, ext.bottom)
+
+    if extent_dtm != extent_voxgrid:
+        dtm.crop2extent(extent=extent_voxgrid,
+                        out_file=f"{dtm.get_terrainmodel_path()[:-4]}_clipped.tif",
+                        res=vox_dim)
+
+    dtm_file = dtm.get_terrainmodel_path()
+
+    with rasterio.open(dtm_file, 'r') as dtm_src:
+        dtm = dtm_src.read(1)
+        # TODO: check if this is still needed!
+        dtm = np.flipud(dtm)  # we need to flip the terrain models in order to make them compatible with the Occlusion output
+        # fill in data gaps in dtm
+        dtm = fillnodata(dtm, mask=dtm != dtm_src.get_nodatavals()[0])
+
+    if dsm_file is not None:
+
+        dsm = TerrainModel(dsm_file)
+        dsm_fname = os.path.basename(dsm_file)
+        # check on pixel size
+        gt = dsm.dtm.res
+        pix_size = gt[0]
+
+        if pix_size != vox_dim:
+            dsm.crop2extent(
+                extent=extent_voxgrid,
+                out_file=f"{input_folder}\\{dsm_fname[:-4]}_resc_{vox_dim}.tif",
+                res=vox_dim)
+
+        ext = dsm.get_extent()
+        extent_dsm = (ext.left, ext.top, ext.right, ext.bottom)
+        if extent_dsm != extent_voxgrid:
+            dsm.crop2extent(extent=extent_voxgrid,
+                            out_file=f"{dsm.get_terrainmodel_path()[:-4]}_clipped.tif",
+                            res=vox_dim)
+
+        dsm_file = dsm.get_terrainmodel_path()
+
+        with rasterio.open(dsm_file, 'r') as dsm_src:
+            dsm = dsm_src.read(1)
+            # TODO: check if this flip is still needed!
+            dsm = np.flipud(dsm)  # we need to flip the terrain models in order to make them compatible with the Occlusion output
+            dsm = fillnodata(dsm, mask=dsm != dsm_src.get_nodatavals()[0])
+
+        chm = dsm - dtm
+
+        Nhit_norm = np.zeros(
+            (dtm.shape[1], dtm.shape[0], int(np.ceil(np.amax(chm) / vox_dim))), dtype=int)
+        Nmiss_norm = np.zeros_like(Nhit_norm)
+        Nocc_norm = np.zeros_like(Nhit_norm)
+        Classification_norm = np.zeros_like(Nhit_norm)
+
+        OcclFrac2D = np.zeros((dtm.shape[1], dtm.shape[0]))
+        for y in range(0, dsm.shape[0], 1):
+            for x in range(0, dsm.shape[1], 1):
+                # get zind where DTM is located in grid at x,y
+                zind_dtm = int(np.floor((dtm[y, x] - PlotDim[2]) / vox_dim))
+                zind_dsm = int(np.floor((dsm[y, x] - PlotDim[2]) / vox_dim))
+                # extract profile from grids
+                prof_class = Classification[x, y, zind_dtm:zind_dsm]
+                prof_class_buf = Classification[x, y,
+                                 zind_dtm + int(np.ceil(lower_threshold / vox_dim)):zind_dsm]
+
+                Classification_norm[x, y, 0:len(prof_class)] = prof_class
+                # Calculate occlusion fraction for z profile
+                num_occl = sum(prof_class_buf == 3)
+
+                if len(prof_class_buf) == 0:
+                    OcclFrac2D[x, y] = 0
+                else:
+                    OcclFrac2D[x, y] = num_occl / len(prof_class_buf)
+
+                Nhit_norm[x, y, 0:len(prof_class)] = Nhit[x, y, zind_dtm:zind_dsm]
+                Nmiss_norm[x, y, 0:len(prof_class)] = Nmiss[x, y, zind_dtm:zind_dsm]
+                Nocc_norm[x, y, 0:len(prof_class)] = Nocc[x, y, zind_dtm:zind_dsm]
+
+
+    else:
+        # as we do not know the height of the scene a priori, we will initialize a 3 D grid with the same dimensions
+        # as the unnormalized grids, introducing quite some overhead...
+        Nhit_norm = np.zeros(Nhit.shape, dtype=int)
+        Nmiss_norm = np.zeros(Nmiss.shape, dtype=int)
+        Nocc_norm = np.zeros(Nocc.shape, dtype=int)
+        Classification_norm = np.zeros(Classification.shape, dtype=int)
+
+        OcclFrac2D = np.zeros((dtm.shape[1], dtm.shape[0]))
+        chm = np.zeros(dtm.shape)
+
+        max_len_prof = 0
+        for y in range(0, dtm.shape[0], 1):
+            for x in range(0, dtm.shape[1], 1):
+                # get zind where DTM is located in grid at x,y
+                zind_dtm = int(np.floor((dtm[y, x] - PlotDim[2]) / vox_dim))
+                zind_dsm = last_nonzero(Nhit[x, y, :], axis=0)
+
+                # If no dsm is provided, we take the DSM from the same
+                # acquisition. This will introduce an under estimation of occlusion for ground based acquisitions
+                # as occlusion on top of canopy is not counted.
+                chm[y, x] = (zind_dsm - zind_dtm) * vox_dim
+
+                # extract profile from grids
+                prof_class = Classification[x, y, zind_dtm:zind_dsm]
+                prof_class_buf = Classification[x, y,
+                                 zind_dtm + int(np.ceil(lower_threshold / vox_dim)):zind_dsm]
+
+                Classification_norm[x, y, 0:len(prof_class)] = prof_class
+                # Calculate occlusion fraction for z profile
+                num_occl = sum(prof_class_buf == 3)
+
+                if len(prof_class_buf) == 0:
+                    OcclFrac2D[x, y] = 0
+                else:
+                    OcclFrac2D[x, y] = num_occl / len(prof_class_buf)
+
+                if len(prof_class) > max_len_prof:
+                    max_len_prof = len(prof_class)
+
+                Classification_norm[y, x, 0:len(prof_class)] = Classification[y, x, zind_dtm:zind_dsm]
+                Nhit_norm[x, y, 0:len(prof_class)] = Nhit[x, y, zind_dtm:zind_dsm]
+                Nmiss_norm[x, y, 0:len(prof_class)] = Nmiss[x, y, zind_dtm:zind_dsm]
+                Nocc_norm[x, y, 0:len(prof_class)] = Nocc[x, y, zind_dtm:zind_dsm]
+
+
+        # get rid of the excessive height of the grid
+        Classification_norm = Classification_norm[:, :, 0:max_len_prof]
+        Nhit_norm = Nhit_norm[:, :, 0:max_len_prof]
+        Nmiss_norm = Nmiss_norm[:, :, 0:max_len_prof]
+        Nocc_norm = Nocc_norm[:, :, 0:max_len_prof]
+
+    print(f"Saving normalized output files into directory as .npy...")
+    np.save(f"{input_folder}/Nhit_norm.npy", Nhit_norm)
+    np.save(f"{input_folder}/Nmiss_norm.npy", Nmiss_norm)
+    np.save(f"{input_folder}/Nocc_norm.npy", Nocc_norm)
+    np.save(f"{input_folder}/Classification_norm.npy", Classification_norm)
+
+    # write ply file TODO: This seems to not be working for me!
+    if output_voxels:
+        print(f"Saving normalized output files into directory as .ply...")
+        tic = time.time()
+        verts, faces = prepare_ply(vox_dim, PlotDim, Nhit_norm)
+        ost.write_ply(f"{input_folder}/Nhit_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+        verts, faces = prepare_ply(vox_dim, PlotDim, Nmiss_norm)
+        ost.write_ply(f"{input_folder}/Nmiss_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+        verts, faces = prepare_ply(vox_dim, PlotDim, Nocc_norm)
+        ost.write_ply(f"{input_folder}/Nocc_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+        verts, faces = prepare_ply(vox_dim, PlotDim, Classification_norm)
+        ost.write_ply(f"{input_folder}/Classification_norm.ply", verts, ['X', 'Y', 'Z', 'data'],
+                      triangular_faces=faces)
+        toc = time.time()
+        print("Elapsed Time: " + str(toc - tic) + " seconds")
+
 
 class OccPy:
     def __init__(self, laz_in, out_dir, vox_dim=0.1, lower_threshold=1, points_per_iter=10000000, plot_dim=None, output_voxels=False):
@@ -228,6 +417,7 @@ class OccPy:
         self.single_return = None
         # TODO: find a better way to link scan position id between laz file and scan pos file!
         self.scan_pos_id_stridx = 0
+        self.scan_pos_id_endstridx = 0
 
         # some parameters that will be filled during function calls
         self.TotalVolume = 0
@@ -286,7 +476,7 @@ class OccPy:
         self.RayTr.defineGrid(minBound, maxBound, self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz'],
                               self.vox_dim)
 
-    def define_sensor_pos(self, path2file, is_mobile, single_return=None, delimiter=" ", hdr_time='%time', hdr_scanpos_id='', hdr_x='x', hdr_y='y', hdr_z='z', sens_pos_id_offset=0, str_idx_ScanPosID=0):
+    def define_sensor_pos(self, path2file, is_mobile, single_return=None, delimiter=" ", hdr_time='%time', hdr_scanpos_id='', hdr_x='x', hdr_y='y', hdr_z='z', sens_pos_id_offset=0, str_idx_ScanPosID=0, str_end_idx_ScanPosID=0):
         """
 
         :param path2file: [mandatory] path to csv file with sensor position information
@@ -300,6 +490,7 @@ class OccPy:
         :param hdr_z: column header for z coordinates [default 'z']
         :param sens_pos_id_offset: Very specific use case where Scan Pos ID in position file does not correspond with Scan Pos ID in LAZ files and we need to add an offset
         :param str_idx_ScanPosID: string index of where the scan position identifier is written in the laz file name TODO: find a better way to handle this!
+        :param str_end_idx_ScanPosID: string index of where the scan position identifier ends in the laz file name TODO: find a better way to handle this!
         :return:
         """
         self.is_mobile = is_mobile
@@ -310,8 +501,19 @@ class OccPy:
         else: # case of static acquisition (TLS)
             self.senspos = read_sensorpos_file(path2senspos=path2file, delimiter=delimiter, hdr_scanpos_id=hdr_scanpos_id, hdr_x=hdr_x, hdr_y=hdr_y, hdr_z=hdr_z, sens_pos_id_offset=sens_pos_id_offset)
             self.scan_pos_id_stridx = str_idx_ScanPosID
+            self.scan_pos_id_endstridx = str_end_idx_ScanPosID
 
     # TODO: change to structure of occpyRIEGL: read input las files and link to scan positions/ trajectory first (how to do this for MLS/ULS?) -> allows us to error out/log early when position link is not properly found
+
+    # TODO: ugly workaround for the case where a single laz file from a single TLS position should be run
+    def define_sensor_pos_singlePos(self, scan_pos_id, x, y, z):
+        d = {'ScanPos': scan_pos_id,
+             'sensor_x': x, 'sensor_y': y, 'sensor_z': z}
+
+        senspos = pd.DataFrame(data=d, index=[0])
+
+        self.senspos = senspos
+
 
     def do_raytracing(self):
         run_raytraycing_after_loading = False
@@ -321,11 +523,11 @@ class OccPy:
 
             for f in fCont:
                 # get scan position
-                lastdir_ind = f.rfind("/")
-                scan_name = f[lastdir_ind + 1:]
+                # lastdir_ind = f.rfind("/")
+                scan_name = os.path.basename(f)
                 # TODO: This is very specific to the test data and needs to be made generic!
-                end_of_scanID_idx = scan_name.rfind("_")
-                scan_id = int(scan_name[self.scan_pos_id_stridx:end_of_scanID_idx])
+                #end_of_scanID_idx = scan_name.rfind("_")
+                scan_id = int(scan_name[self.scan_pos_id_stridx:self.scan_pos_id_endstridx])
 
                 print(f"###############################")
                 print(f"##### Processing {scan_name}...")
@@ -476,15 +678,25 @@ class OccPy:
 
                         # for the case of mobile acquisitions, inerpolate trajectory for gps_time
                         if self.is_mobile:
+                            # call interpolate function for trajectory to extract sensor position for each gps_time
                             SensorPos = interpolate_traj(self.traj['time'], self.traj['sensor_x'], self.traj['sensor_y'],
                                                               self.traj['sensor_z'], gps_time)
-                        # call interpolate function for trajectory to extract sensor position for each gps_time
+
+                        else:
+                            SensorPos = self.senspos
+
+                            # TODO: figure out, why we have to repeat scan position to the shape of input point cloud and try to implement it, so that we only have to pass one position
+                            SensorPos = pd.DataFrame(data={'ScanPos': np.ones(gps_time.shape) * self.senspos['ScanPos'].values[0],
+                                                           'sensor_x': np.ones(gps_time.shape) * self.senspos['sensor_x'].values[0],
+                                                           'sensor_y': np.ones(gps_time.shape) * self.senspos['sensor_y'].values[0],
+                                                           'sensor_z': np.ones(gps_time.shape) * self.senspos['sensor_z'].values[0]})
+
 
 
 
                         if np.max(number_of_returns) == 1 or np.max(return_number) == 1:
                             run_raytraycing_after_loading = False
-                            self.RayTr.doRaytracing_singleReturnPulses(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
+                            self.RayTr.doRaytracing_singleReturnPulses(x, y, z,  SensorPos['sensor_x'], SensorPos['sensor_y'],
                                                                        SensorPos['sensor_z'], gps_time)
                         else:
                             # check if gps_time is sorted
@@ -502,6 +714,7 @@ class OccPy:
                                 else:
                                     sorted = True
                                     run_raytraycing_after_loading=False
+
 
                             self.RayTr.addPointData(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
                                                     SensorPos['sensor_z'],
@@ -605,6 +818,7 @@ class OccPy:
             toc = time.time()
             print("Elapsed Time: " + str(toc - tic) + " seconds")
 
+    ''' moved outside of OccPy class to be able to normalize Voxelgrids that have already been processed.
     def normalize_occlusion_output(self, input_folder, dtm_file, dsm_file=None):
         """
         normalize_occlusion_output normalizes all occlusion output grids (Nhit, Nmiss, Nocc, Classification) with the specified DTM
@@ -780,8 +994,10 @@ class OccPy:
             toc = time.time()
             print("Elapsed Time: " + str(toc - tic) + " seconds")
 
+    '''
     #def visualize_2d_occlusion_map(self, out_fig):
 
+    """ Very specific function that could be deleted!
     def __updateOccl_Volumes(self, prof_class):
         # update canopy volume and occlusion statistics
         self.TotalVolume = self.TotalVolume + len(prof_class)
@@ -804,6 +1020,7 @@ class OccPy:
         else:
             self.Volume0_3 = self.Volume0_3 + len(prof_class)
             self.Occlusion0_3 = self.Occlusion0_3 + sum(prof_class == 3)
+        """
 
     def get_Occl_TransectFigure(self, start_ind, end_ind, axis=0, format="png", show_plots=False):
 
