@@ -673,8 +673,8 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
         origin.at(1) = sensor_y.at(i);
         origin.at(2) = sensor_z.at(i);
 
-        direction.at(0) = X.at(i) - origin.at(1);
-        direction.at(1) = Y.at(i) - origin.at(0);
+        direction.at(0) = X.at(i) - origin.at(0);
+        direction.at(1) = Y.at(i) - origin.at(1);
         direction.at(2) = Z.at(i) - origin.at(2);
 
         // if direction vector is == 0 assign a very small number to overcome problems with division through 0 in later steps. TODO: Check if this value is small enough. This could be a problem especially with TLS data!
@@ -727,8 +727,8 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
             int y;
             int z;
 
-            x = floor( ((start.at(1)-(double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.nx );
-            y = floor( ((start.at(0)-(double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.ny );
+            x = floor( ((start.at(0)-(double)this->gridDim.minBound.at(0))/boxSize.at(0))*(double)this->gridDim.nx );
+            y = floor( ((start.at(1)-(double)this->gridDim.minBound.at(1))/boxSize.at(1))*(double)this->gridDim.ny );
             z = floor( ((start.at(2)-(double)this->gridDim.minBound.at(2))/boxSize.at(2))*(double)this->gridDim.nz );
 
             if (x==(this->gridDim.nx)) {
