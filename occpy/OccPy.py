@@ -22,6 +22,8 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib.transforms import Affine2D
 from matplotlib.collections import PathCollection
 import matplotlib.lines as mlines
+from matplotlib.colors import LogNorm
+from matplotlib.colors import to_rgb
 import seaborn as sns
 
 from tqdm import tqdm
@@ -399,6 +401,402 @@ def normalize_occlusion_output(input_folder, PlotDim, vox_dim, dtm_file, dsm_fil
         toc = time.time()
         print("Elapsed Time: " + str(toc - tic) + " seconds")
 
+    return Nhit_norm, Nmiss_norm, Nocc_norm, Classification_norm, chm
+
+def slot_bbox(i, slot_width, gap, y_pos_axes, slot_height):
+    start_x = i * (slot_width + gap)
+    return (start_x, y_pos_axes, slot_width, slot_height)
+def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, out_dir, start_ind=None, end_ind=None, axis=0, chm=None, vertBuffer=0, fig_prop=None, show_plots=False):
+
+    if fig_prop is None:
+        fig_prop = dict(fig_size=(3.14, 2.25),
+                        label_size=8,
+                        label_size_ticks=6,
+                        label_size_tiny=4,
+                        out_format='png', )
+
+
+    if start_ind is None:
+        start_ind = 0
+    if end_ind is None:
+        end_ind = Nhit.shape[axis]
+
+    grid_dim = (int((plot_dim[3] - plot_dim[0]) / vox_dim), int((plot_dim[4] - plot_dim[1]) / vox_dim), int((plot_dim[5] - plot_dim[2]) / vox_dim))
+
+    chm_slice_ref = None
+    if axis == 0:  # get YZ, project axis X
+        Nhit_Slice = np.sum(Nhit[start_ind:end_ind, :, :], axis=axis)
+        OcclFrac_Slice = np.sum(Classification[start_ind:end_ind, :, :] == 3, axis=axis) / (
+                    end_ind - start_ind)
+        if chm is not None:
+            # chm is [ny, nx] so to get YZ we project axis 1
+            chm_slice_ref = np.max(chm[:, start_ind:end_ind], axis=1)
+    elif axis == 1:  # get XZ, project axis Y
+        Nhit_Slice = np.sum(Nhit[:, start_ind:end_ind, :], axis=axis)
+        # OcclFrac_Slice = np.sum(Classification[:, start_ind:end_ind, :] == 3, axis=axis) / (
+        #         end_ind - start_ind)
+        OcclFrac = OcclFrac[:, start_ind:end_ind, :]
+        mask = (OcclFrac >= 0.8)
+
+        # sum only where mask is True
+        sum_vals = np.sum(np.where(mask, OcclFrac, 0), axis=axis)
+
+        # count matching values along the axis
+        count_vals = np.sum(mask, axis=axis)
+
+        # Safe division: avoid divide by zero and assign default where count == 0
+        with np.errstate(divide='ignore', invalid='ignore'):
+            OcclFrac_Slice = np.divide(sum_vals, count_vals)
+            OcclFrac_Slice[count_vals == 0] = 0
+
+        if chm is not None:
+            # chm is [ny, nx] so to get XZ we project axis 0
+            chm_slice_ref = np.max(chm[start_ind:end_ind, :], axis=0)
+    else:  # get a slice of Z-Axis
+        Nhit_Slice = np.sum(Nhit[:, :, start_ind:end_ind], axis=axis)
+        OcclFrac_Slice = np.sum(Classification[:, :, start_ind:end_ind] == 3, axis=axis) / (
+                end_ind - start_ind)
+
+    #NHits_Slice_log = np.log10(Nhit_Slice, where=(Nhit_Slice != 0))
+
+    # we need to rotate the slice for visualization purposes
+    OcclFrac_Slice = np.rot90(OcclFrac_Slice)
+    NHit_Slice = np.rot90(Nhit_Slice)
+
+    fig = plt.figure(figsize=fig_prop['fig_size'])
+    ax = fig.add_subplot(1, 1, 1)
+    x_axis_vect = None
+    if axis == 0:
+        ax.set_xlabel(f"Y [m]", fontsize=fig_prop['label_size'])
+        ax.set_ylabel(f"Height a.g. [m]", fontsize=fig_prop['label_size'])
+        extent = [plot_dim[1]-plot_dim[1], plot_dim[4]-plot_dim[1], 0, OcclFrac_Slice.shape[0] * vox_dim]
+        if vertBuffer != 0:
+            extent_buf = extent.copy()
+            extent_buf[3] = extent_buf[3] + vertBuffer
+            ax.axis(extent_buf)
+        else:
+            ax.axis(extent)
+        x_axis_vect = np.linspace(start=plot_dim[1]-plot_dim[1], stop=plot_dim[4]-plot_dim[1], num=grid_dim[1])
+
+    elif axis == 1:
+        ax.set_xlabel(f"X [m]", fontsize=fig_prop['label_size'])
+        ax.set_ylabel(f"Height a.g. [m]", fontsize=fig_prop['label_size'])
+        extent = [plot_dim[0]-plot_dim[0], plot_dim[3]-plot_dim[0], 0, OcclFrac_Slice.shape[0] * vox_dim]
+        if vertBuffer!=0:
+            extent_buf = extent.copy()
+            extent_buf[3] = extent_buf[3] + vertBuffer
+            ax.axis(extent_buf)
+        else:
+            ax.axis(extent)
+        x_axis_vect = np.linspace(start=plot_dim[0]-plot_dim[0], stop=plot_dim[3]-plot_dim[0], num=grid_dim[0])
+    else:
+        ax.set_xlabel(f"X [m]", fontsize=fig_prop['label_size'])
+        ax.set_ylabel(f"Y [m]", fontsize=fig_prop['label_size'])
+        extent = [plot_dim[0]-plot_dim[0], plot_dim[3]-plot_dim[0], plot_dim[1]-plot_dim[1], plot_dim[4]-plot_dim[1]]
+        ax.axis(extent)
+
+    # define tick label size
+    plt.yticks(fontsize=fig_prop['label_size_ticks'])
+    plt.xticks(fontsize=fig_prop['label_size_ticks'])
+
+    reds_cmap = plt.get_cmap(name='inferno_r')
+    reds_cmap.set_under('k', alpha=0)
+    grey_cmap = plt.get_cmap(name='Grays_r')
+    grey_cmap.set_under('k', alpha=0)
+    # plot raster data
+
+    p50, p99 = np.percentile(OcclFrac_Slice*100, [50, 99])
+
+    im1 = ax.imshow(NHit_Slice, cmap=grey_cmap, norm=LogNorm(vmin=1, vmax=np.amax(NHit_Slice)), interpolation='none',
+                    extent=extent, alpha=1, aspect='auto')
+    im2 = ax.imshow(OcclFrac_Slice * 100, cmap=reds_cmap, vmin=p50, vmax=p99, clim=[p50, p99], interpolation='none',
+                    alpha=0.75, aspect='auto',
+                    extent=extent)
+
+    # Define equally spaced horizontal slots for two colorbars and one legend
+    n_slots = 3
+    slot_width = 0.28
+    margin = 0.05
+    gap = (1 - 2*margin - n_slots * slot_width) / (n_slots - 1)
+    slot_height = 0.05
+    y_pos_axes = 0.98
+
+
+    if x_axis_vect is not None:
+        chm_ref_plot = ax.plot(x_axis_vect, chm_slice_ref, label="ULS CHM")
+        # chm_comp_plot = ax.plot(x_axis_vect, chm_slice_comp, label="Comp CHM", linestyle='--') #TODO: implement that!
+
+        legend_ax = ax.inset_axes([slot_width + gap + margin, y_pos_axes, slot_width, slot_height])
+        legend_ax.axis("off")
+        legend = legend_ax.legend(handles=[chm_ref_plot[0]], loc='center', frameon=True, ncol=1, fontsize=fig_prop['label_size_ticks'])
+        legend.get_frame().set_alpha(1)
+
+
+    # define colorbars with position and dimension
+    start_pos = 0
+    cax1 = ax.inset_axes([margin, y_pos_axes, slot_width, slot_height])
+    cb1 = plt.colorbar(im1, cax=cax1, orientation='horizontal')
+    cb1.ax.tick_params(labelsize=fig_prop['label_size_tiny'])
+    cb1.set_label("Nr. Hits", size=fig_prop['label_size_ticks'])
+
+    # Change ticks to actual values
+    ticks = [10, 100, 1000]
+    cb1.set_ticks(ticks)
+    cb1.set_ticklabels([str(t) for t in ticks])
+
+
+    # Second colorbar for Occlusion
+    start_pos = 2 * (slot_width + gap)
+    cax2 = ax.inset_axes([2 * (slot_width + gap) + margin, y_pos_axes, slot_width, slot_height])
+    cb2 = plt.colorbar(im2, cax=cax2, orientation='horizontal')
+    cb2.set_label("Occlusion [%]", size=fig_prop['label_size_ticks'])
+    cb2.ax.tick_params(labelsize=fig_prop['label_size_tiny'])
+
+
+    # tight layout
+    plt.tight_layout()
+
+    # save figure
+    if axis == 0:
+        plt.savefig(
+            f"{out_dir}/Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels.{fig_prop['out_format']}",
+            dpi=300, format=fig_prop['out_format'])
+    elif axis == 1:
+        plt.savefig(
+            f"{out_dir}/Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels.{fig_prop['out_format']}",
+            dpi=300, format=fig_prop['out_format'])
+    else:
+        plt.savefig(
+            f"{out_dir}/Occlusion_Slice_XY_{start_ind}_{end_ind}_voxels.{fig_prop['out_format']}",
+            dpi=300, format=fig_prop['out_format'])
+
+    if show_plots:
+        plt.show(block=True)
+    else:
+        plt.close()
+
+def get_Occl_TransectFigure_BinaryOcclusion(Nhit, Classification, plot_dim, vox_dim, out_dir, start_ind=None, end_ind=None, axis=0, chm=None, vertBuffer=0, nhit_max=100000, nhit_min=1, fig_prop=None, show_plots=False):
+
+    if fig_prop is None:
+        fig_prop = dict(fig_size=(3.14, 2.25),
+                        label_size=8,
+                        label_size_ticks=6,
+                        label_size_tiny=4,
+                        out_format='png', )
+
+    if start_ind is None:
+        start_ind = 0
+    if end_ind is None:
+        end_ind = Nhit.shape[axis]
+
+    grid_dim = (int((plot_dim[3] - plot_dim[0]) / vox_dim), int((plot_dim[4] - plot_dim[1]) / vox_dim), int((plot_dim[5] - plot_dim[2]) / vox_dim))
+
+    chm_slice_ref = None
+    if axis == 0:  # get YZ, project axis X
+        Nhit_Slice = np.sum(Nhit[start_ind:end_ind, :, :], axis=axis)
+        OcclFrac_Slice = np.sum(Classification[start_ind:end_ind, :, :] == 3, axis=axis) / (
+                    end_ind - start_ind)
+        if chm is not None:
+            # chm is [ny, nx] so to get YZ we project axis 1
+            chm_slice_ref = np.max(chm[:, start_ind:end_ind], axis=1)
+    elif axis == 1:  # get XZ, project axis Y
+        Nhit_Slice = np.sum(Nhit[:, start_ind:end_ind, :], axis=axis)
+        OcclFrac_Slice = np.sum(Classification[:, start_ind:end_ind, :] == 3, axis=axis) / (end_ind - start_ind)
+        if chm is not None:
+            # chm is [ny, nx] so to get XZ we project axis 0
+            chm_slice_ref = np.max(chm[start_ind:end_ind, :], axis=0)
+    else:  # get a slice of Z-Axis
+        Nhit_Slice = np.sum(Nhit[:, :, start_ind:end_ind], axis=axis)
+        OcclFrac_Slice = np.sum(Classification[:, :, start_ind:end_ind] == 3, axis=axis) / (
+                end_ind - start_ind)
+
+    #NHits_Slice_log = np.log10(Nhit_Slice, where=(Nhit_Slice != 0))
+
+    # we need to rotate the slice for visualization purposes
+    OcclFrac_Slice = np.rot90(OcclFrac_Slice)
+    NHit_Slice = np.rot90(Nhit_Slice)
+
+    fig = plt.figure(figsize=fig_prop['fig_size'])
+    ax = fig.add_subplot(1, 1, 1)
+    x_axis_vect = None
+    if axis == 0:
+        ax.set_xlabel(f"Y [m]", fontsize=fig_prop['label_size'])
+        ax.set_ylabel(f"Height a.g. [m]", fontsize=fig_prop['label_size'])
+        extent = [plot_dim[1]-plot_dim[1], plot_dim[4]-plot_dim[1], 0, OcclFrac_Slice.shape[0] * vox_dim]
+        if vertBuffer != 0:
+            extent_buf = extent.copy()
+            extent_buf[3] = extent_buf[3] + vertBuffer
+            ax.axis(extent_buf)
+        else:
+            ax.axis(extent)
+        x_axis_vect = np.linspace(start=plot_dim[1]-plot_dim[1], stop=plot_dim[4]-plot_dim[1], num=grid_dim[1])
+
+    elif axis == 1:
+        ax.set_xlabel(f"X [m]", fontsize=fig_prop['label_size'])
+        ax.set_ylabel(f"Height a.g. [m]", fontsize=fig_prop['label_size'])
+        extent = [plot_dim[0]-plot_dim[0], plot_dim[3]-plot_dim[0], 0, OcclFrac_Slice.shape[0] * vox_dim]
+        if vertBuffer!=0:
+            extent_buf = extent.copy()
+            extent_buf[3] = extent_buf[3] + vertBuffer
+            ax.axis(extent_buf)
+        else:
+            ax.axis(extent)
+        x_axis_vect = np.linspace(start=plot_dim[0]-plot_dim[0], stop=plot_dim[3]-plot_dim[0], num=grid_dim[0])
+    else:
+        ax.set_xlabel(f"X [m]", fontsize=fig_prop['label_size'])
+        ax.set_ylabel(f"Y [m]", fontsize=fig_prop['label_size'])
+        extent = [plot_dim[0]-plot_dim[0], plot_dim[3]-plot_dim[0], plot_dim[1]-plot_dim[1], plot_dim[4]-plot_dim[1]]
+        ax.axis(extent)
+
+    # define tick label size
+    plt.yticks(fontsize=fig_prop['label_size_ticks'])
+    plt.xticks(fontsize=fig_prop['label_size_ticks'])
+
+    reds_cmap = plt.get_cmap(name='plasma_r')
+    reds_cmap.set_under('k', alpha=0)
+    grey_cmap = plt.get_cmap(name='Grays_r')
+    grey_cmap.set_under('k', alpha=0)
+    # plot raster data
+
+
+    im1 = ax.imshow(NHit_Slice, cmap=grey_cmap, norm=LogNorm(vmin=nhit_min, vmax=nhit_max), interpolation='none',
+                    extent=extent, alpha=1, aspect='auto')
+    im2 = ax.imshow(OcclFrac_Slice * 100, cmap=reds_cmap, vmin=1, vmax=50, clim=[1, 50], interpolation='none',
+                    alpha=0.75, aspect='auto',
+                    extent=extent)
+
+    # Define equally spaced horizontal slots for two colorbars and one legend
+    n_slots = 3
+    slot_width = 0.28
+    margin = 0.05
+    gap = (1 - 2*margin - n_slots * slot_width) / (n_slots - 1)
+    slot_height = 0.05
+    y_pos_axes = 0.98
+
+
+    if x_axis_vect is not None:
+        chm_ref_plot = ax.plot(x_axis_vect, chm_slice_ref, label="ULS CHM")
+        # chm_comp_plot = ax.plot(x_axis_vect, chm_slice_comp, label="Comp CHM", linestyle='--') #TODO: implement that!
+
+        legend_ax = ax.inset_axes([slot_width + gap + margin, y_pos_axes, slot_width, slot_height])
+        legend_ax.axis("off")
+        legend = legend_ax.legend(handles=[chm_ref_plot[0]], loc='center', frameon=True, ncol=1, fontsize=fig_prop['label_size_ticks'])
+        legend.get_frame().set_alpha(1)
+
+
+    # define colorbars with position and dimension
+    start_pos = 0
+    cax1 = ax.inset_axes([margin, y_pos_axes, slot_width, slot_height])
+    cb1 = plt.colorbar(im1, cax=cax1, orientation='horizontal')
+    cb1.ax.tick_params(labelsize=fig_prop['label_size_tiny'])
+    cb1.set_label("Nr. Hits", size=fig_prop['label_size_ticks'])
+
+    # Change ticks to actual values
+    ticks = [10, 100, 1000]
+    cb1.set_ticks(ticks)
+    cb1.set_ticklabels([str(t) for t in ticks])
+
+
+    # Second colorbar for Occlusion
+    start_pos = 2 * (slot_width + gap)
+    cax2 = ax.inset_axes([2 * (slot_width + gap) + margin, y_pos_axes, slot_width, slot_height])
+    cb2 = plt.colorbar(im2, cax=cax2, orientation='horizontal')
+    cb2.set_label("Occlusion [%]", size=fig_prop['label_size_ticks'])
+    cb2.ax.tick_params(labelsize=fig_prop['label_size_tiny'])
+
+    # tight layout
+    plt.tight_layout()
+
+    # save figure
+    if axis == 0:
+        plt.savefig(
+            f"{out_dir}/Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels_binary.{fig_prop['out_format']}",
+            dpi=300, format=fig_prop['out_format'])
+    elif axis == 1:
+        plt.savefig(
+            f"{out_dir}/Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels_binary.{fig_prop['out_format']}",
+            dpi=300, format=fig_prop['out_format'])
+    else:
+        plt.savefig(
+            f"{out_dir}/Occlusion_Slice_XY_{start_ind}_{end_ind}_voxels_binary.{fig_prop['out_format']}",
+            dpi=300, format=fig_prop['out_format'])
+
+    if show_plots:
+        plt.show(block=True)
+    else:
+        plt.close()
+
+# Function to darken an RGB color
+def darken_color(color, amount=0.6):
+    r, g, b = to_rgb(color)
+    return (r * amount, g * amount, b * amount)
+
+def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_thresh=0, vertBuffer=0, max_percentage=100, fig_prop=None, show_plots=False):
+
+    grid_dim = (int((plot_dim[3] - plot_dim[0]) / vox_dim), int((plot_dim[4] - plot_dim[1]) / vox_dim),
+                int((plot_dim[5] - plot_dim[2]) / vox_dim))
+
+    vert_vect = np.arange(start=low_thresh, stop=Classification.shape[2] * vox_dim, step=vox_dim)
+    Classification = Classification[:,:,int(low_thresh / vox_dim):]
+    # a hack to make sure that vert_vect is of the same length as OcclVertProf TODO: this has to be checked if it is generic!
+
+
+    OcclVertProf = np.sum(Classification == 3, axis=0)
+    OcclVertProf = np.sum(OcclVertProf, axis=0)
+    OcclVertProf_Rel = OcclVertProf / ((grid_dim[0]) * (grid_dim[1]))
+
+    FilledVertProf = np.sum(Classification == 1, axis=0)
+    FilledVertProf = np.sum(FilledVertProf, axis=0)
+    FilledVertProf_Rel = FilledVertProf / (grid_dim[0] * grid_dim[1])
+
+    EmptyVertProf = np.sum(np.logical_or(Classification == 2, Classification==0), axis=0)
+    EmptyVertProf = np.sum(EmptyVertProf, axis=0)
+    EmptyVertProf_Rel = EmptyVertProf / (grid_dim[0] * grid_dim[1])
+
+    heights = vert_vect[0:len(OcclVertProf)]
+
+    percentages = np.column_stack([FilledVertProf_Rel*100, OcclVertProf_Rel*100, EmptyVertProf_Rel*100])
+    categories = ['Filled', 'Occluded', 'Empty']
+    colors = ['skyblue', 'salmon', 'lightgreen']
+
+    # Compute cumulative percentages for stacking
+    cumulative = np.cumsum(percentages, axis=1)
+
+    palette = sns.color_palette('colorblind', n_colors=len(categories))
+    palette[2] = (1.0, 1.0, 1.0) # white for empty
+
+    fig, ax = plt.subplots(figsize=fig_prop['fig_size'])
+
+    for i, cat in enumerate(categories):
+        left = cumulative[:, i - 1] if i > 0 else np.zeros_like(heights)
+        face_color = palette[i]
+        edge_color = darken_color(face_color, 0.8)  # slightly darker for lines
+
+        # Fill area
+        ax.fill_betweenx(
+            heights, left, cumulative[:, i],
+            color=face_color, alpha=0.6
+        )
+        # Outline
+        ax.plot(cumulative[:, i], heights, color=edge_color, linewidth=1.5, label="_nolegend_")
+
+    ax.set_xlabel('Percentage of voxels [%]', fontsize=fig_prop['label_size'])
+    ax.set_ylabel('Height above ground [m]', fontsize=fig_prop['label_size'])
+    ax.set_xlim(0.1,max_percentage)
+    ax.set_ylim(0,np.max(heights) + vertBuffer)
+    plt.xticks(fontsize=fig_prop['label_size_ticks'])
+    plt.yticks(fontsize=fig_prop['label_size_ticks'])
+    ax.legend(categories[0:2], fontsize=fig_prop['label_size_ticks'])
+    plt.tight_layout()
+
+    plt.savefig(f"{out_dir}/OcclusionVertProf.{fig_prop['out_format']}", dpi=300, format=fig_prop['out_format'])
+    if show_plots:
+        plt.show(block=True)
+    else:
+        plt.close()
+
+
+
 
 class OccPy:
     def __init__(self, laz_in, out_dir, vox_dim=0.1, lower_threshold=1, points_per_iter=10000000, plot_dim=None, output_voxels=False):
@@ -659,7 +1057,7 @@ class OccPy:
         else: # if input is a single laz file
             with laspy.open(self.laz_in_f) as file:
                 count = 0
-                with tqdm(total=file.header.point_count, desc="Tracing Pulses...", unit="points") as pbar:
+                with tqdm(total=file.header.point_count, desc="Tracing Pulses...", unit="pulses") as pbar:
                     for points in file.chunk_iterator(points_per_iteration=self.points_per_iter):
 
                         # For performance we need to use copy
@@ -818,358 +1216,11 @@ class OccPy:
             toc = time.time()
             print("Elapsed Time: " + str(toc - tic) + " seconds")
 
-    ''' moved outside of OccPy class to be able to normalize Voxelgrids that have already been processed.
-    def normalize_occlusion_output(self, input_folder, dtm_file, dsm_file=None):
-        """
-        normalize_occlusion_output normalizes all occlusion output grids (Nhit, Nmiss, Nocc, Classification) with the specified DTM
-        This function also calculates occlusion statistics for the total canopy volume (defined by the volume between DTM
-        and DSM). Currently only binary occlusion is analysed at the moment (TODO: implement also fractional occlusion),
-        i.e. only voxels that are completely occluded (Nhit==0 and Nmiss==0 and Nocc >0)
-        :param input_folder: directory to the output of the raytracing algorithm
-        :param dtm_file: DTM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
-        :param dsm_file: DSM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
-        :return:
-        """
 
-        self.Nhit = np.load(f"{input_folder}/Nhit.npy")
-        self.Nmiss = np.load(f"{input_folder}/Nmiss.npy")
-        self.Nocc = np.load(f"{input_folder}/Nocc.npy")
-        self.Classification = np.load(f"{input_folder}/Classification.npy")
-
-        # This is a bit of a quick and dirty solution to check on the compatibility of voxel size and pixel size of terrain models. TODO: improve that!
-        dtm = TerrainModel(dtm_file)
-        gt = dtm.dtm.res
-        pix_size = gt[0]
-
-        if pix_size != self.vox_dim:
-            dtm.crop2extent(extent=(self.PlotDim['minX'], self.PlotDim['maxY'], self.PlotDim['maxX'], self.PlotDim['minY']),
-                                   out_file=f"{dtm_file[:-4]}_resc_{self.vox_dim}.tif",
-                                   res=self.vox_dim)
-
-        ext = dtm.get_extent()
-        extent_dtm = (ext.left, ext.top, ext.right, ext.bottom)
-        extent_voxgrid = (self.PlotDim['minX'], self.PlotDim['maxY'], self.PlotDim['maxX'], self.PlotDim['minY'])
-        if extent_dtm != extent_voxgrid:
-            dtm.crop2extent(extent=extent_voxgrid,
-                            out_file = f"{dtm.get_terrainmodel_path()[:-4]}_clipped.tif",
-                            res=self.vox_dim)
-
-        dtm_file = dtm.get_terrainmodel_path()
-
-        dtm_src = rasterio.open(dtm_file)
-        self.dtm = dtm_src.read(1)
-        self.dtm = np.flipud(dtm_src.read(1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
-        # fill in data gaps in dtm
-        self.dtm = fillnodata(self.dtm, mask=self.dtm != dtm_src.get_nodatavals()[0])
-
-
-        if dsm_file is not None:
-
-            dsm = TerrainModel(dsm_file)
-            # check on pixel size
-            gt = dsm.dtm.res
-            pix_size = gt[0]
-
-            if pix_size != self.vox_dim:
-                dsm.crop2extent(extent=(self.PlotDim['minX'], self.PlotDim['maxY'], self.PlotDim['maxX'], self.PlotDim['minY']),
-                                   out_file=f"{dtm_file[:-4]}_resc_{self.vox_dim}.tif",
-                                   res=self.vox_dim)
-
-            ext = dsm.get_extent()
-            extent_dsm = (ext.left, ext.top, ext.right, ext.bottom)
-            if extent_dsm != extent_voxgrid:
-                dsm.crop2extent(extent=extent_voxgrid,
-                                out_file=f"{dsm.get_terrainmodel_path()[:-4]}_clipped.tif",
-                                res=self.vox_dim)
-
-            dsm_file = dsm.get_terrainmodel_path()
-            dsm_src = rasterio.open(dsm_file)
-            self.dsm = dsm_src.read(1)
-            self.dsm = np.flipud(dsm_src.read(1))  # we need to flip the terrain models in order to make them compatible with the Occlusion output
-            self.dsm = fillnodata(self.dsm, mask=self.dsm != dsm_src.get_nodatavals()[0])
-
-            self.chm = self.dsm - self.dtm
-
-            self.Nhit_norm = np.zeros((self.dtm.shape[1], self.dtm.shape[0], int(np.ceil(np.amax(self.chm) / self.vox_dim))), dtype=int)
-            self.Nmiss_norm = np.zeros_like(self.Nhit_norm)
-            self.Nocc_norm = np.zeros_like(self.Nhit_norm)
-            self.Classification_norm = np.zeros_like(self.Nhit_norm)
-
-            self.OcclFrac2D = np.zeros((self.dtm.shape[1], self.dtm.shape[0]))
-            for y in range(0, self.dsm.shape[0], 1):
-                for x in range(0, self.dsm.shape[1], 1):
-                    # get zind where DTM is located in grid at x,y
-                    zind_dtm = int(np.floor((self.dtm[y, x] - self.PlotDim['minZ']) / self.vox_dim))
-                    zind_dsm = int(np.floor((self.dsm[y, x] - self.PlotDim['minZ']) / self.vox_dim))
-                    # extract profile from grids
-                    prof_class = self.Classification[x, y, zind_dtm:zind_dsm]
-                    prof_class_buf = self.Classification[x, y, zind_dtm+int(np.ceil(self.lower_threshold/self.vox_dim)):zind_dsm]
-
-                    self.Classification_norm[x, y, 0:len(prof_class)] = prof_class
-                    # Calculate occlusion fraction for z profile
-                    num_occl =sum(prof_class_buf == 3)
-
-                    if len(prof_class_buf)==0:
-                        self.OcclFrac2D[x, y] = 0
-                    else:
-                        self.OcclFrac2D[x, y] = num_occl/len(prof_class_buf)
-
-                    self.Nhit_norm[x, y, 0:len(prof_class)] = self.Nhit[x, y, zind_dtm:zind_dsm]
-                    self.Nmiss_norm[x, y, 0:len(prof_class)] = self.Nmiss[x, y, zind_dtm:zind_dsm]
-                    self.Nocc_norm[x, y, 0:len(prof_class)] = self.Nocc[x, y, zind_dtm:zind_dsm]
-
-                    self.__updateOccl_Volumes(prof_class)
-
-        else:
-            # as we do not know the height of the scene a priori, we will initialize a 3 D grid with the same dimensions
-            # as the unnormalized grids, introducing quite some overhead...
-            self.Nhit_norm = np.zeros(self.Nhit.shape, dtype=int)
-            self.Nmiss_norm = np.zeros(self.Nmiss.shape, dtype=int)
-            self.Nocc_norm = np.zeros(self.Nocc.shape, dtype=int)
-            self.Classification_norm = np.zeros(self.Classification.shape, dtype=int)
-
-            self.OcclFrac2D = np.zeros((self.dtm.shape[1], self.dtm.shape[0]))
-            self.chm = np.zeros(self.dtm.shape)
-
-            max_len_prof = 0
-            for y in range(0, self.dtm.shape[0], 1):
-                for x in range(0, self.dtm.shape[1], 1):
-                    # get zind where DTM is located in grid at x,y
-                    zind_dtm = int(np.floor((self.dtm[y, x] - self.PlotDim['minZ']) / self.vox_dim))
-                    zind_dsm = last_nonzero(self.Nhit[x, y, :], axis=0) 
-                    
-                    # If no dsm is provided, we take the DSM from the same
-                    # acquisition. This will introduce an under estimation of occlusion for ground based acquisitions
-                    # as occlusion on top of canopy is not counted.
-                    self.chm[y,x] = (zind_dsm - zind_dtm) * self.vox_dim
-
-                    # extract profile from grids
-                    prof_class = self.Classification[x, y, zind_dtm:zind_dsm]
-                    prof_class_buf = self.Classification[x, y,
-                                     zind_dtm + int(np.ceil(self.lower_threshold / self.vox_dim)):zind_dsm]
-
-                    self.Classification_norm[x, y, 0:len(prof_class)] = prof_class
-                    # Calculate occlusion fraction for z profile
-                    num_occl = sum(prof_class_buf == 3)
-
-                    if len(prof_class_buf) == 0:
-                        self.OcclFrac2D[x, y] = 0
-                    else:
-                        self.OcclFrac2D[x, y] = num_occl / len(prof_class_buf)
-
-                    if len(prof_class) > max_len_prof:
-                        max_len_prof = len(prof_class)
-
-                    self.Classification_norm[y, x, 0:len(prof_class)] = self.Classification[y, x, zind_dtm:zind_dsm]
-                    self.Nhit_norm[x, y, 0:len(prof_class)] = self.Nhit[x, y, zind_dtm:zind_dsm]
-                    self.Nmiss_norm[x, y, 0:len(prof_class)] = self.Nmiss[x, y, zind_dtm:zind_dsm]
-                    self.Nocc_norm[x, y, 0:len(prof_class)] = self.Nocc[x, y, zind_dtm:zind_dsm]
-
-                    self.__updateOccl_Volumes(prof_class)
-
-            # get rid of the excessive height of the grid
-            self.Classification_norm = self.Classification_norm[:, :, 0:max_len_prof]
-            self.Nhit_norm = self.Nhit_norm[:, :, 0:max_len_prof]
-            self.Nmiss_norm = self.Nmiss_norm[:, :, 0:max_len_prof]
-            self.Nocc_norm = self.Nocc_norm[:, :, 0:max_len_prof]
-
-        print(f"Saving normalized output files into directory as .npy...")
-        np.save(f"{input_folder}/Nhit_norm.npy", self.Nhit_norm)
-        np.save(f"{input_folder}/Nmiss_norm.npy", self.Nmiss_norm)
-        np.save(f"{input_folder}/Nocc_norm.npy", self.Nocc_norm)
-        np.save(f"{input_folder}/Classification_norm.npy", self.Classification_norm)
-
-        # write ply file
-        if self.output_voxels:
-            print(f"Saving normalized output files into directory as .ply...")
-            tic = time.time()
-            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nhit_norm)
-            ost.write_ply(f"{self.out_dir}/Nhit_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
-            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nmiss_norm)
-            ost.write_ply(f"{self.out_dir}/Nmiss_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
-            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nocc_norm)
-            ost.write_ply(f"{self.out_dir}/Nocc_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
-            verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Classification_norm)
-            ost.write_ply(f"{self.out_dir}/Classification_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
-            toc = time.time()
-            print("Elapsed Time: " + str(toc - tic) + " seconds")
-
-    '''
-    #def visualize_2d_occlusion_map(self, out_fig):
-
-    """ Very specific function that could be deleted!
-    def __updateOccl_Volumes(self, prof_class):
-        # update canopy volume and occlusion statistics
-        self.TotalVolume = self.TotalVolume + len(prof_class)
-        self.TotalOcclusion = self.TotalOcclusion + sum(prof_class==3)
-
-        # Update Volume per strata
-        if len(prof_class) >= 10 / self.vox_dim:
-            self.Volume10_max = self.Volume10_max + len(prof_class[int(10 / self.vox_dim):])
-            self.Occlusion10_max = self.Occlusion10_max + sum(prof_class[int(10 / self.vox_dim):] == 3)
-            self.Volume3_10 = self.Volume3_10 + 7 / self.vox_dim  # The entire volume from 3 to 10 m (7m) is within the canopy
-            self.Occlusion3_10 = self.Occlusion3_10 + sum(
-                prof_class[int(3 / self.vox_dim):int(10 / self.vox_dim)] == 3)
-            self.Volume0_3 = self.Volume0_3 + 3 / self.vox_dim  # The entire volume from 0 to 3 m (3m) is within the canopy
-            self.Occlusion0_3 = self.Occlusion0_3 + sum(prof_class[0:int(3 / self.vox_dim)] == 3)
-        elif len(prof_class) < 10 / self.vox_dim and len(prof_class) >= 3 / self.vox_dim:
-            self.Volume3_10 = self.Volume3_10 + len(prof_class[int(3 / self.vox_dim):])
-            self.Occlusion3_10 = self.Occlusion3_10 + sum(prof_class[int(3 / self.vox_dim):] == 3)
-            self.Volume0_3 = self.Volume0_3 + 3 / self.vox_dim
-            self.Occlusion0_3 = self.Occlusion0_3 + sum(prof_class[0:int(3 / self.vox_dim)] == 3)
-        else:
-            self.Volume0_3 = self.Volume0_3 + len(prof_class)
-            self.Occlusion0_3 = self.Occlusion0_3 + sum(prof_class == 3)
-        """
-
-    def get_Occl_TransectFigure(self, start_ind, end_ind, axis=0, format="png", show_plots=False):
-
-        chm_slice_ref = None
-        if axis==0: # get YZ, project axis X
-            Nhit_Slice = np.sum(self.Nhit_norm[start_ind:end_ind, :, :], axis=axis)
-            OcclFrac_Slice = np.sum(self.Classification_norm[start_ind:end_ind, :, :]==3, axis=axis) / (end_ind - start_ind)
-            if self.chm is not None:
-                # chm is [ny, nx] so to get YZ we project axis 1
-                chm_slice_ref = np.max(self.chm[:, start_ind:end_ind], axis=1)
-        elif axis==1: # get XZ, project axis Y
-            Nhit_Slice = np.sum(self.Nhit_norm[:,start_ind:end_ind,:], axis=axis)
-            OcclFrac_Slice = np.sum(self.Classification_norm[:, start_ind:end_ind, :] == 3, axis=axis) / (
-                        end_ind - start_ind)
-            if self.chm is not None:
-                # chm is [ny, nx] so to get XZ we project axis 0
-                chm_slice_ref = np.max(self.chm[start_ind:end_ind, :], axis=0)
-        else: # get a slice of Z-Axis
-            Nhit_Slice = np.sum(self.Nhit_norm[:, :, start_ind:end_ind], axis=axis)
-            OcclFrac_Slice = np.sum(self.Classification_norm[:, :, start_ind:end_ind] == 3, axis=axis) / (
-                    end_ind - start_ind)
-
-        NHits_Slice_log = np.log10(Nhit_Slice, where=(Nhit_Slice != 0))
-
-        # we need to rotate the slice for visualization purposes
-        OcclFrac_Slice = np.rot90(OcclFrac_Slice)
-        NHits_Slice_log = np.rot90(NHits_Slice_log)
-
-        fig = plt.figure(figsize=(8, 8))
-        ax = fig.add_subplot(1,1,1)
-        x_axis_vect = None
-        if axis==0:
-            ax.set_xlabel(f"Y [m]")
-            ax.set_ylabel(f"Z [m]")
-            extent = [self.PlotDim['minY'], self.PlotDim['maxY'], 0, OcclFrac_Slice.shape[0]*self.vox_dim]
-            ax.axis(extent)
-            x_axis_vect = np.linspace(start=self.PlotDim['minY'], stop=self.PlotDim['maxY'], num=self.grid_dim['nx'])
-
-        elif axis==1:
-            ax.set_xlabel(f"X [m]")
-            ax.set_ylabel(f"Z [m]")
-            extent = [self.PlotDim['minX'], self.PlotDim['maxX'], 0, OcclFrac_Slice.shape[0] * self.vox_dim]
-            ax.axis(extent)
-            x_axis_vect = np.linspace(start=self.PlotDim['minX'], stop=self.PlotDim['maxX'], num=self.grid_dim['ny'])
-        else:
-            ax.set_xlabel(f"X [m]")
-            ax.set_ylabel(f"Y [m]")
-            extent = [self.PlotDim['minX'], self.PlotDim['maxX'], self.PlotDim['minY'], self.PlotDim['maxY']]
-            ax.axis(extent)
-
-        reds_cmap = plt.get_cmap(name='inferno_r')
-        reds_cmap.set_under('k', alpha=0)
-        greens_cmap = plt.get_cmap(name='Greens_r')
-        greens_cmap.set_under('k', alpha=0)
-        #plot raster data
-        im1 = ax.imshow(NHits_Slice_log, cmap=greens_cmap, clim=[0.1, np.amax(NHits_Slice_log)], interpolation='none',
-                        extent=extent)
-        im2 = ax.imshow(OcclFrac_Slice * 100, cmap=reds_cmap, vmin=1, vmax=50, clim=[1, 100], interpolation='none',
-                        alpha=0.8,
-                        extent=extent)
-        if x_axis_vect is not None:
-            chm_ref_plot = ax.plot(x_axis_vect, chm_slice_ref, label="Ref CHM")
-            # chm_comp_plot = ax.plot(x_axis_vect, chm_slice_comp, label="Comp CHM", linestyle='--') #TODO: implement that!
-            ax.legend(handles=[chm_ref_plot[0]], loc='upper left', bbox_to_anchor=(0.375, 1))
-
-        # define colorbars with position and dimension
-        axins1 = inset_axes(
-            ax,
-            width="35%",
-            height="5%",
-            loc="upper right",
-        )
-        axins1.xaxis.set_ticks_position("bottom")
-        fig.colorbar(im1, cax=axins1, orientation='horizontal', label="Log Nr.Hits")
-        axins2 = inset_axes(
-            ax,
-            width="35%",
-            height="5%",
-            loc="upper left",
-        )
-        axins2.xaxis.set_ticks_position("bottom")
-        fig.colorbar(im2, cax=axins2, orientation='horizontal', label="Occlusion [%]")
-
-
-
-
-        # save figure
-        if axis==0:
-            plt.savefig(
-                f"{self.out_dir}/Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels.{format}",
-                dpi=300, format=format)
-        elif axis==1:
-            plt.savefig(
-                f"{self.out_dir}/Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels.{format}",
-                dpi=300, format=format)
-        else:
-            plt.savefig(
-                f"{self.out_dir}/Occlusion_Slice_XY_{start_ind}_{end_ind}_voxels.{format}",
-                dpi=300, format=format)
-
-        if show_plots:
-            plt.show()
-        else:
-            plt.close()
-
-    def get_Occlusion_Profile(self, format="png", show_plots=False):
-
-        OcclVertProf = np.sum(self.Classification_norm == 3, axis=0)
-        OcclVertProf = np.sum(OcclVertProf, axis=0)
-        OcclVertProf_Rel = OcclVertProf / ( (self.grid_dim['nx']) *
-                                            (self.grid_dim['ny']))
-        
-        sns.set_theme(style="darkgrid")
-
-        vert_vect = np.arange(start=0, stop=self.Classification_norm.shape[2] * self.vox_dim, step=self.vox_dim)
-        # a hack to make sure that vert_vect is of the same length as OcclVertProf TODO: this has to be checked if it is generic!
-        vert_vect = vert_vect[0:len(OcclVertProf)]
-
-        # get rid of voxels below self.lower_threshold
-        vert_vect = vert_vect[int(self.lower_threshold/self.vox_dim):]
-        OcclVertProf_Rel = OcclVertProf_Rel[int(self.lower_threshold/self.vox_dim):]
-        OcclVertProf = OcclVertProf[int(self.lower_threshold/self.vox_dim):]
-
-        # extract height of max occlusion - we exclude the lowest 2 m to exclude occlusion from the ground
-        ind_max_occl = np.argmax(OcclVertProf_Rel)
-        h_max_occl = vert_vect[ind_max_occl]
-
-        occl_vert_prof = pd.DataFrame(
-            data={'vert_vect': vert_vect, 'Occl_Sum': OcclVertProf, 'OcclRel': OcclVertProf_Rel * 100})
-
-        # Plot the vertical occlusion profile
-        fig2 = plt.figure(figsize=(4.5, 7))
-        ax2 = fig2.add_subplot(1, 1, 1)
-        ax2.set_ylabel(f"Occlusion [%]")
-        ax2.set_xlabel(f"Height above ground [m]")
-        line = lineplot_plusplus(x="vert_vect", y="OcclRel", data=occl_vert_prof, orientation="vertical", color='blue')
-        # add horizontal line at mean canopy height
-        mean_canopy_h = self.chm.mean()
-        mcl = line.axhline(mean_canopy_h, color='r', linestyle='--', label='Mean canopy height')
-        line_proxy = mlines.Line2D([], [], color='blue', label="MLS Occlusion")
-        ax2.legend(handles=[line_proxy, mcl], loc='upper right', labels=["MLS Occlusion", "Mean ALS canopy height"])
-        plt.savefig(f"{self.out_dir}/OcclusionVertProf.{format}", dpi=300, format=format)
-        if show_plots:
-            plt.show()
-        else:
-            plt.close()
-       
-
-        return occl_vert_prof
+    def get_chm(self):
+        if self.chm is None:
+            print("No CHM was defined. To define CHM ")
+        return self.chm
 
     def clean_up_RayTr(self):
         del self.RayTr
