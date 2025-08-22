@@ -9,7 +9,6 @@ on:
   push:
     branches:
       - master
-      - webpage
   workflow_dispatch:
 permissions:
   contents: write

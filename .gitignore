@@ -28,3 +28,4 @@ tests/Visualize_ULS_MLS_comb.py
 config/*_RamerenWald_*
 config/*_tutorial_out.JSON
 config/*_tutorial_out_indvLAZ.JSON
+site/*
