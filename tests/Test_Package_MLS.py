@@ -1,4 +1,9 @@
 from occpy.OccPy import OccPy
+from occpy.OccPy import normalize_occlusion_output
+from occpy.OccPy import get_Occl_TransectFigure
+from occpy.OccPy import get_Occl_TransectFigure_BinaryOcclusion
+from occpy.OccPy import get_Occlusion_ProfileFigure
+
 from occpy import TerrainModel
 import os
 import argparse
@@ -21,45 +26,52 @@ root_folder = config['root_folder']
 
 
 test = OccPy(laz_in=f"{config['laz_in']}",
-             out_dir=f"{config['out_dir']}",
+             out_dir=config['out_dir'],
              vox_dim=config['vox_dim'],
              lower_threshold=config['lower_threshold'],
              points_per_iter=config['points_per_iter'],
-             plot_dim=config['plot_dim'],
-             )
+             plot_dim=config['plot_dim'],)
 
-test.define_sensor_pos(path2file=config['ScanPos'],
-                       is_mobile=True,
-                       single_return=True,
-                       delimiter=" ",
-                       hdr_time='%time',
-                       hdr_x='x',
-                       hdr_y='y',
-                       hdr_z = 'z')
+test.define_sensor_pos(path2file=config['ScanPos'],         # Path to the trajectory file
+                       is_mobile=True,                      # whether acquisition is mobile. Always true for MLS or ULS
+                       single_return=True,                  # wheter the data is single or multi return
+                       delimiter=" ",                       # delimiter used in the trajectory file 
+                       hdr_time='//world_time',             # column header for the time information in the trajectory file
+                       hdr_x='x',                           # column header for the x coordinate in the trajectory file
+                       hdr_y='y',                           # column header for the y coordinate in the trajectory file
+                       hdr_z='z',)                          # column header for the z coordinate in the trajectory file
 
 tic = time.time()
 test.do_raytracing()
 toc = time.time()
 print(f"Elapsed time: {toc-tic} seconds")
 
-#test.save_raytracing_output()
 
-test.normalize_occlusion_output(input_folder=test.out_dir,
-                                dtm_file=f"{config['tif_in']['DTM']}",
-                                dsm_file=f"{config['tif_in']['DSM']}")
-
-# Get some occlusion statistics
-print(f"Total canopy volume of the plot: {test.TotalVolume * (test.vox_dim**3)} m3")
-print(f"Total occluded volume of the plot: {test.TotalOcclusion * (test.vox_dim**3)} m3")
-print(f"Average occlusion fraction: {test.OcclFrac2D.mean()}")
-print(f"Max occlusion fraction: {test.OcclFrac2D.max()}")
+Nhit_norm, Nmiss_norm, Nocc_norm, Classification_norm, chm = normalize_occlusion_output(input_folder=config['out_dir'],
+                           PlotDim=config['plot_dim'],
+                           vox_dim=config['vox_dim'],
+                           dtm_file=config['tif_in']['DTM'],
+                           dsm_file=config['tif_in']['DSM'],
+                           lower_threshold=1,
+                           output_voxels=False)
+# Get Occlusion Fraction
+OcclFrac = Nocc_norm.astype(float) / (Nhit_norm.astype(float) + Nmiss_norm.astype(float) + Nocc_norm.astype(float))
 
 # Test occlusion visualization
-test.get_Occl_TransectFigure(start_ind=200, end_ind=300, axis=0)
-test.get_Occl_TransectFigure(start_ind=200, end_ind=300, axis=1)
-test.get_Occl_TransectFigure(start_ind=50, end_ind=100, axis=2)
+fig_prop = dict(fig_size=(3.5, 3.2),
+                label_size=8,
+                label_size_ticks=6,
+                label_size_tiny=5,
+                out_format='png',)
 
-occl_prof = test.get_Occlusion_Profile()
+get_Occl_TransectFigure(Nhit_norm, Classification_norm, OcclFrac, plot_dim=config['plot_dim'], vox_dim=config['vox_dim'], out_dir=config['out_dir'], axis=0, start_ind=0, end_ind=100, chm=chm, vertBuffer=10, fig_prop=fig_prop, show_plots=False)
+get_Occl_TransectFigure_BinaryOcclusion(Nhit_norm, Classification_norm, plot_dim=config['plot_dim'], vox_dim=config['vox_dim'], out_dir=config['out_dir'], axis=0, start_ind=0, end_ind=100, chm=chm, vertBuffer=10, fig_prop=fig_prop, show_plots=False)
 
-print(occl_prof)
+fig_prop = dict(fig_size=(1.75, 3.2),
+                label_size=8,
+                label_size_ticks=6,
+                label_size_tiny=5,
+                out_format='png', )
+get_Occlusion_ProfileFigure(Classification_norm, plot_dim=config['plot_dim'], vox_dim=config['vox_dim'], out_dir=config['out_dir'], low_thresh=0, vertBuffer=10, max_percentage=25, fig_prop=fig_prop, show_plots=False)
+
 

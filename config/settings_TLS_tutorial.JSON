@@ -1,0 +1,22 @@
+{
+	"root_folder": "",
+    "laz_in": "data/TLS/LAZ/",
+    "tif_in": {
+        "DTM": "data/Grids/Ramerenwald_DTM_20250305.tif",
+        "DSM": "data/Grids/Ramerenwald_DSM_20250305.tif"
+    },
+    "out_dir": "output/TLS",
+    "vox_dim": 0.1,
+    "lower_threshold": 1,
+    "points_per_iter": 10000000,
+    "plot_dim": [
+        2676515,
+        1246063,
+        545,
+        2676525,
+        1246113,
+        590
+    ],
+    "ScanPos": "data/TLS/ScanPositions.txt",
+    "output_voxels": false
+}
