@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
-pylidar_tls_canopy
+Occpy
 
 Drivers for handling RIEGL rdbx and rxp files
 
-John Armston
-University of Maryland
-October 2022
+Adapted from pylidar_tls_canopy by John Armston, University of Maryland
 """
 
 try:
@@ -155,7 +153,6 @@ class RDBFile:
             output[idx,target_index-1] = self.get_data(name)[pulse_sort_idx_rdb]
 
         return output
-
 
 class RXPFile:
     def __init__(self, filename, transform_file=None, pose_file=None, query_str=None):
@@ -360,7 +357,6 @@ def calc_transform_matrix(pitch, roll, yaw):
 
     return transform
 
-
 def apply_transformation(x, y, z, size, transform_matrix, translate=False):
     """
     Apply transformation
@@ -377,7 +373,6 @@ def apply_transformation(x, y, z, size, transform_matrix, translate=False):
 
     return xyz_t[:,0],xyz_t[:,1],xyz_t[:,2]
 
-
 def xyz2rza(x, y, z):
     """
     Calculate spherical coordinates from the xyz data
@@ -388,7 +383,6 @@ def xyz2rza(x, y, z):
     np.add(phi, 2*np.pi, out=phi, where=x < 0)
 
     return r, theta, phi
-
 
 def read_transform_file(fn):
     """

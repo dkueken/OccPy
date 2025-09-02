@@ -11,10 +11,8 @@ import numpy as np
 import OSToolBox as ost
 
 from occpy import riegl_io
-from occpy.PreparePly import prepare_ply
-
+from occpy.util import prepare_ply
 from occpy.visualization import plot_riegl_grid
-
 from raytr import PyRaytracer
 
 

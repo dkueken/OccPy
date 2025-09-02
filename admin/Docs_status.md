@@ -3,12 +3,11 @@ Status of documentation
 API:
 
 [x] Occpy
-[] Occpy_riegl
-[] prepare_trajectory
-[] Prepare_ply
+[x] Occpy_riegl
 [] riegl_io
 [] TerrainModel
 [] visualization
+[x] util
 
 Other documentation pages:
 [] Introduction

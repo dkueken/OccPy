@@ -1,320 +1,35 @@
+import time
+import os
+import glob
+
 import numpy as np
 import pandas as pd
-from scipy import interpolate
 import rasterio
 from rasterio.fill import fillnodata
-
 import laspy
-from occpy.TerrainModel import TerrainModel
-from occpy.PreparePly import prepare_ply
 import OSToolBox as ost
+from tqdm import tqdm
 
-# import plotting functions
+# plotting functions
 import matplotlib
 try:
     matplotlib.use('TkAgg')
 except ImportError:
     print("couldn't change matplotlib backend")
-
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-
-from matplotlib.transforms import Affine2D
-from matplotlib.collections import PathCollection
 import matplotlib.lines as mlines
 import seaborn as sns
 
-from tqdm import tqdm
-from multiprocessing import Pool
-
-import time
-import os
-import glob
-
 from raytr import PyRaytracer
-from occpy.TerrainModel import TerrainModel
+from occpy import TerrainModel
+from occpy.util import prepare_ply, read_trajectory_file, read_sensorpos_file, interpolate_traj, last_nonzero
+from occpy.visualization import lineplot_plusplus
 
 # TODO: change print statements to logging like in occpyRIEGL
-# TODO: check requirements and remove unused
 
 is_sorted = lambda a: np.all(a[:-1] <= a[1:])
 
-def last_nonzero(arr, axis, invalid_val=-1):
-    """
-    Find the index of the last non-zero element along a specified axis.
-
-    Parameters
-    ----------
-    arr : np.ndarray
-        Input array to search.
-    axis : int
-        Axis along which to find the last non-zero element.
-    invalid_val : int, optional
-        Value to return if no non-zero elements are found (default is -1).
-
-    Returns
-    -------
-    np.ndarray
-        Indices of the last non-zero element along the specified axis.
-        If none found, returns `invalid_val`.
-    """
-    mask = arr!=0
-    val = arr.shape[axis] - np.flip(mask, axis=axis).argmax(axis=axis) - 1
-    return np.where(mask.any(axis=axis), val, invalid_val)
-
-def lineplot_plusplus(orientation = "horizontal", **kwargs):
-    """
-    Create an enhanced seaborn line plot with rotated axes.
-
-    The function applies an affine transformation that rotates the plot by 90 degrees
-    and flips the y-axis. It swaps the x- and y-axis labels accordingly.
-
-    Parameters
-    ----------
-    orientation : str, optional
-        Orientation of the plot (default is "horizontal").
-    **kwargs
-        Additional keyword arguments passed to seaborn.lineplot.
-
-    Returns
-    -------
-    matplotlib.axes.Axes
-        The transformed seaborn line plot axes.
-    """
-    line = sns.lineplot(**kwargs)
-
-    r = Affine2D().scale(sx=1, sy=-1).rotate_deg(90)
-    for x in line.images + line.lines + line.collections:
-        trans = x.get_transform()
-        x.set_transform(r+trans)
-        if isinstance(x, PathCollection):
-            transoff = x.get_offset_transform()
-            x._transOffset = r+transoff
-
-    old = line.axis()
-    line.axis(old[2:4] + old[0:2])
-    xlabel = line.get_xlabel()
-    line.set_xlabel(line.get_ylabel())
-    line.set_ylabel(xlabel)
-
-    return line
-
-def interpolate_traj(traj_time, traj_x, traj_y, traj_z, pts_gpstime):
-    """
-    Interpolate trajectory coordinates at specified GPS timestamps.
-
-    Parameters
-    ----------
-    traj_time : array-like
-        Known trajectory time stamps.
-    traj_x : array-like
-        Known x-coordinates of the trajectory.
-    traj_y : array-like
-        Known y-coordinates of the trajectory.
-    traj_z : array-like
-        Known z-coordinates of the trajectory.
-    pts_gpstime : array-like
-        GPS timestamps at which to interpolate the trajectory.
-
-    Returns
-    -------
-    pandas.DataFrame
-        DataFrame containing interpolated 'time', 'sensor_x', 'sensor_y', and 'sensor_z' columns.
-    """
-    f_x = interpolate.interp1d(traj_time, traj_x, kind='linear', fill_value="extrapolate")
-    sensor_x = f_x(pts_gpstime)
-    f_y = interpolate.interp1d(traj_time, traj_y, kind='linear', fill_value="extrapolate")
-    sensor_y = f_y(pts_gpstime)
-    f_z = interpolate.interp1d(traj_time, traj_z, kind='linear', fill_value="extrapolate")
-    sensor_z = f_z(pts_gpstime)
-
-    d = {'time': pts_gpstime, 'sensor_x': sensor_x, 'sensor_y': sensor_y, 'sensor_z': sensor_z}
-
-    df = pd.DataFrame(data=d)
-
-    return df
-
-def read_trajectory_file(path2traj, delimiter=" ", hdr_time='%time', hdr_x='x', hdr_y='y', hdr_z='z'):
-    """
-    Read a trajectory CSV file and extract trajectory data.
-
-    Parameters
-    ----------
-    path2traj : str
-        Path to the trajectory CSV file.
-    delimiter : str, optional
-        Delimiter used in the CSV file (default is space).
-    hdr_time : str, optional
-        Column name for time data (default is '%time').
-    hdr_x : str, optional
-        Column name for x-coordinate data (default is 'x').
-    hdr_y : str, optional
-        Column name for y-coordinate data (default is 'y').
-    hdr_z : str, optional
-        Column name for z-coordinate data (default is 'z').
-
-    Returns
-    -------
-    pandas.DataFrame
-        DataFrame with columns ['time', 'sensor_x', 'sensor_y', 'sensor_z'] representing the trajectory.
-    
-    Notes
-    -----
-    Defaults correspond to the GeoSLAM ZebHorizon scanner trajectory format.
-    """
-    traj_in = pd.read_csv(path2traj, sep=delimiter)
-
-    d = {'time': traj_in[hdr_time], 'sensor_x': traj_in[hdr_x], 'sensor_y': traj_in[hdr_y],
-         'sensor_z': traj_in[hdr_z]}
-
-    traj = pd.DataFrame(data=d)
-
-    return traj # retunr trajectory file if necessary
-
-def read_sensorpos_file(path2senspos, delimiter=" ", hdr_scanpos_id='', hdr_x='', hdr_y='', hdr_z='', sens_pos_id_offset=0):
-    """
-    Read a sensor position CSV file and extract sensor position data.
-
-    Parameters
-    ----------
-    path2senspos : str
-        Path to the sensor position CSV file.
-    delimiter : str, optional
-        Delimiter used in the CSV file (default is space).
-    hdr_scanpos_id : str, optional
-        Column name for scan position ID (default is '').
-    hdr_x : str, optional
-        Column name for x-coordinate (default is '').
-    hdr_y : str, optional
-        Column name for y-coordinate (default is '').
-    hdr_z : str, optional
-        Column name for z-coordinate (default is '').
-    sens_pos_id_offset : int, optional
-        Offset to add to scan position IDs (default is 0).
-
-    Returns
-    -------
-    pandas.DataFrame
-        DataFrame with columns ['ScanPos', 'sensor_x', 'sensor_y', 'sensor_z'] representing sensor positions.
-    """
-    sens_pos_in = pd.read_csv(path2senspos, sep=delimiter)
-
-    d = {'ScanPos': sens_pos_in[hdr_scanpos_id]+sens_pos_id_offset,
-         'sensor_x': sens_pos_in[hdr_x], 'sensor_y': sens_pos_in[hdr_y], 'sensor_z': sens_pos_in[hdr_z]}
-
-    senspos = pd.DataFrame(data=d)
-
-    return senspos
-
-def filterPointsIntersectingBox(laz_in, laz_out, min_bound, max_bound,sensor_pos=None, traj_in=None, points_per_iter=100000):
-    """
-    Filter points from a LAS/LAZ file whose pulses intersect a defined 3D bounding box.
-
-    This filter considers the sensor or trajectory position to compute which pulses intersect
-    the bounding box defined by `min_bound` and `max_bound`.
-
-    Parameters
-    ----------
-    laz_in : str
-        Path to the input LAS/LAZ file.
-    laz_out : str
-        Path to the output LAS/LAZ file where filtered points will be written.
-    min_bound : tuple or list of float
-        Minimum bounding box coordinates in the order (min_y, min_x, min_z).
-    max_bound : tuple or list of float
-        Maximum bounding box coordinates in the order (max_y, max_x, max_z).
-    sensor_pos : pandas.DataFrame or None, optional
-        Sensor position DataFrame with columns ['ScanPos', 'sensor_x', 'sensor_y', 'sensor_z'].
-        Required if `traj_in` is not provided.
-    traj_in : pandas.DataFrame or None, optional
-        Trajectory DataFrame with columns ['time', 'sensor_x', 'sensor_y', 'sensor_z'].
-        If provided, assumes a mobile platform.
-    points_per_iter : int, optional
-        Number of points to process per chunk iteration (default is 100000).
-
-    Returns
-    -------
-    list
-        List of GPS times for pulses intersecting the bounding box.
-
-    Notes
-    -----
-    This filter does not work as intended for solid-state scanners (e.g., GeoSLAM ZebHorizon, FARO ORBIS)
-    where GPSTime is not a unique pulse identifier. To properly handle these,
-    pulse shooting directions should also be accounted for. This is partially implemented
-    on the C++ side but not yet passed to Python.
-    """
-    pulses_intersecting = []
-    #TODO: check if data has already been loaded from an initial do_raytracing run (and pulse dataset is complete).
-    # If this is the case, the data does not need to be loaded and could be used directly
-    if traj_in is not None:
-        is_mobile = True
-        traj = traj_in
-    else:
-        is_mobile = False
-        sens_pos = sensor_pos
-
-    with laspy.open(laz_in) as file:
-        hdr = file.header
-
-        writer = laspy.open(laz_out, mode="w", header=hdr) # create output laz file
-
-        with tqdm(total=hdr.point_count, desc="Filtering points", unit="points") as pbar:
-            for points in file.chunk_iterator(points_per_iteration=points_per_iter):
-
-                # TODO: find another solution for this.
-                if np.max(
-                        points.return_number) == 0:  # a not very nice hack for the special case where return_number and number_of_returns are all 0 for Horizon measurements - TODO: figure out why!
-                    points.return_number[:] = 1
-                    points.number_of_returns[:] = 1
-
-                # we only need first returns
-                first_ret_ind = points.return_number == 1
-
-                gps_time = points.gps_time.copy()[first_ret_ind]
-                x = points.x.copy()[first_ret_ind]
-                y = points.y.copy()[first_ret_ind]
-                z = points.z.copy()[first_ret_ind]
-
-                if is_mobile:
-                    SensorPos = interpolate_traj(traj['time'], traj['sensor_x'],
-                                                      traj['sensor_y'],
-                                                      traj['sensor_z'], gps_time)
-
-                    time = SensorPos['time'].to_numpy()
-                    sensor_x = SensorPos['sensor_x'].to_numpy()
-                    sensor_y = SensorPos['sensor_y'].to_numpy()
-                    sensor_z = SensorPos['sensor_z'].to_numpy()
-
-                else:
-                    time = gps_time
-                    sensor_x = np.ones(time.shape) * sens_pos['sensor_x']
-                    sensor_y = np.ones(time.shape) * sens_pos['sensor_y']
-                    sensor_z = np.ones(time.shape) * sens_pos['sensor_z']
-
-                vmin = min_bound
-                vmax = max_bound
-
-
-                raytr = PyRaytracer()
-
-                GPSTimes_intersect = raytr.getPulsesIntersectingBox(x, y, z, sensor_x, sensor_y, sensor_z, time, vmin, vmax)
-                pulses_intersecting.extend(GPSTimes_intersect)
-                # print(GPSTimes_intersect)
-                del raytr # to free up some memory
-
-                pulses2take = np.isin(time, GPSTimes_intersect)
-
-
-
-                # write points with flag=True to new laz file
-                writer.write_points(points[pulses2take])
-
-                pbar.update(len(points))
-
-        writer.close()
-
-    return pulses_intersecting
 
 # TODO: seperate class for occpy TLS, MLS and UAV-LS?
 

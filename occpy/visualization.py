@@ -9,7 +9,45 @@ from matplotlib.widgets import Slider
 
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
+# TODO: temp, give as parameter
 VOX_DIM = 0.1
+
+def lineplot_plusplus(orientation = "horizontal", **kwargs):
+    """
+    Create an enhanced seaborn line plot with rotated axes.
+
+    The function applies an affine transformation that rotates the plot by 90 degrees
+    and flips the y-axis. It swaps the x- and y-axis labels accordingly.
+
+    Parameters
+    ----------
+    orientation : str, optional
+        Orientation of the plot (default is "horizontal").
+    **kwargs
+        Additional keyword arguments passed to seaborn.lineplot.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        The transformed seaborn line plot axes.
+    """
+    line = sns.lineplot(**kwargs)
+
+    r = Affine2D().scale(sx=1, sy=-1).rotate_deg(90)
+    for x in line.images + line.lines + line.collections:
+        trans = x.get_transform()
+        x.set_transform(r+trans)
+        if isinstance(x, PathCollection):
+            transoff = x.get_offset_transform()
+            x._transOffset = r+transoff
+
+    old = line.axis()
+    line.axis(old[2:4] + old[0:2])
+    xlabel = line.get_xlabel()
+    line.set_xlabel(line.get_ylabel())
+    line.set_ylabel(xlabel)
+
+    return line
 
 def interactive_figure(output_dir, axis=0):
 
@@ -152,8 +190,6 @@ def interactive_figure(output_dir, axis=0):
 
     out_file = "test_out/TEMP_slice_fig.png"
     plt.savefig(out_file, dpi=300, format="png", bbox_inches="tight")
-
-
 
 def plot_riegl_grid(data : pd.DataFrame, max_scanline, max_scanline_idx, image2=None, out_path=None):
     scanline_np = data[["scanline"]].to_numpy()
