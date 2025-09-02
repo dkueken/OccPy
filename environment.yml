@@ -1,7 +1,6 @@
 ﻿name: occPy
 channels:
   - conda-forge
-  - defaults
 dependencies:
   - python=3.11
   - cython
@@ -13,8 +12,14 @@ dependencies:
   - boost
   - matplotlib
   - gdal
-prefix: C:\Users\kueken\Miniconda3\envs\occPy
+  - tqdm
+  - ipykernel
+  - pip:
+      - seaborn
+      - rasterio
+      - laspy[laszip]
+      - OSToolBox
 variables:
-  RIVLIB_ROOT: /home/wcherlet/libs/rivlib-2_8_0-x86_64-linux-gcc9/ #ADAPT: path to rivlib here
-  RDBLIB_ROOT: /home/wcherlet/libs/rdblib-2.4.5-x86_64-linux/ #ADAPT: path to rdblib here
+  # RIVLIB_ROOT: /home/wcherlet/libs/rivlib-2_8_0-x86_64-linux-gcc9/ #ADAPT: path to rivlib here
+  # RDBLIB_ROOT: /home/wcherlet/libs/rdblib-2.4.5-x86_64-linux/ #ADAPT: path to rdblib here
   PYLIDAR_CXX_FLAGS: -std=c++11 
