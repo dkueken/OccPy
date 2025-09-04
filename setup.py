@@ -52,6 +52,21 @@ if platform.system() == 'Linux':
                 requires=['Cython']
                 )
     ]
+elif platform.system() == 'Darwin':  #MacOS
+    include_path = os.path.join(env_path, "include")
+    library_path = os.path.join(env_path, "lib")
+    extensions = [
+        Extension("raytr",
+                sources=sources,
+                libraries=[],  # refers to "liblas.2.3.0.dylib"
+                language="c++",  # remove this if C and not C++
+                include_dirs=[include_path],
+                library_dirs=[library_path],
+                requires=['Cython'],
+                extra_compile_args=["-std=c++11"],
+                extra_link_args=["-std=c++11"]
+                )
+    ]
 else:
     include_path = os.path.join(env_path, "Library/include")
     library_path = os.path.join(env_path, "Library/lib")
