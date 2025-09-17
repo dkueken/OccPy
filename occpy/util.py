@@ -1,14 +1,9 @@
 
 import numpy as np
 import pandas as pd
-import OSToolBox as ost
 import laspy
 from scipy import interpolate
 from tqdm import tqdm
-
-import seaborn as sns
-from matplotlib.transforms import Affine2D
-from matplotlib.collections import PathCollection
 
 from raytr import PyRaytracer
 

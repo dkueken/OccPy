@@ -16,9 +16,8 @@ try:
     matplotlib.use('TkAgg')
 except ImportError:
     print("couldn't change matplotlib backend")
+    
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-import matplotlib.lines as mlines
 from matplotlib.colors import LogNorm
 from matplotlib.colors import to_rgb
 import seaborn as sns
@@ -26,7 +25,6 @@ import seaborn as sns
 from raytr import PyRaytracer
 from occpy import TerrainModel
 from occpy.util import prepare_ply, read_trajectory_file, read_sensorpos_file, interpolate_traj, last_nonzero
-from occpy.visualization import lineplot_plusplus
 
 # TODO: change print statements to logging like in occpyRIEGL
 
