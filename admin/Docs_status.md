@@ -5,7 +5,7 @@ API:
 [x] Occpy
 [x] Occpy_riegl
 [x] riegl_io
-[] TerrainModel
+[x] TerrainModel
 [] visualization
 [x] util
 
