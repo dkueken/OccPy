@@ -12,44 +12,28 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 # TODO: temp, give as parameter
 VOX_DIM = 0.1
 
-def lineplot_plusplus(orientation = "horizontal", **kwargs):
+def interactive_figure(output_dir, axis=0):
     """
-    Create an enhanced seaborn line plot with rotated axes.
+    Create an interactive slice viewer for voxel grids with occlusion overlay.
 
-    The function applies an affine transformation that rotates the plot by 90 degrees
-    and flips the y-axis. It swaps the x- and y-axis labels accordingly.
+    Loads Classification.npy and Nhit.npy, builds interactive
+    figure with sliders to select the slice center and projection depth, and
+    visualizes:
+      - log10(Nhit) as a grayscale heatmap, and
+      - fraction of voxels classified as occluded as a colored overlay.
+
+    Axis selects the slicing plane:
+      - 0: YZ slice 
+      - 1: XZ slice
+      - 2: XY slice
 
     Parameters
     ----------
-    orientation : str, optional
-        Orientation of the plot (default is "horizontal").
-    **kwargs
-        Additional keyword arguments passed to seaborn.lineplot.
-
-    Returns
-    -------
-    matplotlib.axes.Axes
-        The transformed seaborn line plot axes.
+    output_dir : str
+        Directory containing Classification.npy and Nhit.npy arrays.
+    axis : int, default 0
+        Axis orthogonal to the slicing plane (0, 1, or 2).
     """
-    line = sns.lineplot(**kwargs)
-
-    r = Affine2D().scale(sx=1, sy=-1).rotate_deg(90)
-    for x in line.images + line.lines + line.collections:
-        trans = x.get_transform()
-        x.set_transform(r+trans)
-        if isinstance(x, PathCollection):
-            transoff = x.get_offset_transform()
-            x._transOffset = r+transoff
-
-    old = line.axis()
-    line.axis(old[2:4] + old[0:2])
-    xlabel = line.get_xlabel()
-    line.set_xlabel(line.get_ylabel())
-    line.set_ylabel(xlabel)
-
-    return line
-
-def interactive_figure(output_dir, axis=0):
 
     classification_arr = np.load(os.path.join(output_dir, "Classification.npy"))
     nhit_arr = np.load(os.path.join(output_dir, "Nhit.npy"))
@@ -192,6 +176,27 @@ def interactive_figure(output_dir, axis=0):
     plt.savefig(out_file, dpi=300, format="png", bbox_inches="tight")
 
 def plot_riegl_grid(data : pd.DataFrame, max_scanline, max_scanline_idx, image2=None, out_path=None):
+    """
+    Plot a scanline-by-index occupancy grid from RIEGL data.
+
+    Builds a boolean image with shape (max_scanline_idx+1, max_scanline+1) marking
+    where (scanline, scanline_idx) pairs exist in `data`. Optionally overlays a
+    second boolean image and saves the figure to `out_path`.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        DataFrame containing columns 'scanline' and 'scanline_idx'.
+    max_scanline : int
+        Maximum scanline index on the horizontal axis.
+    max_scanline_idx : int
+        Maximum scanline_idx on the vertical axis.
+    image2 : array-like of bool, optional
+        Secondary image to overlay (same shape as the grid).
+    out_path : str, optional
+        Path to save the resulting figure.
+
+    """
     scanline_np = data[["scanline"]].to_numpy()
     scanline_idx_np = data[["scanline_idx"]].to_numpy()
     # scanline_idx_np = np.where(scanline_idx_np > max_scanline_idx, max_scanline_idx, scanline_idx_np)

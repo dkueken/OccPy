@@ -6,6 +6,6 @@ API:
 [x] Occpy_riegl
 [x] riegl_io
 [x] TerrainModel
-[] visualization
+[x] visualization
 [x] util
 

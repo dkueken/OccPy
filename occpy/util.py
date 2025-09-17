@@ -33,6 +33,7 @@ def last_nonzero(arr, axis, invalid_val=-1):
         Indices of the last non-zero element along the specified axis.
         If none found, returns `invalid_val`.
     """
+
     mask = arr!=0
     val = arr.shape[axis] - np.flip(mask, axis=axis).argmax(axis=axis) - 1
     return np.where(mask.any(axis=axis), val, invalid_val)
@@ -59,6 +60,7 @@ def interpolate_traj(traj_time, traj_x, traj_y, traj_z, pts_gpstime):
     pandas.DataFrame
         DataFrame containing interpolated 'time', 'sensor_x', 'sensor_y', and 'sensor_z' columns.
     """
+
     f_x = interpolate.interp1d(traj_time, traj_x, kind='linear', fill_value="extrapolate")
     sensor_x = f_x(pts_gpstime)
     f_y = interpolate.interp1d(traj_time, traj_y, kind='linear', fill_value="extrapolate")
@@ -100,6 +102,7 @@ def read_trajectory_file(path2traj, delimiter=" ", hdr_time='%time', hdr_x='x', 
     -----
     Defaults correspond to the GeoSLAM ZebHorizon scanner trajectory format.
     """
+
     traj_in = pd.read_csv(path2traj, sep=delimiter)
 
     d = {'time': traj_in[hdr_time], 'sensor_x': traj_in[hdr_x], 'sensor_y': traj_in[hdr_y],
@@ -135,6 +138,7 @@ def read_sensorpos_file(path2senspos, delimiter=" ", hdr_scanpos_id='', hdr_x=''
     pandas.DataFrame
         DataFrame with columns ['ScanPos', 'sensor_x', 'sensor_y', 'sensor_z'] representing sensor positions.
     """
+
     sens_pos_in = pd.read_csv(path2senspos, sep=delimiter)
 
     d = {'ScanPos': sens_pos_in[hdr_scanpos_id]+sens_pos_id_offset,
@@ -182,6 +186,7 @@ def filterPointsIntersectingBox(laz_in, laz_out, min_bound, max_bound,sensor_pos
     pulse shooting directions should also be accounted for. This is partially implemented
     on the C++ side but not yet passed to Python.
     """
+
     pulses_intersecting = []
     #TODO: check if data has already been loaded from an initial do_raytracing run (and pulse dataset is complete).
     # If this is the case, the data does not need to be loaded and could be used directly
@@ -279,6 +284,7 @@ def prepare_ply(vox_dim, PlotDim, data):
     faces : np.ndarray
         Array of triangular face indices with shape (M, 3).
     """
+
     data = array3Dto2D(data, vox_dim, PlotDim)
     # Generate mesh data
     verts, faces = generate_mesh_data(data, vox_dim, PlotDim)
@@ -305,6 +311,7 @@ def array3Dto2D(data, vox_dim, PlotDim):
         2D array of shape (N, 4), where each row contains [x, y, z, value]
         for voxels with values greater than zero.
     """
+
     x = np.arange(PlotDim['minX'], PlotDim['maxX'], vox_dim)
     y = np.arange(PlotDim['minY'], PlotDim['maxY'], vox_dim)
     z = np.arange(PlotDim['minZ'], PlotDim['maxZ'], vox_dim)
@@ -333,6 +340,7 @@ def calculate_voxel_corners(data, vox_dim):
         Array of shape (N * 8, 4), where each group of 8 rows corresponds to the
         corners of one voxel, and each row contains [x, y, z, value].
     """
+
     offset = vox_dim/2.
     xyz_offsets = np.array([
         [-offset, -offset, -offset],
@@ -380,6 +388,7 @@ def generate_mesh_data(data, vox_dim, PlotDim):
     faces : np.ndarray
         Array of face indices defining triangles for visualization (PLY format).
     """
+    
     # Calculate voxel corners
     corners = calculate_voxel_corners(data, vox_dim)
 
