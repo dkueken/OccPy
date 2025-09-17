@@ -36,23 +36,27 @@ class OccPyRIEGL:
             - 'vox_dim' : voxel size in meters  
             - 'plot_dim': grid for occlusion mapping: [minX, minY, minZ, maxX, maxY, maxZ]  
         Optional parameters:  
+            - 'odir' : output directory (default: ./output)
             - 'buffer' : spatial buffer around point cloud   
             - 'output_voxels' : whether to export `.ply` voxel grids  
             - 'model_empty_pulses' : whether to model empty pulses  
             - 'verbose': set logging level  
-            - 'debug': set logging level, run extra checks and output debug files  
-            - 'lower_threshold':   
-            - 'auto_dim': not implemented yet  
-            - 'buffer': not implemented yet  
+            - 'debug': set logging level, run extra checks and output debug files
+            - 'auto_dim': not implemented yet
+            - 'buffer': not implemented yet
+            - 'exclude_scan_pattern': string pattern, to exclude scans containing this pattern (in name of rdbx and transform files)
 
         Parameters
         ----------
         config_file : str
             Path to a JSON configuration file containing processing parameters.
         """
+
         with open(config_file) as f:
             config = json.load(f)
-            print(config)
+
+        self.logger.info(f"config:")
+        self.logger.info(f"{config}")
 
         necessary_args = ["proj_folder", "riscan_folder", "vox_dim", "plot_dim"]
         missing = []
@@ -64,7 +68,7 @@ class OccPyRIEGL:
             print(f"Please complete the config file with the following entries: {missing}")
             os._exit(1)
 
-        optional_args = ["model_empty_pulses", "verbose", "debug", "output_voxels", "lower_threshold", "odir", "auto_dim", "buffer"]
+        optional_args = ["model_empty_pulses", "verbose", "debug", "output_voxels", "lower_threshold", "odir", "auto_dim", "buffer", "exclude_scan_pattern"]
 
         print(f"INFO: optional arguments: {optional_args}")
 
@@ -77,9 +81,10 @@ class OccPyRIEGL:
         self.debug = config["debug"] if "debug" in config else False
         self.output_voxels = config["output_voxels"] if "output_voxels" in config else False
         self.lower_threshold = config["lower_threshold"] if "lower_threshold" in config else 0
+        self.exclude_scan_pattern = config["exclude_scan_pattern"] if "exclude_scan_pattern" in config else None
 
         if "odir" not in config:
-            odir = os.path.join(os.getcwd(), "out")
+            odir = os.path.join(os.getcwd(), "output")
             self.odir = odir
         else:
             self.odir = config["odir"]
@@ -119,18 +124,16 @@ class OccPyRIEGL:
             # TODO: implement
             plot_dim = self.determine_grid(buffer)
         else:
-            if "plot_dim" not in config or len(config["plot_dim"]) != 6:
+            if "plot_dim" not in config:
                 self.logger.error("Must provide plot dimensions in config if auto_dim is false")
-                self.logger.error("format: [minX, minY, minZ, maxX, maxY, maxZ]")
                 os._exit(1)
-            # format of plot_dim in config: [minX, minY, minZ, maxX, maxY, maxZ]
             plot_dim = config["plot_dim"]
-            self.plot_dim = dict(minX=plot_dim[0],
-                                maxX=plot_dim[3],
-                                minY=plot_dim[1],
-                                maxY=plot_dim[4],
-                                minZ=plot_dim[2],
-                                maxZ=plot_dim[5])
+            self.plot_dim = dict(minX=plot_dim["minX"],
+                                maxX=plot_dim["maxX"],
+                                minY=plot_dim["minY"],
+                                maxY=plot_dim["maxY"],
+                                minZ=plot_dim["minZ"],
+                                maxZ=plot_dim["maxZ"])
         
         self.grid_dim = dict(nx=int((self.plot_dim['maxX'] - self.plot_dim['minX']) / self.vox_dim),
                              ny=int((self.plot_dim['maxY'] - self.plot_dim['minY']) / self.vox_dim),
@@ -149,8 +152,7 @@ class OccPyRIEGL:
         Prepare input file mappings from project folder and scan directory.
 
         Scans the RIEGL project folder for `.rdbx`, `.rxp`, `.DAT`, and `.png` files,
-        and builds dictionaries that map scan IDs to each file type based on consistent
-        filename structure.
+        and builds dictionaries that map scan IDs to each file type to prepare raytracing.
         """
 
         # get all rdbx
@@ -168,6 +170,10 @@ class OccPyRIEGL:
             scan_pos_base = folder_name[:10]
             if scan_pos_base != folder_name:
                 self.scan_pos_mapping[scan_pos_base] = folder_name
+
+            if self.exclude_scan_pattern is not None and self.exclude_scan_pattern in folder_name:
+                self.logger.info(f"Excluding scan {folder_name} based on exclude_scan_pattern in config")
+                continue
 
             rdbx_folders = glob.glob(os.path.join(folder, "SINGLESCANS", "**"))
             rdbx_folders = [folder for folder in rdbx_folders if "residual" not in folder]
@@ -197,6 +203,7 @@ class OccPyRIEGL:
             self.rdbx_scans[scan_pos_base] = rdbx_final
         
         # get transform files
+        # TODO: option for csv? not priority
         self.transform_files = {}
         for scan_pos_name in self.rdbx_scans:
             transform_file = glob.glob(os.path.join(self.riscan_folder, f'{scan_pos_name}.DAT'))
@@ -223,12 +230,18 @@ class OccPyRIEGL:
         for folder in glob.glob(os.path.join(self.proj_folder, "**.SCNPOS")):
             folder_name = os.path.basename(folder)
             scan_pos_base = folder_name[:10]
+
+            if scan_pos_base not in self.rdbx_scans:
+                self.logger.info(f"no rdbx file corresponding to rxp file for position {scan_pos_base}, skipping")
+                continue
+
             rxp_files = glob.glob(os.path.join(folder, "scans", "*.rxp"))
             # filter out .residuals and .mon
             rxp_files = [file for file in rxp_files if not (file.endswith(".residual.rxp") or file.endswith(".mon.rxp")) ]
 
             if len(rxp_files) > 1:
                 # keep only latest scan (TODO: make customizable? in our data latest is always best scan)
+                self.logger.debug(f"multiple rxp files: {rxp_files}")
                 rxp_files = sorted(rxp_files)
 
             if len(rxp_files) == 0:
@@ -251,7 +264,7 @@ class OccPyRIEGL:
 
     def rdbx_rxp_to_df(self, rdbx, rxp):
         """
-        Convert RDBX and RXP binary scan files into DataFrames.
+        Convert RDBX and RXP binary scan files into DataFrames with relevant fields.
 
         Parameters
         ----------
@@ -338,9 +351,9 @@ class OccPyRIEGL:
         preview_png : str
             Path to preview PNG image showing occlusion pattern.
         max_scanline_idx : int
-            Maximum scanline index in the data.
+            Maximum scanline index in current scan.
         max_scanline : int
-            Maximum scanline value (image height).
+            Maximum scanline in current scan.
 
         Returns
         -------
@@ -428,7 +441,6 @@ class OccPyRIEGL:
         point = point_df[["x", "y", "z"]].to_numpy()
 
         count = 0
-        s = len(point_df)
         if n_points is None:
             n_points = len(point_df)
         for i in range(n_points):
@@ -454,18 +466,10 @@ class OccPyRIEGL:
         - Clears memory after each scan.  
         """
 
-        for scan in self.rdbx_scans:
+        for i, scan in enumerate(self.rdbx_scans):
             # read rdbx file for point data
-            
-            # TODO: test
-            # scan_test = ["ScanPos001"]
-            # scan_test = ["ScanPos001", "ScanPos002", "ScanPos003"]
-            # scan_test = ["ScanPos001", "ScanPos002", "ScanPos003", "ScanPos004", "ScanPos005", "ScanPos006", "ScanPos007", "ScanPos008", "ScanPos009", "ScanPos010"]
-            # if scan not in scan_test:
-            #     continue
-            
 
-            self.logger.info(f"Processing {scan}")
+            self.logger.info(f"Processing {scan} ({i+1}/{len(self.rdbx_scans)})")
 
             if scan not in self.transform_files:
                 self.logger.info(f"Transform file not found for pos {scan}, skipping.")
@@ -588,10 +592,6 @@ class OccPyRIEGL:
 
         Saves the voxel outputs as `.npy` arrays, and optionally writes `.ply` files
         for visualization if `self.output_voxels` is True.
-
-        Returns
-        -------
-        None
         """
         self.logger.info("Saving output")
         print("Extracting Nhit")
