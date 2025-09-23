@@ -55,9 +55,6 @@ class OccPyRIEGL:
         with open(config_file) as f:
             config = json.load(f)
 
-        self.logger.info(f"config:")
-        self.logger.info(f"{config}")
-
         necessary_args = ["proj_folder", "riscan_folder", "vox_dim", "plot_dim"]
         missing = []
         for key in necessary_args:
@@ -109,6 +106,8 @@ class OccPyRIEGL:
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
 
+        self.logger.info(f"config:")
+        self.logger.info(f"{config}")
 
         # --- prepare input
 
@@ -157,7 +156,7 @@ class OccPyRIEGL:
 
         # get all rdbx
         self.rdbx_scans = {}
-        self.scan_pos_mapping = {}
+        self.scan_pos_to_name = {}
 
         rdbx_scan_list = glob.glob(os.path.join(self.riscan_folder, "project.rdb", "SCANS", "**"))
         if len(rdbx_scan_list) == 0:
@@ -166,10 +165,13 @@ class OccPyRIEGL:
             os._exit(1)
 
         for folder in rdbx_scan_list:
+            if "@" in folder:
+                # indicates deleted folder
+                self.logger.info(f"Skipping deleted folder {folder}")
+                continue
+
             folder_name = os.path.basename(folder)
             scan_pos_base = folder_name[:10]
-            if scan_pos_base != folder_name:
-                self.scan_pos_mapping[scan_pos_base] = folder_name
 
             if self.exclude_scan_pattern is not None and self.exclude_scan_pattern in folder_name:
                 self.logger.info(f"Excluding scan {folder_name} based on exclude_scan_pattern in config")
@@ -177,8 +179,13 @@ class OccPyRIEGL:
 
             rdbx_folders = glob.glob(os.path.join(folder, "SINGLESCANS", "**"))
             rdbx_folders = [folder for folder in rdbx_folders if "residual" not in folder]
+            # skip deleted scans as well
+            rdbx_folders = [folder for folder in rdbx_folders if "@" not in folder]
 
+            # if multiple scans were left, we take latest one as this is usually the best one
+            # not sure how to make this customizable, should warn in documentation maybe
             if len(rdbx_folders) > 1:
+                self.logger.debug(f"multiple rdbx folders found for position {scan_pos_base}, taking latest one ( {rdbx_folders} )")
                 rdbx_folders = sorted(rdbx_folders)
             if len(rdbx_folders) == 0:
                 self.logger.warning(f"no rdbx folder found for position {scan_pos_base}, skipping.")
@@ -186,6 +193,7 @@ class OccPyRIEGL:
                 continue
 
             rdbx_folder_final = rdbx_folders[-1]
+            self.scan_pos_to_name[scan_pos_base] = os.path.basename(rdbx_folder_final)
 
             rdbx_files = glob.glob(os.path.join(rdbx_folder_final, "*.rdbx"))
             rdbx_files = [file for file in rdbx_files if "residual" not in file]
@@ -227,33 +235,29 @@ class OccPyRIEGL:
         self.rxp_scans = {}
         if self.model_empty_pulses:
             self.png_scans = {}
-        for folder in glob.glob(os.path.join(self.proj_folder, "**.SCNPOS")):
-            folder_name = os.path.basename(folder)
-            scan_pos_base = folder_name[:10]
+        
+        # look for rxp files matching rdbx files
+        for pos in self.rdbx_scans:
+            rxp_folder = os.path.join(self.proj_folder, f"{pos}.SCNPOS")
 
-            if scan_pos_base not in self.rdbx_scans:
-                self.logger.info(f"no rdbx file corresponding to rxp file for position {scan_pos_base}, skipping")
+            if not os.path.exists(rxp_folder):
+                self.logger.warning(f"rxp folder not found for position {pos}, skipping")
+                self.logger.debug(f"Path checked: {rxp_folder}")
                 continue
+            
+            # search for file with exact name of rdbx scan
+            scan_name = self.scan_pos_to_name[pos]
+            rxp_file = os.path.join(rxp_folder, "scans", f"{scan_name}.rxp")
 
-            rxp_files = glob.glob(os.path.join(folder, "scans", "*.rxp"))
-            # filter out .residuals and .mon
-            rxp_files = [file for file in rxp_files if not (file.endswith(".residual.rxp") or file.endswith(".mon.rxp")) ]
-
-            if len(rxp_files) > 1:
-                # keep only latest scan (TODO: make customizable? in our data latest is always best scan)
-                self.logger.debug(f"multiple rxp files: {rxp_files}")
-                rxp_files = sorted(rxp_files)
-
-            if len(rxp_files) == 0:
-                self.logger.warning(f"no rxp file found for position {scan_pos_base}, skipping")
-                self.logger.debug(f"Path checked: {os.path.join(folder, 'scans', '*.rxp')}")
+            if not os.path.exists(rxp_file):
+                self.logger.warning(f"rxp file not found for position {pos}, skipping")
+                self.logger.debug(f"Path checked: {rxp_file}")
                 continue
-
-            scan_final = rxp_files[-1]
-            self.rxp_scans[scan_pos_base] = scan_final
+            
+            self.rxp_scans[pos] = rxp_file
 
             if self.model_empty_pulses:
-                png_file = scan_final[:-4] + ".png"
+                png_file = rxp_file[:-4] + ".png"
 
                 if not os.path.exists(png_file):
                     self.logger.warning(f"preview not found for position {scan_pos_base}, skipping")
