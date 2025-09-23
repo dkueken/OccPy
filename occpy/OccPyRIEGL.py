@@ -264,7 +264,7 @@ class OccPyRIEGL:
                     self.logger.debug(f"Path checked: {png_file}")
                     continue
 
-                self.png_scans[scan_pos_base] = png_file
+                self.png_scans[pos] = png_file
 
     def rdbx_rxp_to_df(self, rdbx, rxp):
         """
