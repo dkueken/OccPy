@@ -44,7 +44,7 @@ TOCHECK: Update figures with more representative ones
   <tr>
     <td style="background-color:#ffffff; color:black; padding:10px;">
       Example 1: TLS <br><br>
-      <a href="jupyter/TLS_notebook.html">
+      <a href="notebooks/TLS_notebook.html">
         <img src="img/TLS_notebook.png" width="400">
       </a>
     </td>
@@ -52,7 +52,7 @@ TOCHECK: Update figures with more representative ones
   <tr>
     <td style="background-color:#ffffff; color:black; padding:10px;">
       Example 2: MLS <br>
-      <a href="jupyter/MLS_notebook.html">
+      <a href="notebooks/MLS_notebook.html">
         <img src="img/MLS_notebook.png" width="400">
       </a>
     </td>
@@ -60,7 +60,7 @@ TOCHECK: Update figures with more representative ones
   <tr>
     <td style="background-color:#ffffff; color:black; padding:10px;">
       Example 3: UAVLS <br>
-      <a href="jupyter/UAVLS_notebook.html">
+      <a href="notebooks/UAVLS_notebook.html">
         <img src="img/UAVLS_notebook.png" width="400">
       </a>
     </td>

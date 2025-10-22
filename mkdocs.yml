@@ -1,13 +1,13 @@
 site_name: OccPy
 repo_url: https://github.com/dkueken/OccPy
-docs_dir: ../docs
-site_dir: ../site
+site_dir: site
+docs_dir: docs
 
 theme:
   logo: img/occpy_icon.png     # light mode logo
   favicon: img/occpy_icon.png
   name: material
-  custom_dir: overrides
+  custom_dir: docs/overrides
   palette:
       - media: "(prefers-color-scheme: light)"
         scheme: wslLight
@@ -32,11 +32,17 @@ extra_css:
   - extra.css
   - style.css
 plugins:
+  - search
   - mkdocs-jupyter:
       include_source: True
       include_requirejs: true
       ignore_h1_titles: True
-  - search
+  - mkdocstrings:
+      -handlers:
+        python:
+          options:
+            docstring_style: numpy
+
 markdown_extensions:
   - md_in_html
   - attr_list
@@ -50,3 +56,4 @@ nav:
     - TLS_indivLAZ: notebooks/TLS_notebook_individualLAZ.ipynb
     - MLS: notebooks/MLS_notebook.ipynb
     - ULS: notebooks/ULS_notebook.ipynb
+  - Reference: reference.md
