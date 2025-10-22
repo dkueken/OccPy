@@ -1,0 +1,52 @@
+site_name: OccPy
+repo_url: https://github.com/dkueken/OccPy
+docs_dir: ../docs
+site_dir: ../site
+
+theme:
+  logo: img/occpy_icon.png     # light mode logo
+  favicon: img/occpy_icon.png
+  name: material
+  custom_dir: overrides
+  palette:
+      - media: "(prefers-color-scheme: light)"
+        scheme: wslLight
+        toggle:
+          icon: material/brightness-7
+          name: Switch to dark mode
+
+      - media: "(prefers-color-scheme: dark)"
+        scheme: slate
+        toggle:
+          icon: material/brightness-4
+          name: Switch to light mode
+  features:
+    - search.highlight
+    - content.code.copy
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+use_directory_urls: false
+extra_css:
+  #- customs.css
+  - extra.css
+  - style.css
+plugins:
+  - mkdocs-jupyter:
+      include_source: True
+      include_requirejs: true
+      ignore_h1_titles: True
+  - search
+markdown_extensions:
+  - md_in_html
+  - attr_list
+  - abbr
+
+nav:
+  - Home: index.md
+  - GitHub repository ↗: https://github.com/dkueken/OccPy
+  - Notebook examples:
+    - TLS: notebooks/TLS_notebook.ipynb
+    - TLS_indivLAZ: notebooks/TLS_notebook_individualLAZ.ipynb
+    - MLS: notebooks/MLS_notebook.ipynb
+    - ULS: notebooks/ULS_notebook.ipynb
