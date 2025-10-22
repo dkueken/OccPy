@@ -1,43 +1,32 @@
+import time
+import os
+import glob
+
 import numpy as np
 import pandas as pd
-from scipy import interpolate
 import rasterio
 from rasterio.fill import fillnodata
-
 import laspy
-from occpy.TerrainModel import TerrainModel
-from occpy.PreparePly import prepare_ply
 import OSToolBox as ost
+from tqdm import tqdm
 
-# import plotting functions
+# plotting functions
 import matplotlib
 try:
     matplotlib.use('TkAgg')
 except ImportError:
     print("couldn't change matplotlib backend")
-
+    
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-
-from matplotlib.transforms import Affine2D
-from matplotlib.collections import PathCollection
-import matplotlib.lines as mlines
 from matplotlib.colors import LogNorm
 from matplotlib.colors import to_rgb
 import seaborn as sns
 
-from tqdm import tqdm
-from multiprocessing import Pool
-
-import time
-import os
-import glob
-
 from raytr import PyRaytracer
-from occpy.TerrainModel import TerrainModel
+from occpy import TerrainModel
+from occpy.util import prepare_ply, read_trajectory_file, read_sensorpos_file, interpolate_traj, last_nonzero
 
 # TODO: change print statements to logging like in occpyRIEGL
-# TODO: check requirements and remove unused
 
 is_sorted = lambda a: np.all(a[:-1] <= a[1:])
 
@@ -914,6 +903,24 @@ class OccPy:
 
 
     def do_raytracing(self):
+        """
+        Perform ray tracing.
+
+        This method processes either a directory of LAZ files (for TLS with known scan positions) or a single LAZ file 
+        (Single TLS position or MLS/ULS with a trajectory, depends on self.is_mobile). 
+        In the case of TLS, for each LAZ file, it extracts point positions and sensor positions, and 
+        then performs ray tracing, accounting for single or multi-return pulse information. Multi-return handling 
+        supports on-the-fly processing if the data is sorted by GPS time; otherwise, the full dataset must be loaded first.
+
+        Raises
+        ------
+        FileNotFoundError
+            If `self.laz_in_f` is not a valid file or directory.
+
+        RuntimeWarning
+            If multi-return data is detected but the LAZ file is not sorted by GPS time.
+
+        """
         run_raytraycing_after_loading = False
         if os.path.isdir(self.laz_in_f):
             ## get list of laz files in input directory
@@ -1144,10 +1151,25 @@ class OccPy:
         self.save_raytracing_output()
 
     def get_raytracing_report(self):
+        """
+        Print or log report on occlusion mapping statistics.
+        """
         # Get report on traversal
         self.RayTr.reportOnTraversal()
 
     def save_raytracing_output(self):
+        """
+        Extract and save the outputs of the ray tracing process.
+
+        This method performs the following steps:  
+        1. Extracts the voxel-wise hit (`Nhit`), miss (`Nmiss`), and occlusion (`Nocc`) voxelgrids and saves as .npy in self.out_dir  
+        2. Creates a voxel classification grid based on the `Nhit`, `Nmiss`, and `Nocc` values:  
+        - 1 = observed (hit > 0)  
+        - 2 = empty (miss > 0, hit == 0)  
+        - 3 = occluded (occlusion > 0, hit == 0, miss == 0)  
+        - 4 = unobserved (all three == 0)  
+        3. Writes `.ply` files for all voxel outputs if `self.output_voxels` is True (takes long and creates large files)
+        """
         print("Extracting Nhit")
         tic = time.time()
         self.Nhit = self.RayTr.getNhit()
@@ -1223,4 +1245,7 @@ class OccPy:
         return self.chm
 
     def clean_up_RayTr(self):
+        """
+        Free up raytracer memory
+        """
         del self.RayTr

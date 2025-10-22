@@ -9,9 +9,31 @@ from matplotlib.widgets import Slider
 
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
+# TODO: temp, give as parameter
 VOX_DIM = 0.1
 
 def interactive_figure(output_dir, axis=0):
+    """
+    Create an interactive slice viewer for voxel grids with occlusion overlay.
+
+    Loads Classification.npy and Nhit.npy, builds interactive
+    figure with sliders to select the slice center and projection depth, and
+    visualizes:
+      - log10(Nhit) as a grayscale heatmap, and
+      - fraction of voxels classified as occluded as a colored overlay.
+
+    Axis selects the slicing plane:
+      - 0: YZ slice 
+      - 1: XZ slice
+      - 2: XY slice
+
+    Parameters
+    ----------
+    output_dir : str
+        Directory containing Classification.npy and Nhit.npy arrays.
+    axis : int, default 0
+        Axis orthogonal to the slicing plane (0, 1, or 2).
+    """
 
     classification_arr = np.load(os.path.join(output_dir, "Classification.npy"))
     nhit_arr = np.load(os.path.join(output_dir, "Nhit.npy"))
@@ -153,9 +175,28 @@ def interactive_figure(output_dir, axis=0):
     out_file = "test_out/TEMP_slice_fig.png"
     plt.savefig(out_file, dpi=300, format="png", bbox_inches="tight")
 
-
-
 def plot_riegl_grid(data : pd.DataFrame, max_scanline, max_scanline_idx, image2=None, out_path=None):
+    """
+    Plot a scanline-by-index occupancy grid from RIEGL data.
+
+    Builds a boolean image with shape (max_scanline_idx+1, max_scanline+1) marking
+    where (scanline, scanline_idx) pairs exist in `data`. Optionally overlays a
+    second boolean image and saves the figure to `out_path`.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        DataFrame containing columns 'scanline' and 'scanline_idx'.
+    max_scanline : int
+        Maximum scanline index on the horizontal axis.
+    max_scanline_idx : int
+        Maximum scanline_idx on the vertical axis.
+    image2 : array-like of bool, optional
+        Secondary image to overlay (same shape as the grid).
+    out_path : str, optional
+        Path to save the resulting figure.
+
+    """
     scanline_np = data[["scanline"]].to_numpy()
     scanline_idx_np = data[["scanline_idx"]].to_numpy()
     # scanline_idx_np = np.where(scanline_idx_np > max_scanline_idx, max_scanline_idx, scanline_idx_np)

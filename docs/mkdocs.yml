@@ -1,0 +1,17 @@
+site_name: Occpy 0.1 documentation
+
+nav:
+  - Home: index.md
+  - Documentation: reference.md
+
+
+# theme:
+#   name: material
+# theme: readthedocs
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
