@@ -8,7 +8,7 @@ import numpy
 import platform
 import shutil
 import ctypes
-import occpy
+#import occpy
 
 from distutils.core import setup
 from distutils.extension import Extension
@@ -230,6 +230,7 @@ addRieglRDBDriver(ext_cy, cxxFlags)
 if len(ext_cy) == pre_riegl_ext_len:
     print('RiVLib and/or RDBLib not found. RIEGL I/O will not be supported.')
 
+import occpy
 setup(
     name = 'occpy',
     version= occpy.__version__,
