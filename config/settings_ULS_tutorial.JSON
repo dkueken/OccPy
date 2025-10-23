@@ -1,11 +1,11 @@
 {
-	"root_folder": "",
-    "laz_in": "data/ULS/ULS_TestData_20perc_FP10_2025_LeafOn.laz",
+    "root_folder": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy",
+    "laz_in": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy\\data\\ULS\\ULS_TestData_20perc_FP10_2025_LeafOn.laz",
     "tif_in": {
-    	"DTM": "data/Grids/Ramerenwald_DTM_20250305.tif",
-        "DSM": "data/Grids/Ramerenwald_DSM_20250305.tif"
+        "DTM": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy\\data\\Grids\\Ramerenwald_DTM_20250305.tif",
+        "DSM": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy\\data\\Grids\\Ramerenwald_DSM_20250305.tif"
     },
-    "out_dir": "output/ULS",
+    "out_dir": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy\\output\\ULS",
     "vox_dim": 0.1,
     "lower_threshold": 1,
     "points_per_iter": 10000000,
@@ -17,6 +17,6 @@
         1246113,
         590
     ],
-    "ScanPos": "data/ULS/ULS_TestData_traj_FP10_2025_LeafOn.txt",
+    "ScanPos": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy\\data\\ULS\\ULS_TestData_traj_FP10_2025_LeafOn.txt",
     "output_voxels": false
 }
