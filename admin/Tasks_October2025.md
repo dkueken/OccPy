@@ -10,6 +10,7 @@
 - add function documentation for those functions that do not yet have one [Daniel]
 - *Question:* What should we do with the c++ side? Should this be documented as well?
 - Updated README [Daniel]
+- template for function documentation [Wout]
 
 ## Notebooks
 - add tutorial data to zenodo or other repository and get data through URL, so data does not have to be stored alongside code [Daniel]
@@ -24,7 +25,7 @@
 - Test everything [Wout]
 - Add Section about OccPyRIEGL to documentation
 
-# Installation
+# Installation [Wout]
 - cleanup environment.yml
   - get rid of unnecessary entries. 
   - test if environment.yml is working for any OS flavors
@@ -41,7 +42,7 @@
 - Design OccPy Logo [Wout?]
 
 # Packaging
-- How to implement Packages and Releases feature on github?
+- How to implement Packages and Releases feature on github? [Daniel]
 
 # Visualization
 - add all visualization functions to visualization.py and test them [Daniel]
