@@ -22,6 +22,7 @@ dependencies:
       - OSToolBox
       - opencv-python
       - mkdocs
+      - mkdocstrings-python
       - mkdocs-material
       - mkdocs-jupyter
 variables:

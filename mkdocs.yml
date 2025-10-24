@@ -37,6 +37,7 @@ plugins:
       include_source: True
       include_requirejs: true
       ignore_h1_titles: True
+      execute: False
   - mkdocstrings:
       -handlers:
         python:
