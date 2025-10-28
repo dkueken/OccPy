@@ -9,7 +9,7 @@
 - make function documentation template consistent, so that on the webpage all looks similar. See docstrings by Wout in OccPyRIEGL [Daniel]
 - add function documentation for those functions that do not yet have one [Daniel]
 - *Question:* What should we do with the c++ side? Should this be documented as well?
-- Updated README [Daniel]
+- Updated README [Wout, Daniel]
 - template for function documentation [Wout]
 
 ## Notebooks
