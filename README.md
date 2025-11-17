@@ -1,10 +1,5 @@
 # OccPy
 
-<!---
-## Name
-Choose a self-explaining name for your project.
---->
-
 ## Description
 OccPy is a python tool to map occluded area from LiDAR data in 3D using a voxel traversal algorithm. 
 
@@ -22,7 +17,7 @@ Depending on what you are making, it can be a good idea to include screenshots o
 
 Via pip:
 
-pip install -i https://test.pypi.org/simple/ occpy==0.1
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple occpy==0.1
 
 ### Build from source
 
@@ -44,8 +39,8 @@ Build extensions and install occpy using:
 ```commandline
 pip install -v .
 ```
-(TODO: @kueken: check on these warnings!)
 
+NOTE: if you want to use RIEGL .rdbx and .rxp files as input, make sure to set the RIVLIB_ROOT and RDBLIB_ROOT environment variables before installing.
 
 ## Usage
 There are example notebooks provided for different flavors of LiDAR platforms (TLS, MLS, UAVLS), under docs/notebooks.
