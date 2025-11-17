@@ -1,3 +1,5 @@
-include src/*.cpp
 include src/*.pyx
+include src/*.pxd
+include src/*.cpp
+include src/*.hpp
 include src/*.h
