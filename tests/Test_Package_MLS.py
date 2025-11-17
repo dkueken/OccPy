@@ -1,5 +1,5 @@
 from occpy.OccPy import OccPy
-from occpy.OccPy import normalize_occlusion_output
+from occpy.util import normalize_occlusion_output
 from occpy.OccPy import get_Occl_TransectFigure
 from occpy.OccPy import get_Occl_TransectFigure_BinaryOcclusion
 from occpy.OccPy import get_Occlusion_ProfileFigure

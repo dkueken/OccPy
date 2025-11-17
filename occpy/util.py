@@ -1,13 +1,230 @@
 
 import numpy as np
 import pandas as pd
+import os
+import time
 import laspy
 from scipy import interpolate
 from tqdm import tqdm
+import rasterio
+from rasterio.fill import fillnodata
+import OSToolBox as ost
 
 from raytr import PyRaytracer
+from occpy.TerrainModel import TerrainModel
 
 # raytracing helpers
+
+def normalize_occlusion_output(input_folder, PlotDim, vox_dim, dtm_file, dsm_file=None, lower_threshold=0, output_voxels=False):
+    """
+    normalize_occlusion_output normalizes all occlusion output grids (Nhit, Nmiss, Nocc, Classification) with the specified DTM
+    This function also calculates occlusion statistics for the total canopy volume (defined by the volume between DTM
+    and DSM). Currently only binary occlusion is analysed at the moment (TODO: implement also fractional occlusion),
+    i.e. only voxels that are completely occluded (Nhit==0 and Nmiss==0 and Nocc >0)
+
+    Parameters
+    ----------
+    input_folder : string
+        directory to the output of the raytracing algorithm
+    PlotDim : list
+        Plot Dimensions defined as a list: (minX, minY, minZ, maxX, maxY, maxZ)
+    :param dtm_file: DTM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
+    :param dsm_file: DSM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
+    :param lower_threshold: minimum Z coordinate to cut off lower part of the canopy, i.e. Voxels lieing at or below DTM. default=0
+    :param output_voxels: if the voxel grids should be outputted as a ply file. default=False -> not yet working properly, recommend leaving this to False!
+    :return:
+
+    Returns
+    ----------
+    Nhit_norm : numpy array (3D)
+        height normalized 3D voxel grid for the number of hits per voxel
+    Nmiss_norm : numpy array (3D)
+        height normalized 3D voxel grid with number of missed pulses (unoccluded pulses with no interaction)per voxel
+    Nocc_norm : numpy array (3D)
+        height normalized 3D voxel grid with number of occluded pulses per voxel
+    Classification_norm : numpy array (3d)
+        height normalized 3D voxel grid with classification (1 = observed with hit, 2 = observed but no hit, 3 = occluded, 4 = unobserved)
+    chm : numpy array (2D)
+        canopy height model as raster with specified vox_dim dimensions
+
+
+    """
+
+    Nhit = np.load(f"{input_folder}/Nhit.npy")
+    Nmiss = np.load(f"{input_folder}/Nmiss.npy")
+    Nocc = np.load(f"{input_folder}/Nocc.npy")
+    Classification = np.load(f"{input_folder}/Classification.npy")
+
+    # Get extent of voxel grid
+    extent_voxgrid = (PlotDim[0], PlotDim[4], PlotDim[3], PlotDim[1])
+
+    # This is a bit of a quick and dirty solution to check on the compatibility of voxel size and pixel size of terrain models. TODO: improve that!
+    dtm = TerrainModel(dtm_file)
+    gt = dtm.dtm.res
+    pix_size = gt[0]
+
+    dtm_fname = os.path.basename(dtm_file)
+
+    if pix_size != vox_dim:
+        dtm.crop2extent(
+            extent=extent_voxgrid,
+            out_file=f"{input_folder}\\{dtm_fname[:-4]}_resc_{vox_dim}.tif",
+            res=vox_dim)
+
+    ext = dtm.get_extent()
+    extent_dtm = (ext.left, ext.top, ext.right, ext.bottom)
+
+    if extent_dtm != extent_voxgrid:
+        dtm.crop2extent(extent=extent_voxgrid,
+                        out_file=f"{dtm.get_terrainmodel_path()[:-4]}_clipped.tif",
+                        res=vox_dim)
+
+    dtm_file = dtm.get_terrainmodel_path()
+
+    with rasterio.open(dtm_file, 'r') as dtm_src:
+        dtm = dtm_src.read(1)
+        # TODO: check if this is still needed!
+        dtm = np.flipud(dtm)  # we need to flip the terrain models in order to make them compatible with the Occlusion output
+        # fill in data gaps in dtm
+        dtm = fillnodata(dtm, mask=dtm != dtm_src.get_nodatavals()[0])
+
+    if dsm_file is not None:
+
+        dsm = TerrainModel(dsm_file)
+        dsm_fname = os.path.basename(dsm_file)
+        # check on pixel size
+        gt = dsm.dtm.res
+        pix_size = gt[0]
+
+        if pix_size != vox_dim:
+            dsm.crop2extent(
+                extent=extent_voxgrid,
+                out_file=f"{input_folder}\\{dsm_fname[:-4]}_resc_{vox_dim}.tif",
+                res=vox_dim)
+
+        ext = dsm.get_extent()
+        extent_dsm = (ext.left, ext.top, ext.right, ext.bottom)
+        if extent_dsm != extent_voxgrid:
+            dsm.crop2extent(extent=extent_voxgrid,
+                            out_file=f"{dsm.get_terrainmodel_path()[:-4]}_clipped.tif",
+                            res=vox_dim)
+
+        dsm_file = dsm.get_terrainmodel_path()
+
+        with rasterio.open(dsm_file, 'r') as dsm_src:
+            dsm = dsm_src.read(1)
+            # TODO: check if this flip is still needed!
+            dsm = np.flipud(dsm)  # we need to flip the terrain models in order to make them compatible with the Occlusion output
+            dsm = fillnodata(dsm, mask=dsm != dsm_src.get_nodatavals()[0])
+
+        chm = dsm - dtm
+
+        Nhit_norm = np.zeros(
+            (dtm.shape[1], dtm.shape[0], int(np.ceil(np.amax(chm) / vox_dim))), dtype=int)
+        Nmiss_norm = np.zeros_like(Nhit_norm)
+        Nocc_norm = np.zeros_like(Nhit_norm)
+        Classification_norm = np.zeros_like(Nhit_norm)
+
+        OcclFrac2D = np.zeros((dtm.shape[1], dtm.shape[0]))
+        for y in range(0, dsm.shape[0], 1):
+            for x in range(0, dsm.shape[1], 1):
+                # get zind where DTM is located in grid at x,y
+                zind_dtm = int(np.floor((dtm[y, x] - PlotDim[2]) / vox_dim))
+                zind_dsm = int(np.floor((dsm[y, x] - PlotDim[2]) / vox_dim))
+                # extract profile from grids
+                prof_class = Classification[x, y, zind_dtm:zind_dsm]
+                prof_class_buf = Classification[x, y,
+                                 zind_dtm + int(np.ceil(lower_threshold / vox_dim)):zind_dsm]
+
+                Classification_norm[x, y, 0:len(prof_class)] = prof_class
+                # Calculate occlusion fraction for z profile
+                num_occl = sum(prof_class_buf == 3)
+
+                if len(prof_class_buf) == 0:
+                    OcclFrac2D[x, y] = 0
+                else:
+                    OcclFrac2D[x, y] = num_occl / len(prof_class_buf)
+
+                Nhit_norm[x, y, 0:len(prof_class)] = Nhit[x, y, zind_dtm:zind_dsm]
+                Nmiss_norm[x, y, 0:len(prof_class)] = Nmiss[x, y, zind_dtm:zind_dsm]
+                Nocc_norm[x, y, 0:len(prof_class)] = Nocc[x, y, zind_dtm:zind_dsm]
+
+
+    else:
+        # as we do not know the height of the scene a priori, we will initialize a 3 D grid with the same dimensions
+        # as the unnormalized grids, introducing quite some overhead...
+        Nhit_norm = np.zeros(Nhit.shape, dtype=int)
+        Nmiss_norm = np.zeros(Nmiss.shape, dtype=int)
+        Nocc_norm = np.zeros(Nocc.shape, dtype=int)
+        Classification_norm = np.zeros(Classification.shape, dtype=int)
+
+        OcclFrac2D = np.zeros((dtm.shape[1], dtm.shape[0]))
+        chm = np.zeros(dtm.shape)
+
+        max_len_prof = 0
+        for y in range(0, dtm.shape[0], 1):
+            for x in range(0, dtm.shape[1], 1):
+                # get zind where DTM is located in grid at x,y
+                zind_dtm = int(np.floor((dtm[y, x] - PlotDim[2]) / vox_dim))
+                zind_dsm = last_nonzero(Nhit[x, y, :], axis=0)
+
+                # If no dsm is provided, we take the DSM from the same
+                # acquisition. This will introduce an under estimation of occlusion for ground based acquisitions
+                # as occlusion on top of canopy is not counted.
+                chm[y, x] = (zind_dsm - zind_dtm) * vox_dim
+
+                # extract profile from grids
+                prof_class = Classification[x, y, zind_dtm:zind_dsm]
+                prof_class_buf = Classification[x, y,
+                                 zind_dtm + int(np.ceil(lower_threshold / vox_dim)):zind_dsm]
+
+                Classification_norm[x, y, 0:len(prof_class)] = prof_class
+                # Calculate occlusion fraction for z profile
+                num_occl = sum(prof_class_buf == 3)
+
+                if len(prof_class_buf) == 0:
+                    OcclFrac2D[x, y] = 0
+                else:
+                    OcclFrac2D[x, y] = num_occl / len(prof_class_buf)
+
+                if len(prof_class) > max_len_prof:
+                    max_len_prof = len(prof_class)
+
+                Classification_norm[y, x, 0:len(prof_class)] = Classification[y, x, zind_dtm:zind_dsm]
+                Nhit_norm[x, y, 0:len(prof_class)] = Nhit[x, y, zind_dtm:zind_dsm]
+                Nmiss_norm[x, y, 0:len(prof_class)] = Nmiss[x, y, zind_dtm:zind_dsm]
+                Nocc_norm[x, y, 0:len(prof_class)] = Nocc[x, y, zind_dtm:zind_dsm]
+
+
+        # get rid of the excessive height of the grid
+        Classification_norm = Classification_norm[:, :, 0:max_len_prof]
+        Nhit_norm = Nhit_norm[:, :, 0:max_len_prof]
+        Nmiss_norm = Nmiss_norm[:, :, 0:max_len_prof]
+        Nocc_norm = Nocc_norm[:, :, 0:max_len_prof]
+
+    print(f"Saving normalized output files into directory as .npy...")
+    np.save(f"{input_folder}/Nhit_norm.npy", Nhit_norm)
+    np.save(f"{input_folder}/Nmiss_norm.npy", Nmiss_norm)
+    np.save(f"{input_folder}/Nocc_norm.npy", Nocc_norm)
+    np.save(f"{input_folder}/Classification_norm.npy", Classification_norm)
+
+    # write ply file TODO: This seems to not be working for me!
+    if output_voxels:
+        print(f"Saving normalized output files into directory as .ply...")
+        tic = time.time()
+        verts, faces = prepare_ply(vox_dim, PlotDim, Nhit_norm)
+        ost.write_ply(f"{input_folder}/Nhit_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+        verts, faces = prepare_ply(vox_dim, PlotDim, Nmiss_norm)
+        ost.write_ply(f"{input_folder}/Nmiss_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+        verts, faces = prepare_ply(vox_dim, PlotDim, Nocc_norm)
+        ost.write_ply(f"{input_folder}/Nocc_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+        verts, faces = prepare_ply(vox_dim, PlotDim, Classification_norm)
+        ost.write_ply(f"{input_folder}/Classification_norm.ply", verts, ['X', 'Y', 'Z', 'data'],
+                      triangular_faces=faces)
+        toc = time.time()
+        print("Elapsed Time: " + str(toc - tic) + " seconds")
+
+    return Nhit_norm, Nmiss_norm, Nocc_norm, Classification_norm, chm
 
 def last_nonzero(arr, axis, invalid_val=-1):
     """
