@@ -422,6 +422,27 @@ def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_
 
 class OccPy:
     def __init__(self, laz_in, out_dir, vox_dim=0.1, lower_threshold=1, points_per_iter=10000000, plot_dim=None, output_voxels=False):
+        """
+        initialize OccPy object
+
+        Parameters
+        ----------
+        laz_in: str
+            path to laz file or directory with multiple laz files
+        out_dir: str
+            path to output directory for occlusion maps
+        vox_dim: float [default: 0.1]
+            voxel dimension in meters. We currently assume cubic voxels.
+        lower_threshold: float [default: 1]
+            lower threshold above ground to exclude from occlusion mapping in voxels. TODO: figure out, if this is needed at this place!
+        points_per_iter: int [default: 10000000
+            number of points read in from laz file in each iteration. Warning: this only applies to LAZ files with either
+            only single returns or when points have been sorted by GPSTime and return number.
+        plot_dim: list [default: None]
+            corner coordinates of the plot in question. Expected format is: [minX, minY, minZ, maxX, maxY, maxZ]
+        output_voxels: bool [default: False]
+            whether voxel grid should be outputed as ply file. WARNING: this requires significant resources and takes a long time. Has not been properly tested!
+        """
         self.laz_in_f = laz_in
         self.out_dir = out_dir
         os.makedirs(out_dir, exist_ok=True)
@@ -498,20 +519,37 @@ class OccPy:
 
     def define_sensor_pos(self, path2file, is_mobile, single_return=None, delimiter=" ", hdr_time='%time', hdr_scanpos_id='', hdr_x='x', hdr_y='y', hdr_z='z', sens_pos_id_offset=0, str_idx_ScanPosID=0, str_end_idx_ScanPosID=0):
         """
+        defines sensor position based on the provided csv file. CSV file needs to include
+        Parameters
+        ----------
+        path2file: str [mandatory]
+            path to csv file with sensor position information
+        is_mobile: bool [mandatory]
+            True or False whether platform is mobile (MLS, ULS) or static (TLS)
+        single_return: bool [adviced]
+            True or False whether data is single return or multi return data
+        delimiter: str [default: " "]
+            csv delimiter
+        hdr_time: str
+            column header for time (only needed for mobile acquisitions)
+        hdr_scanpos_id str
+            column header for scan pos id (only needed for static acquisitions -> equivalent to hdr_time in mobile acquisitions
+        hdr_x: str [default 'x']
+            column header for x coordinates
+        hdr_y: str [default 'y']
+            column header for y coordinates
+        hdr_z: str [default 'z']
+            column header for z coordinates
+        sens_pos_id_offset: int
+            Very specific use case where Scan Pos ID in position file does not correspond with Scan Pos ID in LAZ files and we need to add an offset
+        str_idx_ScanPosID: int
+            string index of where the scan position identifier is written in the laz file name TODO: find a better way to handle this!
+        str_end_idx_ScanPosID: int
+            string index of where the scan position identifier ends in the laz file name TODO: find a better way to handle this!
 
-        :param path2file: [mandatory] path to csv file with sensor position information
-        :param is_mobile: [mandatory] True or False whether platform is mobile (MLS, ULS) or static (TLS)
-        :param single_return: [adviced] True or False whether data is single return or multi return data
-        :param delimiter: csv delimiter [default: " "]
-        :param hdr_time: column header for time (only needed for mobile acquisition)
-        :param hdr_scanpos_id: column header for scan pos id (only needed for static acquisitions -> equivalent to hdr_time in mobile acquisitions
-        :param hdr_x: column header for x coordinates [default 'x']
-        :param hdr_y: column header for y coordinates [default 'y']
-        :param hdr_z: column header for z coordinates [default 'z']
-        :param sens_pos_id_offset: Very specific use case where Scan Pos ID in position file does not correspond with Scan Pos ID in LAZ files and we need to add an offset
-        :param str_idx_ScanPosID: string index of where the scan position identifier is written in the laz file name TODO: find a better way to handle this!
-        :param str_end_idx_ScanPosID: string index of where the scan position identifier ends in the laz file name TODO: find a better way to handle this!
-        :return:
+        Returns
+        -------
+
         """
         self.is_mobile = is_mobile
         self.single_return = single_return
@@ -527,6 +565,26 @@ class OccPy:
 
     # TODO: ugly workaround for the case where a single laz file from a single TLS position should be run
     def define_sensor_pos_singlePos(self, scan_pos_id, x, y, z):
+        """
+        defines the scanner position of a single TLS scan position. This is currently just a work-around where we have
+        the case of a single laz file and a single position without a text file defining e.g. multiple scan positions.
+        Writes scanner position into self.senspos
+
+        Parameters
+        ----------
+        scan_pos_id: int
+            Scan Position Identificaiton number
+        x: float
+            X-Coordinates of scanner position
+        y: float
+            Y-Coordinates of scanner position
+        z: float
+            Z-Coordinates of scanner position
+
+        Returns
+        -------
+
+        """
         d = {'ScanPos': scan_pos_id,
              'sensor_x': x, 'sensor_y': y, 'sensor_z': z}
 
@@ -539,21 +597,22 @@ class OccPy:
         """
         Perform ray tracing.
 
-        This method processes either a directory of LAZ files (for TLS with known scan positions) or a single LAZ file 
-        (Single TLS position or MLS/ULS with a trajectory, depends on self.is_mobile). 
-        In the case of TLS, for each LAZ file, it extracts point positions and sensor positions, and 
-        then performs ray tracing, accounting for single or multi-return pulse information. Multi-return handling 
+        This method processes either a directory of LAZ files (for TLS with known scan positions) or a single LAZ file
+        (Single TLS position or MLS/ULS with a trajectory, depends on self.is_mobile).
+        In the case of TLS, for each LAZ file, it extracts point positions and sensor positions, and
+        then performs ray tracing, accounting for single or multi-return pulse information. Multi-return handling
         supports on-the-fly processing if the data is sorted by GPS time; otherwise, the full dataset must be loaded first.
 
         Raises
         ------
         FileNotFoundError
-            If `self.laz_in_f` is not a valid file or directory.
+            TODO: Needs to be implemented: If `self.laz_in_f` is not a valid file or directory.
 
         RuntimeWarning
-            If multi-return data is detected but the LAZ file is not sorted by GPS time.
+            TODO: Needs to be implemented: If multi-return data is detected but the LAZ file is not sorted by GPS time.
 
         """
+
         run_raytraycing_after_loading = False
         if os.path.isdir(self.laz_in_f):
             ## get list of laz files in input directory
@@ -785,23 +844,30 @@ class OccPy:
 
     def get_raytracing_report(self):
         """
-        Print or log report on occlusion mapping statistics.
+        prints a report on the voxel traversal to the console
+
+        Returns
+        -------
+
         """
         # Get report on traversal
         self.RayTr.reportOnTraversal()
 
     def save_raytracing_output(self):
         """
-        Extract and save the outputs of the ray tracing process.
-
-        This method performs the following steps:  
-        1. Extracts the voxel-wise hit (`Nhit`), miss (`Nmiss`), and occlusion (`Nocc`) voxelgrids and saves as .npy in self.out_dir  
-        2. Creates a voxel classification grid based on the `Nhit`, `Nmiss`, and `Nocc` values:  
-        - 1 = observed (hit > 0)  
-        - 2 = empty (miss > 0, hit == 0)  
-        - 3 = occluded (occlusion > 0, hit == 0, miss == 0)  
-        - 4 = unobserved (all three == 0)  
+        Extract and save the outputs of the ray-tracing process.
+        This method performs the following steps:
+        1. Extracts the voxel-wise hit (`Nhit`), miss (`Nmiss`), and occlusion (`Nocc`) voxelgrids and saves as .npy in self.out_dir
+        2. Creates a voxel classification grid based on the `Nhit`, `Nmiss`, and `Nocc` values:
+        - 1 = observed (hit > 0)
+        - 2 = empty (miss > 0, hit == 0)
+        - 3 = occluded (occlusion > 0, hit == 0, miss == 0)
+        - 4 = unobserved (all three == 0)
         3. Writes `.ply` files for all voxel outputs if `self.output_voxels` is True (takes long and creates large files)
+
+        Returns
+        -------
+
         """
         print("Extracting Nhit")
         tic = time.time()
@@ -873,12 +939,24 @@ class OccPy:
 
 
     def get_chm(self):
+        """
+        returns chm.
+        TODO: check if this is still needed!
+        Returns
+        -------
+        reference to canopy height model
+
+        """
         if self.chm is None:
             print("No CHM was defined. To define CHM ")
         return self.chm
 
     def clean_up_RayTr(self):
         """
-        Free up raytracer memory
+        Free up memory after raytracing.
+
+        Returns
+        -------
+
         """
         del self.RayTr

@@ -39,7 +39,7 @@ plugins:
       ignore_h1_titles: True
       execute: False
   - mkdocstrings:
-      -handlers:
+      handlers:
         python:
           options:
             docstring_style: numpy
@@ -62,4 +62,10 @@ nav:
     - TLS_indivLAZ: notebooks/TLS_notebook_individualLAZ.ipynb
     - MLS: notebooks/MLS_notebook.ipynb
     - ULS: notebooks/ULS_notebook.ipynb
-  - Reference: reference.md
+  - Reference:
+    - OccPy: ref_occpy.md
+    - OccPy_Riegl: ref_occpy_riegl.md
+    - util: ref_util.md
+    - TerrainModel: ref_terrain_model.md
+    - Visualization: ref_visualization.md
+    - OccPy_Riegl_IO: ref_occpy_riegl_io.md
