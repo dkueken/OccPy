@@ -3,3 +3,4 @@ include src/*.pxd
 include src/*.cpp
 include src/*.hpp
 include src/*.h
+recursive-include src/riegl_io *.cpp *.c *.h

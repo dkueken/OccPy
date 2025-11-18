@@ -3,6 +3,7 @@
 .idea
 __pycache__/**
 build/**/**
+dist/
 occpy/src/build/**/**
 occpy/src/build/**
 data_local/**

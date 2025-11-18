@@ -4,8 +4,7 @@ import numpy
 import platform
 import ctypes
 
-from distutils.core import setup
-from distutils.extension import Extension
+from setuptools import setup, Extension
 from Cython.Build import cythonize
 
 sources = ["src/raytr.pyx", "src/Raytracer.cpp", "src/Pulse.cpp", "src/Echo.cpp"]
@@ -173,8 +172,6 @@ addRieglRXPDriver(ext_cy, cxxFlags)
 addRieglRDBDriver(ext_cy, cxxFlags)
 
 setup(
-    name = 'occpy',
-    version= '0.1',
     packages = ["occpy"],
     ext_modules = ext_cy
 )
