@@ -153,7 +153,7 @@ Schneider, F.D., Kükenbrink, D., Schaepman, M.E., Schimel, D.S., Morsdorf, F., 
 
 
 ## License
-
+See [LICENSE](LICENSE).
 
 ## Project status
 This tool is still under development and substantial testing with different datasets should be performed.
