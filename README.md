@@ -1,23 +1,18 @@
 # OccPy
 
+![Occpy](assets/occpy_logo_v3_trans.png "Occpy logo")
+
 ## Description
-OccPy is a python tool to map occluded area from LiDAR data in 3D using a voxel traversal algorithm. 
-
-
-TODO: add some visual here
-<!---
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
---->
+OccPy is a python tool to map occluded area from LiDAR data in 3D using a voxel traversal algorithm implemented in C++. 
 
 ## Installation
 
 Via pip:
+(TODO: replace with pypi version)
 
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple occpy==0.1
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple occpy_ls==0.1
+
+Note: riegl libraries are not packaged, to use RXP and RDBX files, you have to download the libraries and build from source.
 
 ### Build from source
 
@@ -106,14 +101,14 @@ For questions and support, please contact Daniel Kükenbrink via daniel.kuekenbr
 ## Roadmap
 Several open issues and improvements are currently worked on or planned for the future:
 
-- [ ] Improve (add) documentation of the different functions and example scripts
-- [ ] Add example data which should be used in the example scripts
-- [ ] There is currently still an issue with UAVLS data, where some (very few) LiDAR returns are not registered by the algorithm. The implications for that should be analysed and the problem mitigated. This could cause an underestimation of occlusion, as the e.g. the last return is never reached and the pulse will traverse further without declaring an voxels as occluded for that pulse. There is the possibility to overcome this issue by using the function ```RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)``` as used in the script _Test_MLS.py_, where the input data is not initially converted to a pulse dataset, but each return is basically treated as a single pulse. We would only recommend to use this approach, if you are confident about your trajectory information.
-- [ ] Add support for reading in a DTM file, so the algorithm could stop, once the pulse reached the terrain.
-- [ ] Add functionality for height normalisation of outputs
-- [ ] substantial performance improvement by using multi core processing
-- [ ] Add functionality for PAI/PAD calculation of each voxel (i.e. calculation of path length within voxel for each pulse) 
-- [ ] Add visualization solution like (potential idea: https://github.com/msoechting/lexcube)
+- Improve (add) documentation of the different functions and example scripts
+- Add example data which should be used in the example scripts
+- There is currently still an issue with UAVLS data, where some (very few) LiDAR returns are not registered by the algorithm. The implications for that should be analysed and the problem mitigated. This could cause an underestimation of occlusion, as the e.g. the last return is never reached and the pulse will traverse further without declaring an voxels as occluded for that pulse. There is the possibility to overcome this issue by using the function ```RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)``` as used in the script _Test_MLS.py_, where the input data is not initially converted to a pulse dataset, but each return is basically treated as a single pulse. We would only recommend to use this approach, if you are confident about your trajectory information.
+- Add support for reading in a DTM file, so the algorithm could stop, once the pulse reached the terrain.
+- Add functionality for height normalisation of outputs
+- Substantial performance improvement by using multi core processing
+- Add functionality for PAI/PAD calculation of each voxel (i.e. calculation of path length within voxel for each pulse) 
+- Add visualization solution like (potential idea: https://github.com/msoechting/lexcube)
 
 ## Contributing
 

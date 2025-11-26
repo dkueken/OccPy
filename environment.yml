@@ -23,6 +23,8 @@ dependencies:
       - mkdocstrings-python
       - mkdocs-material
       - mkdocs-jupyter
+      - open3d
+      - pyvista
 variables:
   OCCPY_CXX_FLAGS: -std=c++11 
   # RIVLIB_ROOT: #ADAPT: path to rivlib here
