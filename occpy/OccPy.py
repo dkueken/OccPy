@@ -142,16 +142,9 @@ class OccPy:
 
         # some parameters that will be filled during function calls
         self.TotalVolume = 0
-        self.Volume0_3 = 0
-        self.Volume3_10 = 0
-        self.Volume10_max = 0
         self.TotalOcclusion = 0
-        self.Occlusion0_3 = 0
-        self.Occlusion3_10 = 0
-        self.Occlusion10_max = 0
 
         self.OcclFrac2D = None
-
 
         # 3DGrids
         self.Nhit = None
