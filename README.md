@@ -1,8 +1,7 @@
-# OccPy
-
 ![Occpy](assets/occpy_logo_v3_trans.png "Occpy logo")
 
-## Description
+---
+
 OccPy is a python tool to map occluded area from LiDAR data in 3D using a voxel traversal algorithm implemented in C++. 
 
 ## Installation
@@ -10,9 +9,16 @@ OccPy is a python tool to map occluded area from LiDAR data in 3D using a voxel 
 Via pip:
 (TODO: replace with pypi version)
 
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple occpy_ls==0.1
+```commandline
+ pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple occpy_ls==0.1
+```
 
-Note: riegl libraries are not packaged, to use RXP and RDBX files, you have to download the libraries and build from source.
+Pre-built wheels are available for Python versions 3.10, 3.11, 3.12, 3.13, on:
+- Linux (x86_64)
+- Windows (TODO)
+A source distribution is also available, which will require a C++ environment with boost libraries installed for a working installation.
+
+Note: Riegl libraries are not packaged, to use RXP and RDBX files, you must build from source.
 
 ### Build from source
 
@@ -35,7 +41,7 @@ Build extensions and install occpy using:
 pip install -v .
 ```
 
-NOTE: if you want to use RIEGL .rdbx and .rxp files as input, make sure to set the RIVLIB_ROOT and RDBLIB_ROOT environment variables before installing.
+NOTE: if you want to use RIEGL .rdbx and .rxp files as input, make sure to set the RIVLIB_ROOT and RDBLIB_ROOT environment variables to the root path of the corresponding libraries before installing.
 
 ## Usage
 There are example notebooks provided for different flavors of LiDAR platforms (TLS, MLS, UAVLS), under docs/notebooks.

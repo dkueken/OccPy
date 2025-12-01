@@ -27,7 +27,8 @@ dependencies = [
   "opencv-python",
   "matplotlib",
   "open3d",
-  "pyvista"
+  "pyvista",
+  "ipykernel"
 ]
 
 [project.urls]

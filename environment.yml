@@ -6,13 +6,11 @@ dependencies:
   - pip
   - cython
   - numpy
-  - numba
   - pandas
   - scipy
   - boost
   - matplotlib
   - tqdm
-  - ipykernel
   - pip:
       - seaborn
       - rasterio
@@ -25,6 +23,7 @@ dependencies:
       - mkdocs-jupyter
       - open3d
       - pyvista
+      - ipykernel
 variables:
   OCCPY_CXX_FLAGS: -std=c++11 
   # RIVLIB_ROOT: #ADAPT: path to rivlib here
