@@ -1,0 +1,45 @@
+[project]
+name = "occpy_ls"
+version = "0.1"
+authors = [
+  { name="Daniel Kukenbrink", email="daniel.kuekenbrink@wsl.ch" },
+  { name="Wout Cherlet", email="wout.cherlet@ugent.be" },
+  { name="William Albert", email="albert@uni-heidelberg.de" },
+]
+description = "OccPy: a python tool to map occluded area from LiDAR data in 3D using a voxel traversal algorithm."
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+dependencies = [
+  "numpy>=1.21",
+  "pandas",
+  "scipy",
+  "tqdm",
+  "seaborn",
+  "rasterio",
+  "laspy[laszip]",
+  "OSToolBox",
+  "opencv-python",
+  "matplotlib",
+  "open3d",
+  "pyvista",
+  "ipykernel"
+]
+
+[project.urls]
+Homepage = "https://github.com/pypa/sampleproject"
+Issues = "https://github.com/pypa/sampleproject/issues"
+
+[build-system]
+requires = [
+  "setuptools>=61",
+  "wheel",
+  "Cython>=0.29.36",
+  "numpy>=1.21"
+]
+build-backend = "setuptools.build_meta"
