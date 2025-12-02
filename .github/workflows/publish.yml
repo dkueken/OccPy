@@ -49,10 +49,8 @@ jobs:
         env:
           CIBW_SKIP: "pp* *-win32"
           CIBW_ARCHS_WINDOWS: "AMD64"
-          CIBW_BEFORE_ALL_WINDOWS: |
-            curl -fsSL -o C:\boost.zip https://archives.boost.io/release/1.89.0/source/boost_1_89_0.zip
-            tar -xzf C:\boost.zip -C C:\
-          CIBW_ENVIRONMENT_WINDOWS: "INCLUDE=C:/boost_1_89_0 OCCPY_CXX_FLAGS=/std:c++14"
+          CIBW_BEFORE_ALL_WINDOWS: "curl -fsSL -o C:\\boost.zip https://archives.boost.io/release/1.89.0/source/boost_1_89_0.zip & tar -xf C:\\boost.zip -C C:\\"
+          CIBW_ENVIRONMENT_WINDOWS: INCLUDE="C:\\boost_1_89_0" OCCPY_CXX_FLAGS=/std:c++14
           CIBW_BEFORE_BUILD: "if exist build rmdir /s /q build"
           CIBW_BUILD_VERBOSITY: 1
         run: python -m cibuildwheel --output-dir dist
