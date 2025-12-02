@@ -1,11 +1,7 @@
-import os
-
 import numpy as np
-import pickle
 import pandas as pd
 import laspy
 import time
-import zarr
 
 from raytr import PyRaytracer
 
@@ -64,9 +60,9 @@ if ~is_sorted(gps_time):
     number_of_returns = number_of_returns[sort_ind]
 
 
-# write sorted pdata into zarr file
-zarr.save(f"{out_dir}/PulseData.zip", gps_time=gps_time, return_number=return_number,
-          number_of_returns=number_of_returns, x=x, y=y, z=z)
+# write sorted pdata into npz file
+np.savez(f"{out_dir}/PulseData_sorted.npz", gps_time=gps_time, return_number=return_number,
+         number_of_returns=number_of_returns, x=x, y=y, z=z)
 
 del gps_time, return_number, number_of_returns, x, y, z
 
@@ -97,7 +93,7 @@ toc = time.time()
 print("Time elapsed: {:.2f} seconds".format(toc - tic))
 
 # Load the previously generated pulse dataset with sorted pulses
-pdata = zarr.load(f"{out_dir}/PulseData.zip")
+pdata = np.load(f"{out_dir}/PulseData_sorted.npz")
 
 if points_per_iter > len(pdata['gps_time']):
     gps_time = pdata['gps_time']

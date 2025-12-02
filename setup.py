@@ -1,96 +1,41 @@
-# Cython compile instructions
-# Use python setup.py build_ext --inplace
-# to compile
-
 import sys
 import os
 import numpy
 import platform
-import shutil
 import ctypes
-#import occpy
 
-from distutils.core import setup
-from distutils.extension import Extension
-from Cython.Distutils import build_ext
+from setuptools import setup, Extension
 from Cython.Build import cythonize
 
-# clean previous build
-for root, dirs, files in os.walk("", topdown=False):
-    for name in files:
-        if (name.startswith("raytr") and not(name.endswith(".pyx") or name.endswith(".pxd"))):
-            os.remove(os.path.join(root, name))
-    #for name in dirs:
-    #    if (name == "build"):
-    #        shutil.rmtree(name)
+sources = ["src/raytr.pyx", "src/Raytracer.cpp", "src/Pulse.cpp", "src/Echo.cpp"]
 
-
-# Removes hardcoding by using Environment path to form the relevant directory paths. 
-# exact paths platform-dependent, see below
 env_path = sys.prefix
 
-# set source paths
-src_path = os.path.abspath("src")
-sources=[os.path.join(src_path, "raytr.pyx"),
-                        os.path.join(src_path, "Raytracer.cpp"),
-                        os.path.join(src_path, "Pulse.cpp"),
-                        os.path.join(src_path, "Echo.cpp")
-                        ]
-
-# build "raytr.so" python extension to be added to "PYTHONPATH" afterwards...
-if platform.system() == 'Linux':
+if platform.system() == "Linux":
     include_path = os.path.join(env_path, "include")
     library_path = os.path.join(env_path, "lib")
-
-    extensions = [
-        Extension("raytr",
-                sources=sources,
-                libraries=[],  # refers to "liblas.2.3.0.dylib"
-                language="c++",  # remove this if C and not C++
-                include_dirs=[include_path],
-                library_dirs=[library_path],
-                requires=['Cython']
-                )
-    ]
-elif platform.system() == 'Darwin':  #MacOS
+    extra_compile = []
+    extra_link = []
+elif platform.system() == "Darwin":
     include_path = os.path.join(env_path, "include")
     library_path = os.path.join(env_path, "lib")
-    extensions = [
-        Extension("raytr",
-                sources=sources,
-                libraries=[],  # refers to "liblas.2.3.0.dylib"
-                language="c++",  # remove this if C and not C++
-                include_dirs=[include_path],
-                library_dirs=[library_path],
-                requires=['Cython'],
-                extra_compile_args=["-std=c++11"],
-                extra_link_args=["-std=c++11"]
-                )
-    ]
+    extra_compile = ["-std=c++11"]
+    extra_link = ["-std=c++11"]
 else:
-    include_path = os.path.join(env_path, "Library/include")
-    library_path = os.path.join(env_path, "Library/lib")
-    extensions = [
-        Extension("raytr",
-                sources=sources,
-                libraries=[],  # refers to "liblas.2.3.0.dylib"
-                language="c++",  # remove this if C and not C++
-                include_dirs=[include_path],
-                # ["C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/include/"],
-                # include_dirs=["/usr/local/Cellar/boost/1.75.0_2/include", "/usr/local/Cellar/pdal/2.2.0_3/include", "/usr/local/Cellar/laszip/3.4.3/include"],
-                library_dirs=[library_path],
-                # ["C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/lib"],
-                #library_dirs=["/usr/local/Cellar/pdal/2.2.0_3/lib"],
-                requires=['Cython'],
-                #extra_compile_args=["-ferror-limit=0"]
-                #extra_compile_args=["-std=c++11"],
-                #extra_compile_args=["-fopenmp", "-O3"],
-                extra_compile_args=['-openmp'],  #Windows only
-                extra_link_args=['-openmp']  #Windows only
-                #extra_link_args=["L.C:/Users/kueken/Miniconda3/envs/OcclusionMapping_PDAL/Library/lib/pdalcpp"]
-                #, "-DSOME_DEFINE_OPT","-L./some/extra/dependency/dir/"]
-                )
-    ]
+    include_path = os.path.join(env_path, "Library", "include")
+    library_path = os.path.join(env_path, "Library", "lib")
+    extra_compile = ["-openmp"]
+    extra_link = []
+
+ext = Extension(
+    "raytr",
+    sources=sources,
+    language="c++",
+    include_dirs=[include_path, numpy.get_include()],
+    library_dirs=[library_path],
+    extra_compile_args=extra_compile,
+    extra_link_args=extra_link,
+)
 
 
 # ------------ RIEGL IO ----------------#
@@ -99,14 +44,14 @@ NUMPY_MACROS = ('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')
 
 def getExtraCXXFlags():
     """
-    Looks at the $PYLIDAR_CXX_FLAGS environment variable.
+    Looks at the $OCCPY_CXX_FLAGS environment variable.
     If it exists, this function returns a list of flags
     to be passed as the extra_compile_args argument to
     the Extension constructor.
     Otherwise None.
     """
-    if 'PYLIDAR_CXX_FLAGS' in os.environ:
-        return os.environ['PYLIDAR_CXX_FLAGS'].split()
+    if 'OCCPY_CXX_FLAGS' in os.environ:
+        return os.environ['OCCPY_CXX_FLAGS'].split()
     else:
         return None
 
@@ -222,20 +167,11 @@ def getRieglRDBLibVersion(rdbRoot, libname):
 cxxFlags = getExtraCXXFlags()
 
 # External modules
-pre_riegl_ext_len = len(extensions)
-ext_cy = cythonize(extensions)
+ext_cy = cythonize([ext])
 addRieglRXPDriver(ext_cy, cxxFlags)
 addRieglRDBDriver(ext_cy, cxxFlags)
 
-if len(ext_cy) == pre_riegl_ext_len:
-    print('RiVLib and/or RDBLib not found. RIEGL I/O will not be supported.')
-
-import occpy
 setup(
-    name = 'occpy',
-    version= occpy.__version__,
     packages = ["occpy"],
-    cmdclass = {'build_ext': build_ext},
-    ext_modules = ext_cy,
-    install_requires=['Cython', 'numpy']
+    ext_modules = ext_cy
 )

@@ -1,4 +1,4 @@
-﻿name: occPy
+﻿name: occpy
 channels:
   - conda-forge
 dependencies:
@@ -6,15 +6,11 @@ dependencies:
   - pip
   - cython
   - numpy
-  - numba
   - pandas
   - scipy
-  - zarr
   - boost
   - matplotlib
-  - gdal
   - tqdm
-  - ipykernel
   - pip:
       - seaborn
       - rasterio
@@ -25,7 +21,10 @@ dependencies:
       - mkdocstrings-python
       - mkdocs-material
       - mkdocs-jupyter
+      - open3d
+      - pyvista
+      - ipykernel
 variables:
-  # RIVLIB_ROOT: /home/wcherlet/libs/rivlib-2_8_0-x86_64-linux-gcc9/ #ADAPT: path to rivlib here
-  # RDBLIB_ROOT: /home/wcherlet/libs/rdblib-2.4.5-x86_64-linux/ #ADAPT: path to rdblib here
-  PYLIDAR_CXX_FLAGS: -std=c++11 
+  OCCPY_CXX_FLAGS: -std=c++11 
+  # RIVLIB_ROOT: #ADAPT: path to rivlib here
+  # RDBLIB_ROOT: #ADAPT: path to rdblib here

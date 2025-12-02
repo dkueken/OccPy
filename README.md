@@ -1,124 +1,65 @@
-# OccPy
+![Occpy](assets/occpy_logo_v3_trans.png "Occpy logo")
 
-<!---
-## Name
-Choose a self-explaining name for your project.
---->
+---
 
-## Description
-OccPy is a python tool to map occluded area from LiDAR data in 3D using a voxel traversal algorithm. 
-
-<!---
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
---->
+OccPy is a python tool to map occluded area from LiDAR data in 3D using a voxel traversal algorithm implemented in C++. 
 
 ## Installation
-To install OccPy, several steps are required which may or may not go through easily. The tool has been tested on Windows 10. 
-Please let me know if you encounter any issues installing the tool.
 
-### Clone repository
-Clone the repository using git with the following command (or download the zip from gitlab):
+Via pip:
+(TODO: replace with pypi version)
+
 ```commandline
-git clone https://github.com/dkueken/OccPy.git
+ pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple occpy_ls==0.1
 ```
 
-cd into the cloned repository
+Pre-built wheels are available for Python versions 3.10, 3.11, 3.12, 3.13, on:
+- Linux (x86_64)
+- Windows (TODO)
+A source distribution is also available, which will require a C++ environment with boost libraries installed for a working installation.
+
+Note: Riegl libraries are not packaged, to use RXP and RDBX files, you must build from source.
+
+### Build from source
+
+Clone the repository
+
 ```commandline
+git clone https://github.com/dkueken/OccPy.git
 cd OccPy
 ```
 
-### Seting up environment
-We expect you to have a working conda installation (either through Anaconda or miniconda)
-Either setup a new environment using the following command
+Set up the environment
+
 ```commandline
 conda env create -f environment.yml
-```
-activate the environment
-```commandline
 conda activate occPy
 ```
-or within an existing environment install all the necessary packages:
+
+Build extensions and install occpy using:
 ```commandline
-pip install -r requirements.txt
-```
-
-### Potential Issues
-Currently, packages installed via pip are not listed in the environment.yml file (e.g. laspy). It could be that you need
-to install these packages using pip:
-e.g.
-```commandline
-pip install laspy[laszip]
-```
-the _[laszip]_ option enables the reading of .laz files 
-
-or you could also install all packages with the following command (potential package conflicts between conda and pip not tested)
-
-```commandline
-pip install -r requirements.txt
-```
-
-
-### List of needed packages
-This is a list of needed packages for the tool to run, if the instal via environment.yml or requirements.txt fails:
-- [ ] boost
-- [ ] cython
-- [ ] numpy
-- [ ] laspy*
-- [ ] pandas
-- [ ] scipy
-
-'*' should be installed through pip (see below)
-
-installing most current version should in theory work.
-In order for laz compatibility, install _laspy_ with _laszip_ compatibility through
-```commandline
-pip install laspy[laszip]
-```
-
-### Compile the c++ side of the OccPy tool
-
-Compile c++ side and install occpy package using:
 pip install -v .
+```
 
-There will probably appear several warning messages. These can mostly be ignored (TODO: @kueken: check on these warnings!)
-If compilation was successful, the tool can be imported using 
-
-Navigate to the src folder where setup.py is located
-```commandline
-cd occpy/src
-```
-Then compile the code using the following command:
-```commandline
-python setup.py build_ext --inplace
-```
- 
-However, if the compiled raytr file is not in the same directory as your python code calling the raytracer, you should add the following lines to the beginning of your python script
-```python
-import sys
-sys.path.append(r".\src) # assuming you have your python file in the root directory of the tool. change adequately if this is not the case.
-```
+NOTE: if you want to use RIEGL .rdbx and .rxp files as input, make sure to set the RIVLIB_ROOT and RDBLIB_ROOT environment variables to the root path of the corresponding libraries before installing.
 
 ## Usage
-There are three example scripts provided that should show how the tool can work for different flavors of LiDAR platforms (TLS, MLS, UAVLS)
+There are example notebooks provided for different flavors of LiDAR platforms (TLS, MLS, UAVLS), under docs/notebooks.
 
-- For TLS see Test_TLS.py
-- For MLS see Test_MLS.py
-- For UAVLS see Test_UAVLS.py
+TODO: maybe add some quick start guide to the webpage?
 
 ## Requirements for a successful occlusion mapping
-In order for the occlusion mapping to work, several requirements on the input data have to be met. These are listed below specifically for the diffreent flavors of LiDAR platforms
+In order for the occlusion mapping to work, several requirements on the input data have to be met. These are listed below specifically for the different flavors of LiDAR platforms.
 
 ### TLS
 **Scan Positions**
-- [ ] Scan Position file (as txt), where position should be referring to the laser source position.
+- Scan Position file (as txt), where position should be referring to the laser source position.
 
 **LAZ File**
-- [ ] 1 LAZ or LAS file per scan position, preferably not filtered. If a multi return TLS is used, you can improve
-performance by sorting the LAZ file according to GPS Time and return number, e.g. by using LASTools's lassort funciton:
+- 1 LAZ or LAS file per scan position, preferably not filtered. 
+
+If a multi return TLS is used, you can improve
+performance by sorting the LAZ file according to GPS Time and return number, e.g. by using LASTools's lassort function:
 
 ```commandline
 lassort -i in_laz -gps_time -return_number -odix _sort -olaz -cpu64 -v
@@ -128,10 +69,10 @@ lassort -i in_laz -gps_time -return_number -odix _sort -olaz -cpu64 -v
 
 A trajectory file is strongly needed for the algorithm to work with MLS data. The following data should be present in 
 trajectory file:
-- [ ] Time (usually GPS time in seconds) - be sure that the GPS time format corresponds to the one stored in the gps_time field of the laz file
-- [ ] Position of the sensor in X, Y, Z coordinates
+- Time (usually GPS time in seconds) - be sure that the GPS time format corresponds to the one stored in the gps_time field of the laz file
+- Position of the sensor in X, Y, Z coordinates
 
-the pose of the sensor is currently not regarded (e.g. quaternions) We are expecting that the coordinates in the trajectory
+The pose of the sensor is currently not regarded (e.g. quaternions) We are expecting that the coordinates in the trajectory
 corresponds to the position of the laser source.
 
 The gps time tags do not need to be exactly the same as found in the gps_time field of the laz file, as the exact position
@@ -140,8 +81,7 @@ result in more accurate interpolation of the scanner position and hence a more a
 
 **LAZ file**
 
-As stated before, the biggest requirement for the LAZ file is that gps_time field is corresponding to the gps time readings 
-in the trajectory file.
+As stated before, the biggest requirement for the LAZ file is that gps_time field is corresponding to the gps time readings in the trajectory file.
 
 ### UAVLS
 **Trajectory file**
@@ -158,13 +98,8 @@ return_number like:
 lassort -i laz_in -gps_time -return_number -odix _sort -olaz -cpu64 -v
 ```
 
-unsorted LAZ files will also work, however, there will be a substantial computational overhead, as the entire dataset 
+Unsorted LAZ files will also work, however, there will be a substantial computational overhead, as the entire dataset 
 needs to be read and stored at once.
-
-## Visualization of output .bov files
-OccPy has the option to output .bov files for visualization purposes. These files (basically a binary file (.dat) and a 
-header file (.bov)) can be visualized using the VisIt visualization software (https://visit-dav.github.io/visit-website/index.html).
-#TODO: implement an alternative visualization solution with automatic 2D top down, slice and profile visualization.
 
 ## Support
 For questions and support, please contact Daniel Kükenbrink via daniel.kuekenbrink@wsl.ch
@@ -172,22 +107,18 @@ For questions and support, please contact Daniel Kükenbrink via daniel.kuekenbr
 ## Roadmap
 Several open issues and improvements are currently worked on or planned for the future:
 
-- [ ] Improve (add) documentation of the different functions and example scripts
-- [ ] Add example data which should be used in the example scripts
-- [ ] There is currently still an issue with UAVLS data, where some (very few) LiDAR returns are not registered by the algorithm. The implications for that should be analysed and the problem mitigated. This could cause an underestimation of occlusion, as the e.g. the last return is never reached and the pulse will traverse further without declaring an voxels as occluded for that pulse. There is the possibility to overcome this issue by using the function ```RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)``` as used in the script _Test_MLS.py_, where the input data is not initially converted to a pulse dataset, but each return is basically treated as a single pulse. We would only recommend to use this approach, if you are confident about your trajectory information.
-- [ ] Add support for reading in a DTM file, so the algorithm could stop, once the pulse reached the terrain.
-- [ ] Add functionality for height normalisation of outputs
-- [ ] substantial performance improvement by using multi core processing
-- [ ] Add functionality for PAI/PAD calculation of each voxel (i.e. calculation of path length within voxel for each pulse) 
-- [ ] Add visualization solution like (potential idea: https://github.com/msoechting/lexcube)
-<!---
+- Improve (add) documentation of the different functions and example scripts
+- Add example data which should be used in the example scripts
+- There is currently still an issue with UAVLS data, where some (very few) LiDAR returns are not registered by the algorithm. The implications for that should be analysed and the problem mitigated. This could cause an underestimation of occlusion, as the e.g. the last return is never reached and the pulse will traverse further without declaring an voxels as occluded for that pulse. There is the possibility to overcome this issue by using the function ```RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)``` as used in the script _Test_MLS.py_, where the input data is not initially converted to a pulse dataset, but each return is basically treated as a single pulse. We would only recommend to use this approach, if you are confident about your trajectory information.
+- Add support for reading in a DTM file, so the algorithm could stop, once the pulse reached the terrain.
+- Add functionality for height normalisation of outputs
+- Substantial performance improvement by using multi core processing
+- Add functionality for PAI/PAD calculation of each voxel (i.e. calculation of path length within voxel for each pulse) 
+- Add visualization solution like (potential idea: https://github.com/msoechting/lexcube)
+
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
---->
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
 ## Authors and acknowledgment
 The algorithm is strongly based on the initial publication of a voxel traversal algorithm as seen in Amanatides & Woo (1987). 
@@ -227,10 +158,8 @@ and
 Schneider, F.D., Kükenbrink, D., Schaepman, M.E., Schimel, D.S., Morsdorf, F., 2019. Quantifying 3D structure and occlusion in dense tropical and temperate forests using close-range LiDAR. Agric. For. Meteorol. 268. https://doi.org/10.1016/j.agrformet.2019.01.033
 
 
-<!---
 ## License
-For open source projects, say how it is licensed.
---->
+See [LICENSE](LICENSE).
 
 ## Project status
 This tool is still under development and substantial testing with different datasets should be performed.
