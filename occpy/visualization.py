@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 from matplotlib.colors import LogNorm
 from matplotlib.colors import to_rgb
+import seaborn as sns
 
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
@@ -43,7 +44,7 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
     axis: int [0, 1, 2]
         axis index, either 0 (X-Axis), 1 (Y-Axis) or 2 (Z-Axis)
     chm: np.ndarray [default=None]
-        2D canopy height model raster. TODO: check and implement behavior if chm is not provided.
+        2D canopy height model raster. if chm is None no CHM line will be plotted.
     vertBuffer: float [default=0]
         optional vertical buffer added to the figure, if axis=0 or axis=1. This adds a padding above the canopy, so legend
         entries are not overlapping the actual transect.
@@ -178,13 +179,14 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
 
 
     if x_axis_vect is not None:
-        chm_ref_plot = ax.plot(x_axis_vect, chm_slice_ref, label="ULS CHM")
-        # chm_comp_plot = ax.plot(x_axis_vect, chm_slice_comp, label="Comp CHM", linestyle='--') #TODO: implement that!
+        if chm is not None:
+            chm_ref_plot = ax.plot(x_axis_vect, chm_slice_ref, label="ULS CHM")
+            # chm_comp_plot = ax.plot(x_axis_vect, chm_slice_comp, label="Comp CHM", linestyle='--') #TODO: implement that!
 
-        legend_ax = ax.inset_axes([slot_width + gap + margin, y_pos_axes, slot_width, slot_height])
-        legend_ax.axis("off")
-        legend = legend_ax.legend(handles=[chm_ref_plot[0]], loc='center', frameon=True, ncol=1, fontsize=fig_prop['label_size_ticks'])
-        legend.get_frame().set_alpha(1)
+            legend_ax = ax.inset_axes([slot_width + gap + margin, y_pos_axes, slot_width, slot_height])
+            legend_ax.axis("off")
+            legend = legend_ax.legend(handles=[chm_ref_plot[0]], loc='center', frameon=True, ncol=1, fontsize=fig_prop['label_size_ticks'])
+            legend.get_frame().set_alpha(1)
 
 
     # define colorbars with position and dimension
@@ -371,13 +373,14 @@ def get_Occl_TransectFigure_BinaryOcclusion(Nhit, Classification, plot_dim, vox_
 
 
     if x_axis_vect is not None:
-        chm_ref_plot = ax.plot(x_axis_vect, chm_slice_ref, label="ULS CHM")
-        # chm_comp_plot = ax.plot(x_axis_vect, chm_slice_comp, label="Comp CHM", linestyle='--') #TODO: implement that!
+        if chm is not None:
+            chm_ref_plot = ax.plot(x_axis_vect, chm_slice_ref, label="ULS CHM")
+            # chm_comp_plot = ax.plot(x_axis_vect, chm_slice_comp, label="Comp CHM", linestyle='--') #TODO: implement that!
 
-        legend_ax = ax.inset_axes([slot_width + gap + margin, y_pos_axes, slot_width, slot_height])
-        legend_ax.axis("off")
-        legend = legend_ax.legend(handles=[chm_ref_plot[0]], loc='center', frameon=True, ncol=1, fontsize=fig_prop['label_size_ticks'])
-        legend.get_frame().set_alpha(1)
+            legend_ax = ax.inset_axes([slot_width + gap + margin, y_pos_axes, slot_width, slot_height])
+            legend_ax.axis("off")
+            legend = legend_ax.legend(handles=[chm_ref_plot[0]], loc='center', frameon=True, ncol=1, fontsize=fig_prop['label_size_ticks'])
+            legend.get_frame().set_alpha(1)
 
 
     # define colorbars with position and dimension
