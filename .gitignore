@@ -20,7 +20,7 @@ OcclusionMapping_Holstein.py
 riegl_tests/
 scripts/
 test_out/
-occpy.egg-info
+*.egg-info
 data/RIEGL_TLS
 vis_out/
 tests/*_RamerenWald_*
@@ -31,3 +31,5 @@ config/*_tutorial_out_indvLAZ.JSON
 site/*
 output/MLS/**
 penmp
+.pypirc
+dist/
