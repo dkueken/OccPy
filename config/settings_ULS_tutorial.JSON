@@ -1,14 +1,14 @@
 {
-    "root_folder": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy",
-    "laz_in": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy\\data\\ULS\\ULS_TestData_20perc_FP10_2025_LeafOn.laz",
+    "root_folder": "c:\\Users\\Kueken\\dev\\occpy_dev\\OccPy",
+    "laz_in": "C:\\Users\\Kueken\\AppData\\Local\\occpy_test_data\\occpy_test_data\\Cache\\ULS_demo.zip.unzip\\ULS_demo\\LAZ\\ULS_TestData_20perc_FP10_2025_LeafOn.laz",
     "tif_in": {
-        "DTM": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy\\data\\Grids\\Ramerenwald_DTM_20250305.tif",
-        "DSM": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy\\data\\Grids\\Ramerenwald_DSM_20250305.tif"
+        "DTM": "C:\\Users\\Kueken\\AppData\\Local\\occpy_test_data\\occpy_test_data\\Cache\\ULS_demo.zip.unzip\\ULS_demo\\Grids\\Ramerenwald_DTM_20250305.tif",
+        "DSM": "C:\\Users\\Kueken\\AppData\\Local\\occpy_test_data\\occpy_test_data\\Cache\\ULS_demo.zip.unzip\\ULS_demo\\Grids\\Ramerenwald_DSM_20250305.tif"
     },
-    "out_dir": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy\\output\\ULS",
+    "out_dir": "c:\\Users\\Kueken\\dev\\occpy_dev\\OccPy\\output\\ULS",
     "vox_dim": 0.1,
     "lower_threshold": 1,
-    "points_per_iter": 10000000,
+    "points_per_iter": 1000000,
     "plot_dim": [
         2676515,
         1246063,
@@ -17,6 +17,6 @@
         1246113,
         590
     ],
-    "ScanPos": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy\\data\\ULS\\ULS_TestData_traj_FP10_2025_LeafOn.txt",
+    "ScanPos": "C:\\Users\\Kueken\\AppData\\Local\\occpy_test_data\\occpy_test_data\\Cache\\ULS_demo.zip.unzip\\ULS_demo\\ScanPos\\ULS_TestData_traj_FP10_2025_LeafOn.txt",
     "output_voxels": false
 }

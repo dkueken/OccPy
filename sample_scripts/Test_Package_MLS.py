@@ -1,7 +1,7 @@
 from occpy.OccPy import OccPy
-from occpy.OccPy import normalize_occlusion_output
-from occpy.OccPy import get_Occl_TransectFigure
-from occpy.OccPy import get_Occl_TransectFigure_BinaryOcclusion
+from occpy.util import normalize_occlusion_output
+from occpy.visualization import get_Occl_TransectFigure
+from occpy.visualization import get_Occl_TransectFigure_BinaryOcclusion
 from occpy.OccPy import get_Occlusion_ProfileFigure
 
 from occpy import TerrainModel
@@ -12,16 +12,18 @@ import json
 
 import time
 
-parser = argparse.ArgumentParser(description="OccPy")
+"""parser = argparse.ArgumentParser(description="OccPy")
 parser.add_argument('config_file', help="JSON configuration file of the OccPy command")
-args = parser.parse_args()
+args = parser.parse_args()"""
+config_file = r"E:\Data\BEF_Lagern\MLS\2024_07_16_LeafOn\BEF_11A\OcclusionMap_25cm\config\BEF_11A_occpy_cfg.json"
 
 def load_config(config_file):
     with open(config_file, 'r') as file:
         return json.load(file)
 
 
-config = load_config(args.config_file)
+#config = load_config(args.config_file)
+config = load_config(config_file)
 root_folder = config['root_folder']
 
 
@@ -36,7 +38,7 @@ test.define_sensor_pos(path2file=config['ScanPos'],         # Path to the trajec
                        is_mobile=True,                      # whether acquisition is mobile. Always true for MLS or ULS
                        single_return=True,                  # wheter the data is single or multi return
                        delimiter=" ",                       # delimiter used in the trajectory file 
-                       hdr_time='//world_time',             # column header for the time information in the trajectory file
+                       hdr_time='%time',             # column header for the time information in the trajectory file
                        hdr_x='x',                           # column header for the x coordinate in the trajectory file
                        hdr_y='y',                           # column header for the y coordinate in the trajectory file
                        hdr_z='z',)                          # column header for the z coordinate in the trajectory file
