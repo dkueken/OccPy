@@ -1,19 +1,27 @@
 import numpy as np
 
 def test_grid_definition():
+    """
+
+    Returns
+    -------
+
+    """
     from occpy.OccPy import OccPy
 
     minX = 10
-    minY = 10
-    minZ = 10
+    minY = 20
+    minZ = 30
     maxX = 100
-    maxY = 100
-    maxZ = 100
+    maxY = 200
+    maxZ = 300
 
     vox_size = 1
     expected_extent = [int((maxX - minX)/vox_size),
                        int((maxY - minY)/vox_size),
                        int((maxZ - minZ)/vox_size)]
+
+    expected_origin = [minX, minY, minZ]
 
     test = OccPy(laz_in=f"dummy_path/to_dummy_file.laz",
                  out_dir=f"dummy_path/to_dummy_output_dir",
@@ -24,6 +32,9 @@ def test_grid_definition():
 
     extent = test.getGridDimensions()
     np.testing.assert_array_equal(extent, expected_extent)
+
+    origin = test.getGridOrigin()
+    np.testing.assert_array_equal(origin, expected_origin)
 
 
 

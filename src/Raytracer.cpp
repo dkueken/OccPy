@@ -995,6 +995,10 @@ vector<int > Raytracer::getGridDimensions(){
     return grid_dim;
 }
 
+vector<int > Raytracer::getGridOrigin(){
+    return this->gridDim.origin;
+}
+
 vector<double> Raytracer::getPulsesIntersectingBox(vector<double> x, vector<double> y, vector<double> z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time, vector<int> vmin, vector<int> vmax){
 
     int pulsecount = 0;

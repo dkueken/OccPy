@@ -38,6 +38,7 @@ cdef extern from "Raytracer.hpp":
         vector[vector[vector[int]]]& getNmiss()
         vector[vector[vector[int]]]& getNocc()
         vector[int] getGridDimensions()
+        vector[int] getGridOrigin()
         void getPulseDatasetReport()
         vector[vector[double]]& reportSensorShifts()
         vector[double] getPulsesIntersectingBox(vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[int], vector[int])
@@ -80,6 +81,8 @@ cdef class PyRaytracer:
         return self.thisptr.getNocc()
     def getGridDimensions(self):
         return self.thisptr.getGridDimensions()
+    def getGridOrigin(self):
+        return self.thisptr.getGridOrigin()
     def getPulseDatasetReport(self):
         self.thisptr.getPulseDatasetReport()
     def reportOnTraversal(self):

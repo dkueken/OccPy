@@ -648,3 +648,14 @@ class OccPy:
         gridDim = np.asarray(gridDim, dtype=np.int32)
 
         return gridDim
+
+    def getGridOrigin(self):
+        """
+        Get the grid origin
+        Returns
+        -------
+        vector with grid origins [minx, miny, minz]
+
+        """
+        origin = np.asarray(self.RayTr.getGridOrigin(), dtype=np.int32)
+        return origin
