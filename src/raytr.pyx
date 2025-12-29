@@ -37,7 +37,7 @@ cdef extern from "Raytracer.hpp":
         vector[vector[vector[int]]]& getNhit()
         vector[vector[vector[int]]]& getNmiss()
         vector[vector[vector[int]]]& getNocc()
-        vector[int]& getGridDimensions()
+        vector[int] getGridDimensions()
         void getPulseDatasetReport()
         vector[vector[double]]& reportSensorShifts()
         vector[double] getPulsesIntersectingBox(vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[int], vector[int])

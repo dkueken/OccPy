@@ -33,6 +33,7 @@ def darken_color(color, amount=0.6):
     r, g, b = to_rgb(color)
     return (r * amount, g * amount, b * amount)
 
+""" Moved to visualization module. delete once everything is working.
 def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_thresh=0, vertBuffer=0, max_percentage=100, fig_prop=None, show_plots=False):
 
     grid_dim = (int((plot_dim[3] - plot_dim[0]) / vox_dim), int((plot_dim[4] - plot_dim[1]) / vox_dim),
@@ -96,6 +97,7 @@ def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_
         plt.show(block=True)
     else:
         plt.close()
+"""
 
 
 
@@ -633,3 +635,16 @@ class OccPy:
 
         """
         del self.RayTr
+
+    def getGridDimensions(self):
+        """
+        Get the grid dimensions
+        Returns
+        -------
+        vector with grid diemsnions [minx, maxx, miny, maxy]
+
+        """
+        gridDim = self.RayTr.getGridDimensions()
+        gridDim = np.asarray(gridDim, dtype=np.int32)
+
+        return gridDim

@@ -986,7 +986,7 @@ vector<vector<double > >& Raytracer::reportSensorShifts(){
     return this->SensorShifts;
 }
 
-vector<int >& Raytracer::getGridDimensions(){
+vector<int > Raytracer::getGridDimensions(){
     vector<int> grid_dim (3,0);
     grid_dim.at(0) = this->gridDim.nx;
     grid_dim.at(1) = this->gridDim.ny;
