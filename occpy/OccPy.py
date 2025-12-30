@@ -659,3 +659,62 @@ class OccPy:
         """
         origin = np.asarray(self.RayTr.getGridOrigin(), dtype=np.int32)
         return origin
+
+    def getNumTraversedPulses(self):
+        """
+        Get the number of traversed pulses
+        Returns
+        -------
+        int
+
+        """
+        return np.int32(self.RayTr.get_num_traversed_pulses())
+
+
+    def getTotalNumPulses(self):
+        """
+        Get the total number of pulses loaded into the pulse dataset on the c++ side
+        Returns
+        -------
+        total_num_pulses: int
+            total number of pulses stored in the pulse dataset
+
+        """
+        return np.int32(self.RayTr.get_total_pulses_in_dataset())
+
+    def getNumRegisteredHits(self):
+        """
+        Get the number of registered hits
+        Returns
+        -------
+
+        """
+        return np.int32(self.RayTr.get_num_registered_hits())
+
+    def getNumEchoesOutside(self):
+        """
+        Get the number of echoes registered outside the voxel grid
+        Returns
+        -------
+
+        """
+        return np.int32(self.RayTr.get_num_echoes_outside())
+
+    def getNumMissingReturns(self):
+        """
+        Get the number of missing returns
+        Returns
+        -------
+
+        """
+        return np.int32(self.RayTr.get_num_missing_returns())
+
+    def getNumNonIntersectPulses(self):
+        """
+        Get the number of pulses that do not intersect the defined voxel grid
+        Returns
+        -------
+
+        """
+        return np.int32(self.RayTr.get_num_pulses_no_intersection())
+

@@ -1303,22 +1303,22 @@ void Raytracer::doRaytracingEmptyPulses(){
 
 // Get functions for status reporting of raytracing
 
-int Raytracer::get_num_traversed_pulses(){
+int Raytracer::get_num_traversed_pulses() const{
     return this->traversedPulses;
 }
-int Raytracer::get_total_pulses_in_dataset(){
+int Raytracer::get_total_pulses_in_dataset() const{
     return this->totalPulsesInDataset;
 }
-int Raytracer::get_num_registered_hits(){
+int Raytracer::get_num_registered_hits() const{
     return this->regHit;
 }
-int Raytracer::get_num_echoes_outside(){
+int Raytracer::get_num_echoes_outside() const{
     return this->echoesOutside;
 }
-int Raytracer::get_num_missing_returns(){
+int Raytracer::get_num_missing_returns() const{
     return this->numMissingReturns;
 }
-int Raytracer::get_num_pulses_no_intersection(){
+int Raytracer::get_num_pulses_no_intersection() const{
     return this->numNoGridIntersection;
 }
 
