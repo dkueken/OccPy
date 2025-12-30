@@ -46,6 +46,13 @@ cdef extern from "Raytracer.hpp":
         void addEmptyPulseData(vector[double] sensor_x, vector[double] sensor_y, vector[double] sensor_z, vector[double] direction_x, vector[double] direction_y, vector[double] direction_z, vector[double] gps_time)
         void doRaytracingEmptyPulses()
 
+        int get_num_traversed_pulses()
+        int get_total_pulses_in_dataset()
+        int get_num_registered_hits()
+        int get_num_echoes_outside()
+        int get_num_missing_returns()
+        int get_num_pulses_no_intersection()
+
 
 
 # creating a cython wrapper class
@@ -93,4 +100,17 @@ cdef class PyRaytracer:
         return self.thisptr.addEmptyPulseData(sensor_x, sensor_y, sensor_z, direction_x, direction_y, direction_z, gps_time)
     def doRaytracingEmptyPulses(self):
         return self.thisptr.doRaytracingEmptyPulses()
+    def get_num_traversed_pulses(self):
+        return self.thisptr.get_num_traversed_pulses()
+    def get_total_pulses_in_dataset(self):
+        return self.thisptr.get_total_pulses_in_dataset()
+    def get_num_registered_hits(self):
+        return self.thisptr.get_num_registered_hits()
+    def get_num_echoes_outside(self):
+        return self.thisptr.get_num_echoes_outside()
+    def get_num_missing_returns(self):
+        return self.thisptr.get_num_missing_returns()
+    def get_num_pulses_no_intersection(self):
+        return self.thisptr.get_num_pulses_no_intersection()
+
 

@@ -98,6 +98,14 @@ class Raytracer {
         vector<int > getGridOrigin();
         vector<double> getPulsesIntersectingBox(vector<double> x, vector<double> y, vector<double> z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time, vector<int> vmin, vector<int> vmax);
 
+        // Get status reports on raytracing
+        int get_num_traversed_pulses();
+        int get_total_pulses_in_dataset();
+        int get_num_registered_hits();
+        int get_num_echoes_outside();
+        int get_num_missing_returns();
+        int get_num_pulses_no_intersection();
+
         void moveSensorPos2Collinearity();
 
         bool linePlaneIntersection(vector3& contact, vector3 ray, vector3 rayOrigin, vector3 normal, vector3 coord);

@@ -1301,7 +1301,26 @@ void Raytracer::doRaytracingEmptyPulses(){
 // then move to seperate function we can use in both raytracing functions
 // def Raytracer::stepVoxel(tMax, step, tDelta){
 
+// Get functions for status reporting of raytracing
 
+int Raytracer::get_num_traversed_pulses(){
+    return this->traversedPulses;
+}
+int Raytracer::get_total_pulses_in_dataset(){
+    return this->totalPulsesInDataset;
+}
+int Raytracer::get_num_registered_hits(){
+    return this->regHit;
+}
+int Raytracer::get_num_echoes_outside(){
+    return this->echoesOutside;
+}
+int Raytracer::get_num_missing_returns(){
+    return this->numMissingReturns;
+}
+int Raytracer::get_num_pulses_no_intersection(){
+    return this->numNoGridIntersection;
+}
 
 
 
