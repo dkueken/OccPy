@@ -50,10 +50,10 @@ def normalize_occlusion_output(input_folder, PlotDim, vox_dim, dtm_file, dsm_fil
 
     """
 
-    Nhit = np.load(f"{input_folder}/Nhit.npy")
-    Nmiss = np.load(f"{input_folder}/Nmiss.npy")
-    Nocc = np.load(f"{input_folder}/Nocc.npy")
-    Classification = np.load(f"{input_folder}/Classification.npy")
+    Nhit = np.load(os.path.join(input_folder, "Nhit.npy"))
+    Nmiss = np.load(os.path.join(input_folder, "Nmiss.npy"))
+    Nocc = np.load(os.path.join(input_folder, "Nocc.npy"))
+    Classification = np.load(os.path.join(input_folder, "Classification.npy"))
 
     # Get extent of voxel grid
     extent_voxgrid = (PlotDim[0], PlotDim[4], PlotDim[3], PlotDim[1])
@@ -68,7 +68,7 @@ def normalize_occlusion_output(input_folder, PlotDim, vox_dim, dtm_file, dsm_fil
     if pix_size != vox_dim:
         dtm.crop2extent(
             extent=extent_voxgrid,
-            out_file=f"{input_folder}\\{dtm_fname[:-4]}_resc_{vox_dim}.tif",
+            out_file=os.path.join(input_folder, f"{dtm_fname[:-4]}_resc_{vox_dim}.tif"),
             res=vox_dim)
 
     ext = dtm.get_extent()
@@ -99,7 +99,7 @@ def normalize_occlusion_output(input_folder, PlotDim, vox_dim, dtm_file, dsm_fil
         if pix_size != vox_dim:
             dsm.crop2extent(
                 extent=extent_voxgrid,
-                out_file=f"{input_folder}\\{dsm_fname[:-4]}_resc_{vox_dim}.tif",
+                out_file=os.path.join(input_folder, f"{dsm_fname[:-4]}_resc_{vox_dim}.tif"),
                 res=vox_dim)
 
         ext = dsm.get_extent()
@@ -203,23 +203,23 @@ def normalize_occlusion_output(input_folder, PlotDim, vox_dim, dtm_file, dsm_fil
         Nocc_norm = Nocc_norm[:, :, 0:max_len_prof]
 
     print(f"Saving normalized output files into directory as .npy...")
-    np.save(f"{input_folder}/Nhit_norm.npy", Nhit_norm)
-    np.save(f"{input_folder}/Nmiss_norm.npy", Nmiss_norm)
-    np.save(f"{input_folder}/Nocc_norm.npy", Nocc_norm)
-    np.save(f"{input_folder}/Classification_norm.npy", Classification_norm)
+    np.save(os.path.join(input_folder, "Nhit_norm.npy"), Nhit_norm)
+    np.save(os.path.join(input_folder, "Nmiss_norm.npy"), Nmiss_norm)
+    np.save(os.path.join(input_folder, "Nocc_norm.npy"), Nocc_norm)
+    np.save(os.path.join(input_folder, "Classification_norm.npy"), Classification_norm)
 
     # write ply file TODO: This seems to not be working for me!
     if output_voxels:
         print(f"Saving normalized output files into directory as .ply...")
         tic = time.time()
         verts, faces = prepare_ply(vox_dim, PlotDim, Nhit_norm)
-        ost.write_ply(f"{input_folder}/Nhit_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+        ost.write_ply(os.path.join(input_folder, "Nhit_norm.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
         verts, faces = prepare_ply(vox_dim, PlotDim, Nmiss_norm)
-        ost.write_ply(f"{input_folder}/Nmiss_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+        ost.write_ply(os.path.join(input_folder, "Nmiss_norm.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
         verts, faces = prepare_ply(vox_dim, PlotDim, Nocc_norm)
-        ost.write_ply(f"{input_folder}/Nocc_norm.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+        ost.write_ply(os.path.join(input_folder, "Nocc_norm.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
         verts, faces = prepare_ply(vox_dim, PlotDim, Classification_norm)
-        ost.write_ply(f"{input_folder}/Classification_norm.ply", verts, ['X', 'Y', 'Z', 'data'],
+        ost.write_ply(os.path.join(input_folder, "Classification_norm.ply"), verts, ['X', 'Y', 'Z', 'data'],
                       triangular_faces=faces)
         toc = time.time()
         print("Elapsed Time: " + str(toc - tic) + " seconds")

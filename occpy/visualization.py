@@ -216,15 +216,15 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
     # save figure
     if axis == 0:
         plt.savefig(
-            f"{out_dir}/Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels.{fig_prop['out_format']}",
+            os.path.join(out_dir, f"Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels.{fig_prop['out_format']}"),
             dpi=300, format=fig_prop['out_format'])
     elif axis == 1:
         plt.savefig(
-            f"{out_dir}/Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels.{fig_prop['out_format']}",
+            os.path.join(out_dir, f"Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels.{fig_prop['out_format']}"),
             dpi=300, format=fig_prop['out_format'])
     else:
         plt.savefig(
-            f"{out_dir}/Occlusion_Slice_XY_{start_ind}_{end_ind}_voxels.{fig_prop['out_format']}",
+            os.path.join(out_dir, f"Occlusion_Slice_XY_{start_ind}_{end_ind}_voxels.{fig_prop['out_format']}"),
             dpi=300, format=fig_prop['out_format'])
 
     if show_plots:
@@ -409,15 +409,15 @@ def get_Occl_TransectFigure_BinaryOcclusion(Nhit, Classification, plot_dim, vox_
     # save figure
     if axis == 0:
         plt.savefig(
-            f"{out_dir}/Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels_binary.{fig_prop['out_format']}",
+            os.path.join(out_dir, f"Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels_binary.{fig_prop['out_format']}"),
             dpi=300, format=fig_prop['out_format'])
     elif axis == 1:
         plt.savefig(
-            f"{out_dir}/Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels_binary.{fig_prop['out_format']}",
+            os.path.join(out_dir, f"Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels_binary.{fig_prop['out_format']}"),
             dpi=300, format=fig_prop['out_format'])
     else:
         plt.savefig(
-            f"{out_dir}/Occlusion_Slice_XY_{start_ind}_{end_ind}_voxels_binary.{fig_prop['out_format']}",
+            os.path.join(out_dir, f"Occlusion_Slice_XY_{start_ind}_{end_ind}_voxels_binary.{fig_prop['out_format']}"),
             dpi=300, format=fig_prop['out_format'])
 
     if show_plots:
@@ -534,7 +534,7 @@ def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_
     ax.legend(categories[0:2], fontsize=fig_prop['label_size_ticks'])
     plt.tight_layout()
 
-    plt.savefig(f"{out_dir}/OcclusionVertProf.{fig_prop['out_format']}", dpi=300, format=fig_prop['out_format'])
+    plt.savefig(os.path.join(out_dir, f"OcclusionVertProf.{fig_prop['out_format']}"), dpi=300, format=fig_prop['out_format'])
     if show_plots:
         plt.show(block=True)
     else:
