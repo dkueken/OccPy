@@ -4,8 +4,8 @@ site_dir: site
 docs_dir: docs
 
 theme:
-  logo: img/occpy_icon.png     # light mode logo
-  favicon: img/occpy_icon.png
+  logo: assets/occpy_logo_v3_white.png     # light mode logo
+  favicon: assets/occpy_logo_v3_white.png
   name: material
   custom_dir: docs/overrides
   palette:

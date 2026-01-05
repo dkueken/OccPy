@@ -641,7 +641,8 @@ class OccPy:
         Get the grid dimensions
         Returns
         -------
-        vector with grid diemsnions [minx, maxx, miny, maxy]
+        gridDim: [int, int, int, int]
+            vector with grid diemsnions [minx, maxx, miny, maxy]
 
         """
         gridDim = self.RayTr.getGridDimensions()
@@ -654,7 +655,8 @@ class OccPy:
         Get the grid origin
         Returns
         -------
-        vector with grid origins [minx, miny, minz]
+        origin: [int, int, int]
+            with grid origins [minx, miny, minz]
 
         """
         origin = np.asarray(self.RayTr.getGridOrigin(), dtype=np.int32)
@@ -665,7 +667,8 @@ class OccPy:
         Get the number of traversed pulses
         Returns
         -------
-        int
+        num_trav_pulses: int
+            total number of pulses traversed by the algorithm
 
         """
         return np.int32(self.RayTr.get_num_traversed_pulses())
@@ -687,6 +690,8 @@ class OccPy:
         Get the number of registered hits
         Returns
         -------
+        num_registered_hits: int
+            Number of registered hits during voxel traversal
 
         """
         return np.int32(self.RayTr.get_num_registered_hits())
@@ -696,15 +701,21 @@ class OccPy:
         Get the number of echoes registered outside the voxel grid
         Returns
         -------
+        num_echoes_outside: int
+            number of echoes outside the voxel grid
 
         """
         return np.int32(self.RayTr.get_num_echoes_outside())
 
     def getNumMissingReturns(self):
         """
-        Get the number of missing returns
+        Get the number of missing returns. Missing returns can occur, if the laser returns do not fall into an exact line
+        that is defined by the pulse origin and the last return. If the laser return falls outside of the voxel which is
+        traversed by the pulse, this return is counted to num_missing_returns.
         Returns
         -------
+        num_missing_returns: int
+            number of returns that were not registered during voxel traversal.
 
         """
         return np.int32(self.RayTr.get_num_missing_returns())
@@ -714,6 +725,8 @@ class OccPy:
         Get the number of pulses that do not intersect the defined voxel grid
         Returns
         -------
+        num_pulses_not_intersect: int
+            number of pulses that do not intersect the defined voxel grid.
 
         """
         return np.int32(self.RayTr.get_num_pulses_no_intersection())
