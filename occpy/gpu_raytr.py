@@ -29,7 +29,7 @@ class GPURaytracerWrapper:
         self.Nmiss_accum = None
         self.Nocc_accum = None
 
-        # extension constant from ends to far-points for occlusion calculation
+        # extension length from ends to far-points for occlusion calculation
         self.max_distance = 100
 
 
@@ -86,9 +86,6 @@ class GPURaytracerWrapper:
         # Clear buffers
         self.clearPulseDataset()
 
-        print(f"[GPU] Processing batch: {len(points_all)} points...")
-
-
         # -------------------------------------------------
         # Step 1: Calculate Nhit (Point Rasterization)
         # -------------------------------------------------
@@ -112,7 +109,6 @@ class GPURaytracerWrapper:
 
         self.Nhit_accum += current_nhit
 
-
         # -------------------------------------------------
         # Step 2: Define Rays per Pulse (Sensor -> LastReturn)
         # -------------------------------------------------
@@ -133,8 +129,6 @@ class GPURaytracerWrapper:
         if len(ray_starts) == 0:
             return
 
-        print(f"[GPU] Tracing {len(ray_starts)} rays (unique pulses)...")
-
         # -------------------------------------------------
         # Step 3: Nmiss (Sensor -> LastReturn)
         # -------------------------------------------------
@@ -153,9 +147,12 @@ class GPURaytracerWrapper:
         # Step 4: Nocc (LastReturn -> Boundary) //TODO: this is not efficient, we should limit the raytrace within bounds.
         # -------------------------------------------------
         # Extend rays from LastReturn further out
-        directions = ray_ends - ray_starts
+        dirs = ray_ends - ray_starts
+        norms = np.linalg.norm(dirs, axis=1, keepdims=True)
+        unit_dirs = dirs / norms
+
         # Extend significantly to reach grid boundary (e.g., *1000)
-        ray_occ_ends = ray_ends + directions * self.max_distance
+        ray_occ_ends = ray_ends + unit_dirs * self.max_distance
 
         # Trace LastReturn -> Infinity
         results_occ = self.tracer.run(ray_ends, ray_occ_ends)
@@ -183,9 +180,12 @@ class GPURaytracerWrapper:
         current_nmiss[current_nmiss < 0] = 0
         self.Nmiss_accum += current_nmiss.astype(np.int32)
 
-        # 3. Occ calculation (Hit -> Far) //TODO: this is not efficient, we should limit the raytrace within bounds.
-        directions = ends - starts
-        far_ends = ends + directions * self.max_distance
+        # occ calculation (Hit -> Far) //TODO: this is not efficient, we should limit the raytrace within bounds.
+        dirs = ray_ends - ray_starts
+        norms = np.linalg.norm(dirs, axis=1, keepdims=True)
+        unit_dirs = dirs / norms
+
+        far_ends = ends + unit_dirs * self.max_distance
         results_occ = self.tracer.run(ends, far_ends)
         current_nocc = results_occ['beam_counts'].astype(np.int32)
         current_nocc[current_nhit > 0] = 0  # Do not mark Hit voxels as Occ
