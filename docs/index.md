@@ -1,5 +1,3 @@
-from sample_scripts.Test_UAVLS import laz_in
-
 # Welcome to OccPy
 
 
@@ -22,13 +20,20 @@ OccPy traces each laser pulse from its origin along the pulse vector through the
 for stationary TLS acquisitions) as well as the grid dimensions and voxel resolution are needed as input to OccPy (see 
 [Requirements for successful occlusion mapping](#requirements-for-successful-occlusion-mapping) for more information on how to use OccPy depending on your input data)
 
+Implementation of the voxel traversal in C++ allows for a fast voxel traversal, while the python side allows for a user-friendly
+and easy implementation of the occlusion mapping approach in a python environment and subsequent analysis and visualization 
+of the occlusion maps. The interface between C++ and python is established via cython, which enables the calling of the C++ 
+functions directly from python via the provided OccPy class. While transferring data between python and C++ can result in 
+some overhead, running of the voxel traversal algorithm on the C++ side still results in a significant boost in performance
+compared to a pure python implementation.
+
 Alternatively to using las or laz files, it is also possible to run occpy using Riegl RXP and RDBX files. This data format
 has the advantage that information on empty pulses is available. Therefore, also empty pulses can be traced for occlusion 
 mapping, which can be essential when using ground-base (i.e. MLS or TLS) acquisitions, where pulses can travel into the 
 atmosphere without any interaction. These pulses are not occluded and can have implication on occlusion. At the moment, 
 these empty pulses are not tracable when using las or laz input files.
 
-## Installation
+## 🛠 Installation
 OccPy can be easily installed via pip:
 (TODO: replace with pypi version)
 
@@ -101,7 +106,7 @@ test.define_sensor_pos(path2file="path/to/trajectory_file.txt",
 ```
 Note, sensor position definition differs slightly when using TLS scans. See [TLS jupyter notbooks](notebooks/TLS_notebook.ipynb) for more information on this.
 
-Once OccPy is fully parameterized, we can run it bz simply calling
+Once OccPy is fully parameterized, we can run it by simply calling
 
 ```python
 test.do_raytracing()
@@ -145,13 +150,14 @@ If you would like to have the output grids height normalized, this can be perfor
 ```python
 from occpy.util import normalize_occlusion_output
 
-Nhit_norm, Nmiss_norm, Nocc_norm, Classification_norm, chm = normalize_occlusion_output(input_folder='out_dir',
-                                                                                        PlotDim=plot_dim,           # Plot dimensions, i.e. corner coordinates like [min_x, min_y, min_z, max_x, max_y, max_z]
-                                                                                        vox_dim=vox_dim,            # Voxel dimesnions in meters
-                                                                                        dtm_file='path/to/DTM.tif', # path to DTM tif 
-                                                                                        dsm_file='path/to/DSM.tif', # optional path to DSM
-                                                                                        lower_threshold=lower_threshold,    # if voxels close to DTM should be ignored
-                                                                                        output_voxels=False)
+normalize_occlusion_output(input_folder='path/to/occpy_output_dir',
+                           PlotDim=plot_dim,           # Plot dimensions, i.e. corner coordinates like [min_x, min_y, min_z, max_x, max_y, max_z]
+                           vox_dim=vox_dim,            # Voxel dimesnions in meters
+                           dtm_file='path/to/DTM.tif', # path to DTM tif 
+                           dsm_file='path/to/DSM.tif', # optional path to DSM
+                           lower_threshold=lower_threshold,    # if voxels close to DTM should be ignored
+                           output_voxels=False
+                           )
 ```
 
 For more information and examples, plese see the following example jupytor scripts.
@@ -192,43 +198,7 @@ TOCHECK: Update figures with more representative ones
 </table>
 
 
-## 🛠️ How to install
 
-To install OccPy, several steps are required which may or may not go through easily. The tool has been tested on Windows 10. 
-If you encounter any issues installing the OccPy, please open an issue on the GitHub repository.
-
-
-### Clone repository
-
-Clone the repository using git with the following command (or download the zip from gitlab):
-```commandline
-git clone https://github.com/dkueken/OccPy.git
-```
-
-cd into the cloned repository
-```commandline
-cd OccPy
-```
-
-### Setting up the environment
-We expect you to have a working conda installation (either through Anaconda or miniconda)
-Either setup a new environment using the following command
-```commandline
-conda env create -f environment.yml
-```
-activate the environment
-```commandline
-conda activate occPy
-```
-or within an existing environment install all the necessary packages:
-```commandline
-pip install -r requirements.txt
-```
-
-<span style="color:red">
-<br>
-TOCHECK: If you would prefer to have the further information ("Potential issues", "List of needed packages", and "Compile the c++ side of the OccPy tool") in a drop down menu like the "Related publications", it is possible with the 'details' and 'summary' tags. In that case, the formating (underline, titles, etc) would have to be switched to HTML instead of markdown.
-</span>
 
 ## Requirements for successful occlusion mapping
 In order for the occlusion mapping to work, several requirements on the input data have to be met. 
@@ -242,6 +212,41 @@ Scan Position file (as txt), where position should be referring to the laser sou
 **LAZ File**
 
 - 1 LAZ or LAS file per scan position, preferably not filtered.
+
+Currently, OccPy only works for TLS acquisitions if each scan station is stored in a separate LAZ file. Most Processing 
+software solutions are capable of exporting the individual scan stations separately. If not, point identification to the 
+corresponding scan station is usually performed via the point_source_id field in the LAZ file. Use this field to split a
+combined point cloud. OccPy currently expects the linkage between scan position information (see [Scan Position paragraph above](#tls))
+via the laz-file name. E.g. if your scan position information file has the following information:
+```csv
+ScanID, X,  Y,  Z
+1,      1,  2,  3
+2,      5,  2,  4
+```
+We would expect the ScanID number to be present in the laz-file name like this:
+```commandline
+ScanPos_001.laz
+```
+The exact location of the scan position identification number can be specified when calling the *define_sensor_pos* function
+of the OccPy object using the function variables *str_idx_ScanPosID* and *str_end_idx_ScanPosID*. In the next code snippet 
+you can see the specific implementation for the example given above:
+
+```python
+test.define_sensor_pos(path2file="path/to/sensor_pos_file.txt",
+                       is_mobile=False,
+                       single_return=True,
+                       delimiter=',',
+                       hdr_scanpos_id='ScanID',
+                       hdr_x='X',
+                       hdr_y='Y',
+                       hdr_z='Z',
+                       str_idx_ScanPosID=8,
+                       str_end_idx_ScanPosID=11)
+```
+Note that according to python convention, positional indices in a vector is zero-based. Therefore, in the example given 
+above, the scan posdtion identification *001* starts with the first *0* at index 8. Also following python convention, subsetting
+a string will exclude the ending index. Therefore we have to add *+1* to the actual ending index of the scan position identification
+(i.e. in the example given above, the *1* is located at index 10, therefore we have to specify 11).
 
 If a multi return TLS is used, you can improve performance by sorting the LAZ file according to GPS Time and return number, 
 e.g. by using LASTools's lassort function:
@@ -292,13 +297,13 @@ As in the case for MLS data, trajectories are a hard requirement for UAVLS data.
 
 ```
 @article{Bienert2010,
-author = {Bienert, Anne and Queck, Ronald and A, A. and Maas, Hans-Gerd},
-year = {2010},
-month = {01},
-pages = {92-97},
-title = {Voxel space analysis of terrestrial laser scans in forests for wind field modelling},
-volume = {XXXVIII, Part 5},
-journal = {International Archives of Photogrammetry, Remote Sensing and Spatial Information Sciences}
+    author = {Bienert, Anne and Queck, Ronald and A, A. and Maas, Hans-Gerd},
+    year = {2010},
+    month = {01},
+    pages = {92-97},
+    title = {Voxel space analysis of terrestrial laser scans in forests for wind field modelling},
+    volume = {XXXVIII, Part 5},
+    journal = {International Archives of Photogrammetry, Remote Sensing and Spatial Information Sciences}
 }
 ```
 
@@ -317,15 +322,15 @@ journal = {International Archives of Photogrammetry, Remote Sensing and Spatial 
 
 ```
 @article{SCHNEIDER2019249,
-title = {Quantifying 3D structure and occlusion in dense tropical and temperate forests using close-range LiDAR},
-journal = {Agricultural and Forest Meteorology},
-volume = {268},
-pages = {249-257},
-year = {2019},
-issn = {0168-1923},
-doi = {https://doi.org/10.1016/j.agrformet.2019.01.033},
-url = {https://www.sciencedirect.com/science/article/pii/S0168192319300267},
-author = {Fabian D. Schneider and Daniel Kükenbrink and Michael E. Schaepman and David S. Schimel and Felix Morsdorf}}
+    title = {Quantifying 3D structure and occlusion in dense tropical and temperate forests using close-range LiDAR},
+    journal = {Agricultural and Forest Meteorology},
+    volume = {268},
+    pages = {249-257},
+    year = {2019},
+    issn = {0168-1923},
+    doi = {https://doi.org/10.1016/j.agrformet.2019.01.033},
+    url = {https://www.sciencedirect.com/science/article/pii/S0168192319300267},
+    author = {Fabian D. Schneider and Daniel Kükenbrink and Michael E. Schaepman and David S. Schimel and Felix Morsdorf}}
 ```
 
 </details>
@@ -351,35 +356,66 @@ Please cite the following studies when using OccPy.
 
 ```
 @article{SCHNEIDER2019249,
-title = {Quantifying 3D structure and occlusion in dense tropical and temperate forests using close-range LiDAR},
-journal = {Agricultural and Forest Meteorology},
-volume = {268},
-pages = {249-257},
-year = {2019},
-issn = {0168-1923},
-doi = {https://doi.org/10.1016/j.agrformet.2019.01.033},
-url = {https://www.sciencedirect.com/science/article/pii/S0168192319300267},
-author = {Fabian D. Schneider and Daniel Kükenbrink and Michael E. Schaepman and David S. Schimel and Felix Morsdorf}}
+    title = {Quantifying 3D structure and occlusion in dense tropical and temperate forests using close-range LiDAR},
+    journal = {Agricultural and Forest Meteorology},
+    volume = {268},
+    pages = {249-257},
+    year = {2019},
+    issn = {0168-1923},
+    doi = {https://doi.org/10.1016/j.agrformet.2019.01.033},
+    url = {https://www.sciencedirect.com/science/article/pii/S0168192319300267},
+    author = {Fabian D. Schneider and Daniel Kükenbrink and Michael E. Schaepman and David S. Schimel and Felix Morsdorf}}
 ```
 
 
-**Funding / acknowledgements**
+## Authors, Funding and  acknowledgements
 
-If any, add funding or acknowledgements here.
+The algorithm is strongly based on the initial publication of a voxel traversal algorithm as seen in Amanatides & Woo (1987). 
+This algorithm has been used in the publication by Kükenbrink et al. (2017) to map occlusion in ALS data and is openly 
+available as a Matlab code here: https://www.eufar.net/documents/6028 (user account needed). Big motivation for the 
+development of this study came from the interesting paper by Bienert et al. (2010). This implementation is a substantial 
+evolution to the Matlab implementation and should now be able to run for any lidar platform available, when requirements 
+as stated in [Requirements section](#requirements-for-successful-occlusion-mapping) are met. Also, performance of this Cython implementation should be largely increased 
+compared to the Matlab implementation.
+
+Development of the initial Matlab implementation was performed during the PhD studies of Daniel Kükenbrink at the University of 
+Zurich within the EUFAR JRA - HYLIGHT project (EUFAR2 contract no. 312609). The initial development of the Cython version 
+has started during the same PhD and was used in the study by Schneider et al. (2019) to map occlusion from TLS and UAVLS 
+acquisitions in a temperate and tropical forest. Substantial improvements and further development has been done at the 
+Swiss Federal Institute WSL since then. The development is still ongoing also in the framework of the 3DForEcoTech COST 
+action (working group 1).
+
+Big thank you go out to all contributing to this code base since the beginning of my PhD,  Felix Morsdorf, Fabian Schneider, 
+Meinrad Abegg, Ruedi Bösch, Christian Ginzler as well as to those pushing the code base towards the publication of OccPy as
+a python package: William Albert, Wout Cherlet, Bernhard Höfle, and Jonas Wenk. 
 
 
-**Contact / bugs / feature requests**
+## Contact / bugs / feature requests
 
 Have you found a bug or have specific request for a new feature? Please open a new issue in the online code repository on <a href="https://github.com/dkueken/OccPy">Github</a>.
 
-Scientific requests can be directed to
+Scientific requests or questions can be directed to
 <a href="https://www.wsl.ch/en/staff/kueken/">Daniel Kükenbrink</a>.
 
+## Roadmap
+Several open issues and improvements are currently worked on or planned for the future:
 
+- Add support for reading in a DTM file into the voxel traversal, so the algorithm could stop, once the pulse reached the terrain.
+- Substantial performance improvement by using multi core processing
+- Add functionality for PAI/PAD calculation of each voxel (i.e. calculation of path length within voxel for each pulse)
+- Add interactive visualization solution like pyvista or https://github.com/msoechting/lexcube
+- There is currently still an issue with UAVLS data, where some (very few) LiDAR returns are not registered by the algorithm. The implications for that should be analysed and the problem mitigated. This could cause an underestimation of occlusion, as the e.g. the last return is never reached and the pulse will traverse further without declaring a voxels as occluded for that pulse. There is the possibility to overcome this issue by using the function RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns) as used in the script Test_MLS.py, where the input data is not initially converted to a pulse dataset, but each return is basically treated as a single pulse. We would only recommend to use this approach, if you are confident about your trajectory information.
 
-**License**
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+## License
 <span style="color:red">  
 TOCHECK: Change license if not the good one
 </span>
 
 This is licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Project status
+This tool is still under development and substantial testing with different datasets should be performed.
