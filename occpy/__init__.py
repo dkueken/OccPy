@@ -1,2 +1,3 @@
-OCCPY_VERSION = '0.1'
-__version__ = OCCPY_VERSION
+from .OccPy import OccPy
+from .OccPyRIEGL import OccPyRIEGL
+from .TerrainModel import TerrainModel

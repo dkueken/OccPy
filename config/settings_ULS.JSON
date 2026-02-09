@@ -7,7 +7,7 @@
     "out_dir": "output/",
     "vox_dim": 0.1,
     "lower_threshold": 1,
-    "points_per_iter": 10000000,
+    "points_per_iter": 1000000,
     "plot_dim": [2676541,1246160,540,2676591,1246210,615],
     "ScanPos": "data/UAVLS/test_traj.txt",
     "output_voxels": false

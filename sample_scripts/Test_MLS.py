@@ -5,9 +5,8 @@ import pickle
 import pandas as pd
 import laspy
 import time
-from prepare_trajectory import interpolate_traj
+from occpy.OccPy import interpolate_traj
 
-from BOVwriter import writeBOV
 
 # we need to add the path to the src folder so raytr module can be found
 import sys

@@ -986,13 +986,17 @@ vector<vector<double > >& Raytracer::reportSensorShifts(){
     return this->SensorShifts;
 }
 
-vector<int >& Raytracer::getGridDimensions(){
+vector<int > Raytracer::getGridDimensions(){
     vector<int> grid_dim (3,0);
     grid_dim.at(0) = this->gridDim.nx;
     grid_dim.at(1) = this->gridDim.ny;
     grid_dim.at(2) = this->gridDim.nz;
 
     return grid_dim;
+}
+
+vector<int > Raytracer::getGridOrigin(){
+    return this->gridDim.origin;
 }
 
 vector<double> Raytracer::getPulsesIntersectingBox(vector<double> x, vector<double> y, vector<double> z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time, vector<int> vmin, vector<int> vmax){
@@ -1297,7 +1301,26 @@ void Raytracer::doRaytracingEmptyPulses(){
 // then move to seperate function we can use in both raytracing functions
 // def Raytracer::stepVoxel(tMax, step, tDelta){
 
+// Get functions for status reporting of raytracing
 
+int Raytracer::get_num_traversed_pulses() const{
+    return this->traversedPulses;
+}
+int Raytracer::get_total_pulses_in_dataset() const{
+    return this->totalPulsesInDataset;
+}
+int Raytracer::get_num_registered_hits() const{
+    return this->regHit;
+}
+int Raytracer::get_num_echoes_outside() const{
+    return this->echoesOutside;
+}
+int Raytracer::get_num_missing_returns() const{
+    return this->numMissingReturns;
+}
+int Raytracer::get_num_pulses_no_intersection() const{
+    return this->numNoGridIntersection;
+}
 
 
 

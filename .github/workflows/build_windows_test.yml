@@ -1,0 +1,41 @@
+name: Test Windows wheels
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  build-windows:
+    name: Build Windows wheels
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: python -m pip install --upgrade pip cibuildwheel==2.21
+
+      - name: Build wheels
+        env:
+          CIBW_SKIP: "pp* *-win32"
+          CIBW_ARCHS_WINDOWS: "AMD64"
+          CIBW_BEFORE_ALL_WINDOWS: "curl -fsSL -o C:\\boost.zip https://archives.boost.io/release/1.89.0/source/boost_1_89_0.zip & tar -xf C:\\boost.zip -C C:\\"
+          CIBW_ENVIRONMENT_WINDOWS: INCLUDE="C:\\boost_1_89_0" OCCPY_CXX_FLAGS=/std:c++14
+          CIBW_BEFORE_BUILD: "if exist build rmdir /s /q build"
+          CIBW_BUILD_VERBOSITY: 1
+        run: python -m cibuildwheel --output-dir dist
+
+      - name: Upload wheels as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-wheels
+          path: dist/*.whl
+          if-no-files-found: error
+
+      - name: List built wheels
+        run: dir dist
+        shell: pwsh

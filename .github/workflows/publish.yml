@@ -1,0 +1,149 @@
+name: Build and publish wheels
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v0.1.0
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+
+jobs:
+  build-wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]  # macos-13 is Intel, macos-latest is ARM
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install cibuildwheel
+        run: python -m pip install --upgrade pip cibuildwheel==2.21
+
+      - name: Build wheels (Linux)
+        if: runner.os == 'Linux'
+        env:
+          CIBW_SKIP: "pp* *-musllinux_*"
+          CIBW_BEFORE_ALL_LINUX: |
+            bash -exc "
+              if command -v yum >/dev/null 2>&1; then
+                yum -y install boost-devel
+              elif command -v microdnf >/dev/null 2>&1; then
+                microdnf -y install boost-devel
+              elif command -v dnf >/dev/null 2>&1; then
+                dnf -y install boost-devel
+              fi
+            "
+          CIBW_ENVIRONMENT_LINUX: "OCCPY_CXX_FLAGS='-std=c++11'"
+          CIBW_BUILD_VERBOSITY: 1
+        run: python -m cibuildwheel --output-dir dist
+
+      - name: Build wheels (Windows)
+        if: runner.os == 'Windows'
+        env:
+          CIBW_SKIP: "pp* *-win32"
+          CIBW_ARCHS_WINDOWS: "AMD64"
+          CIBW_BEFORE_ALL_WINDOWS: "curl -fsSL -o C:\\boost.zip https://archives.boost.io/release/1.89.0/source/boost_1_89_0.zip & tar -xf C:\\boost.zip -C C:\\"
+          CIBW_ENVIRONMENT_WINDOWS: INCLUDE="C:\\boost_1_89_0" OCCPY_CXX_FLAGS=/std:c++14
+          CIBW_BEFORE_BUILD: "if exist build rmdir /s /q build"
+          CIBW_BUILD_VERBOSITY: 1
+        run: python -m cibuildwheel --output-dir dist
+
+      - name: Build wheels (macOS)
+        if: runner.os == 'macOS'
+        env:
+          CIBW_SKIP: "pp*"
+          CIBW_BEFORE_ALL_MACOS: "brew install boost"
+          CIBW_ENVIRONMENT_MACOS: "CPATH=/opt/homebrew/include:/usr/local/include LIBRARY_PATH=/opt/homebrew/lib:/usr/local/lib OCCPY_CXX_FLAGS='-std=c++11'"
+          CIBW_BUILD_VERBOSITY: 1
+        run: python -m cibuildwheel --output-dir dist
+
+      - name: Upload wheels as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  build-sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build sdist
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --sdist
+
+      - name: Upload sdist as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: [build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')  # Only on version tags
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/occpy_ls/
+    permissions:
+      id-token: write  # For trusted publishing (alternative to API token)
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List files to upload
+        run: ls -lh dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          skip-existing: true
+          verbose: true
+
+  publish-pypi:
+    name: Publish to PyPI (manual approval)
+    needs: [build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')  # Only on version tags
+    environment:
+      name: pypi
+      url: https://pypi.org/project/occpy_ls/
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
+          verbose: true

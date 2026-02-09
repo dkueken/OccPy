@@ -5,8 +5,7 @@ import pickle
 import pandas as pd
 import laspy
 import time
-from prepare_trajectory import interpolate_traj
-from BOVwriter import writeBOV
+from occpy.OccPy import interpolate_traj
 
 import matplotlib
 import matplotlib.pyplot as plt
