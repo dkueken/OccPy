@@ -23,7 +23,6 @@ test_out/
 occpy.egg-info
 data/RIEGL_TLS
 vis_out/
-tests/*_RamerenWald_*
 tests/Visualize_ULS_MLS_comb.py
 config/*_RamerenWald_*
 config/*_tutorial_out.JSON
