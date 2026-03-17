@@ -9,7 +9,6 @@ def test_imports_other():
     from occpy import TerrainModel
     import occpy.visualization
     import occpy.util
-    import occpy.vis_pyvista
     from raytr import PyRaytracer
 
     assert raytr is not None

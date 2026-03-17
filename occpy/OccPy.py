@@ -661,6 +661,7 @@ class OccPy:
 
         if plot_dim is None:
             # TODO: Test if this works!
+            # TODO: this assumes laz_in is single file?
             with laspy.open(laz_in) as file:
                 hdr = file.header
                 self.PlotDim = dict(minX=hdr.x_min,

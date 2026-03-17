@@ -34,3 +34,6 @@ output/MLS/**
 penmp
 .pypirc
 dist/
+bin/
+local_test_scripts/
+*.so
