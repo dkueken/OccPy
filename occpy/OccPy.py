@@ -11,12 +11,6 @@ import OSToolBox as ost
 from tqdm import tqdm
 
 # plotting functions
-import matplotlib
-try:
-    matplotlib.use('TkAgg')
-except ImportError:
-    print("couldn't change matplotlib backend")
-    
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from matplotlib.colors import to_rgb
