@@ -10,7 +10,7 @@
   "vox_dim": 0.2,
   "scan_pos_id_stridx": 0,
   "scan_pos_id_endstridx": 3,
-  "laz_dir": "/home/wcherlet/repos/occpy_tests/OccPy/tests/fixtures/two_sensor_case/input/laz",
-  "sensor_positions": "/home/wcherlet/repos/occpy_tests/OccPy/tests/fixtures/two_sensor_case/input/sensor_positions.txt",
-  "expected_dir": "/home/wcherlet/repos/occpy_tests/OccPy/tests/fixtures/two_sensor_case/expected_small"
+  "laz_dir": "input/laz",
+  "sensor_positions": "input/sensor_positions.txt",
+  "expected_dir": "expected_small"
 }
