@@ -1,3 +1,4 @@
+import logging
 import time
 import os
 import glob
@@ -17,8 +18,6 @@ import seaborn as sns
 from raytr import PyRaytracer
 from occpy.TerrainModel import TerrainModel
 from occpy.util import prepare_ply, read_trajectory_file, read_sensorpos_file, interpolate_traj, last_nonzero
-
-# TODO: change print statements to logging like in occpyRIEGL
 
 is_sorted = lambda a: np.all(a[:-1] <= a[1:])
 
@@ -97,7 +96,7 @@ def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_
 
 
 class OccPy:
-    def __init__(self, laz_in, out_dir, vox_dim=0.1, lower_threshold=1, points_per_iter=10000000, plot_dim=None, output_voxels=False):
+    def __init__(self, laz_in, out_dir, vox_dim=0.1, lower_threshold=1, points_per_iter=10000000, plot_dim=None, output_voxels=False, debug=False, verbose=False):
         """
         initialize OccPy object
 
@@ -118,6 +117,10 @@ class OccPy:
             corner coordinates of the plot in question. Expected format is: [minX, minY, minZ, maxX, maxY, maxZ]
         output_voxels: bool [default: False]
             whether voxel grid should be outputed as ply file. WARNING: this requires significant resources and takes a long time. Has not been properly tested!
+        debug: bool [default: False]
+            whether to output debug information during raytracing, e.g. about the pulse dataset
+        verbose: bool [default: False]
+            whether to output info level logging during raytracing, e.g. about the time elapsed for raytracing batches
         """
         self.laz_in_f = laz_in
         self.out_dir = out_dir
@@ -135,6 +138,9 @@ class OccPy:
         # TODO: find a better way to link scan position id between laz file and scan pos file!
         self.scan_pos_id_stridx = 0
         self.scan_pos_id_endstridx = 0
+
+        self.debug = debug
+        self.verbose = verbose
 
         # some parameters that will be filled during function calls
         self.TotalVolume = 0
@@ -177,6 +183,24 @@ class OccPy:
         self.grid_dim = dict(nx=int((self.PlotDim['maxX'] - self.PlotDim['minX']) / self.vox_dim),
                              ny=int((self.PlotDim['maxY'] - self.PlotDim['minY']) / self.vox_dim),
                              nz=int((self.PlotDim['maxZ'] - self.PlotDim['minZ']) / self.vox_dim))
+
+        # -- config logging 
+        if self.debug:
+            logging_level = logging.DEBUG
+        elif self.verbose:
+            logging_level = logging.INFO
+        else:
+            logging_level = logging.WARNING
+        self.logger = logging.getLogger('occpy_logger')
+        self.logger.setLevel(logging_level)
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging_level)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+
+        # TODO: check input arguments below
+
 
         # initialize RayTr Object
         self.RayTr = PyRaytracer()
@@ -225,8 +249,10 @@ class OccPy:
         self.single_return = single_return
 
         if is_mobile: # case of mobile acquisitions (MLS, ULS)
+            self.logger.info("Defining sensor positions for mobile acquisition. Interpolating trajectory for each pulse based on provided trajectory file.")
             self.traj = read_trajectory_file(path2traj=path2file, delimiter=delimiter, hdr_time=hdr_time, hdr_x=hdr_x, hdr_y=hdr_y, hdr_z = hdr_z)
         else: # case of static acquisition (TLS)
+            self.logger.info("Defining sensor positions for static acquisition.")
             self.senspos = read_sensorpos_file(path2senspos=path2file, delimiter=delimiter, hdr_scanpos_id=hdr_scanpos_id, hdr_x=hdr_x, hdr_y=hdr_y, hdr_z=hdr_z, sens_pos_id_offset=sens_pos_id_offset)
             self.scan_pos_id_stridx = str_idx_ScanPosID
             self.scan_pos_id_endstridx = str_end_idx_ScanPosID
@@ -315,7 +341,7 @@ class OccPy:
 
                         # if self.single_return is not set, check data to find out if there are multiple returns stored per pulse
                         if self.single_return == None:
-                            print(
+                            self.logger.warning(
                                 f"TIPP: it was not specified if the point cloud stores single return data. to avoid any "
                                 f"issues where there are only single return pulses in the first chunk, put there are "
                                 f"multi return pulses in the whole dataset, please set the single_return variable within "
@@ -340,12 +366,12 @@ class OccPy:
                             gps_time = np.linspace(start=count + 1, stop=count + len(x), num=len(x), endpoint=True)
 
                             # run raytracing algorithme using singleReturnPulses version
-                            #print("Do raytracing with all pulses in batch")
+                            self.logger.info("Do raytracing with all pulses in batch")
                             tic_r = time.time()
                             self.RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y,
                                                                   sensor_z, gps_time)
                             toc_r = time.time()
-                            #print("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
+                            self.logger.info("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
 
                         else:
                             x = points.x.copy()
@@ -358,7 +384,7 @@ class OccPy:
                             # check if gps_time is sorted
                             if count == 0:  # only check sort state in the first iteration of the for loop
                                 if not is_sorted(gps_time):
-                                    print(
+                                    self.logger.warning(
                                         f"!!!!! input laz file is not sorted along gps_time. The algorithm will still run. However, the "
                                         f"performance will be greatly decreased as the entire content of the laz file has to be read into "
                                         f"the system memory. If you have multi return data, consider sorting your laz data first, e.g. using "
@@ -375,20 +401,22 @@ class OccPy:
                                                number_of_returns)
 
                             if sorted:  # only if pulses are sorted run raytracing now. Otherwise we have to read in the entire dataset first!
-                                # Get report on pulse dataset - comment this out once everythin is working or TODO: add a verbose flag!
-                                #self.RayTr.getPulseDatasetReport()
+                                # Get report on pulse datase
+                                if self.debug:
+                                    self.RayTr.getPulseDatasetReport()
 
                                 # run raytracing on added points
-                                #print("Do raytracing with stored pulses")
+                                self.logger.info("Do raytracing with stored pulses")
                                 tic_r = time.time()
                                 self.RayTr.doRaytracing()
                                 toc_r = time.time()
-                                #print("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
+                                self.logger.info("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
 
                                 self.RayTr.clearPulseDataset()
 
-                                # Check if traversed pulses have been deleted from map - comment this out once everything is working or TODO: add a verbose flag!
-                                # RayTr.getPulseDatasetReport()
+                                # Check if traversed pulses have been deleted from map
+                                if self.debug:
+                                    self.RayTr.getPulseDatasetReport()
 
                         count = count + len(gps_time)
 
@@ -397,31 +425,35 @@ class OccPy:
                 # optional: incomplete pulses can occur if the data has been filtered (either actively or during black box processing
                 # of the processing software. We could actively turn the incomplete pulses into complete ones and do the raytracing
                 # for them!
-                print("convert incomplete pulses to complete ones - be cautious with that!")
-                # RayTr.getPulseDatasetReport()
+                self.logger.info("convert incomplete pulses to complete ones - be cautious with that!")
+                if self.debug:
+                    self.RayTr.getPulseDatasetReport()
                 self.RayTr.cleanUpPulseDataset()
-                # RayTr.getPulseDatasetReport()
-                print("Run raytracing for incomplete pulses")
+                if self.debug:
+                    self.RayTr.getPulseDatasetReport()
+                self.logger.info("Run raytracing for incomplete pulses")
                 tic_r = time.time()
                 self.RayTr.doRaytracing()
                 toc_r = time.time()
-                print("Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
-                print("Time elapsed for reading and raytracing entire data: {:.2f} seconds".format(toc_r - tic))
+                self.logger.info("Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
+                self.logger.info("Time elapsed for reading and raytracing entire data: {:.2f} seconds".format(toc_r - tic))
             elif not sorted and not self.single_return:
-                print("Time elapsed for reading in data: {:.2f} seconds".format(toc - tic))
+                self.logger.info("Time elapsed for reading in data: {:.2f} seconds".format(toc - tic))
 
-                # RayTr.getPulseDatasetReport()
+                if self.debug:
+                    self.RayTr.getPulseDatasetReport()
 
-                print("Clean up pulse dataset in order to handle incomplete pulses")
+                self.logger.info("Clean up pulse dataset in order to handle incomplete pulses")
                 self.RayTr.cleanUpPulseDataset()
 
-                self.RayTr.getPulseDatasetReport()
+                if self.debug:
+                    self.RayTr.getPulseDatasetReport()
 
-                print("Do actual raytracing with all pulses")
+                self.logger.info("Do actual raytracing with all pulses")
                 tic = time.time()
                 self.RayTr.doRaytracing()
                 toc = time.time()
-                print("Time elapsed for raytracing: {:.2f} seconds".format(toc - tic))
+                self.logger.info("Time elapsed for raytracing: {:.2f} seconds".format(toc - tic))
 
         else: # if input is a single laz file
             with laspy.open(self.laz_in_f) as file:
@@ -469,7 +501,7 @@ class OccPy:
                             # check if gps_time is sorted
                             if count == 0:  # only check sort state in the first iteration of the for loop
                                 if not is_sorted(gps_time):
-                                    print(
+                                    self.logger.warning(
                                         f"!!!!! input laz file is not sorted along gps_time. The algorithm will still run. However, the "
                                         f"performance will be greatly decreased as the entire content of the laz file has to be read into "
                                         f"the system memory. If you have multi return data, consider sorting your laz data first, e.g. using "
@@ -488,20 +520,23 @@ class OccPy:
                                                     gps_time, return_number, number_of_returns)
 
                             if sorted:  # only if pulses are sorted run raytracing now. Otherwise we have to read in the entire dataset first!
-                                # Get report on pulse dataset - comment this out once everythin is working or TODO: add a verbose flag!
-                                # self.RayTr.getPulseDatasetReport()
+                                # Get report on pulse dataset
+                                if self.debug:
+                                    self.RayTr.getPulseDatasetReport()
 
                                 # run raytracing on added points
-                                # print("Do raytracing with stored pulses")
+                                self.logger.info("Do raytracing with stored pulses")
                                 tic_r = time.time()
                                 self.RayTr.doRaytracing()
                                 toc_r = time.time()
-                                # print("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
+                                self.logger.info("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
 
                                 self.RayTr.clearPulseDataset() # clear out data that have been traced.
 
-                                # Check if traversed pulses have been deleted from map - comment this out once everything is working or TODO: add a verbose flag!
-                                # self.RayTr.getPulseDatasetReport()
+                                # Check if traversed pulses have been deleted from map
+                                
+                                if self.debug:
+                                    self.RayTr.getPulseDatasetReport()
 
                         count = count + len(gps_time)
                         pbar.update(len(points))
@@ -539,40 +574,40 @@ class OccPy:
         -------
 
         """
-        print("Extracting Nhit")
+        self.logger.info("Extracting Nhit")
         tic = time.time()
         self.Nhit = self.RayTr.getNhit()
         self.Nhit = np.array(self.Nhit, dtype=np.int32)
 
         toc = time.time()
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
-        print("Extracting Nocc")
+        self.logger.info("Extracting Nocc")
         tic = time.time()
         self.Nocc = self.RayTr.getNocc()
         self.Nocc = np.array(self.Nocc, dtype=np.int32)
 
         toc = time.time()
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
-        print("Extracting Nmiss")
+        self.logger.info("Extracting Nmiss")
         tic = time.time()
         self.Nmiss = self.RayTr.getNmiss()
         self.Nmiss = np.array(self.Nmiss, dtype=np.int32)
 
         toc = time.time()
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
-        print("Saving Occlusion Outputs As .npy")
+        self.logger.info("Saving Occlusion Outputs As .npy")
         tic = time.time()
         np.save(f"{self.out_dir}/Nhit.npy", self.Nhit)
         np.save(f"{self.out_dir}/Nmiss.npy", self.Nmiss)
         np.save(f"{self.out_dir}/Nocc.npy", self.Nocc)
         toc = time.time()
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
         # Create Classification grid
-        print("Classify Grid")
+        self.logger.info("Classify Grid")
         tic = time.time()
         self.Classification = np.zeros((self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz']), dtype=int)
 
@@ -585,11 +620,11 @@ class OccPy:
 
         np.save(f"{self.out_dir}/Classification.npy", self.Classification)
         toc = time.time()
-        print("Elapsed Time: " + str(toc - tic) + " seconds")
+        self.logger.info("Elapsed Time: " + str(toc - tic) + " seconds")
 
         # write ply file
         if self.output_voxels:
-            print("Saving Occlusion Outputs As .ply")
+            self.logger.info("Saving Occlusion Outputs As .ply")
             tic = time.time()
             verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nhit)
             ost.write_ply(f"{self.out_dir}/Nhit.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
@@ -605,7 +640,7 @@ class OccPy:
             verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.occl)
             ost.write_ply(f"{self.out_dir}/Occl.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             toc = time.time()
-            print("Elapsed Time: " + str(toc - tic) + " seconds")
+            self.logger.info("Elapsed Time: " + str(toc - tic) + " seconds")
 
 
     def get_chm(self):
@@ -618,7 +653,7 @@ class OccPy:
 
         """
         if self.chm is None:
-            print("No CHM was defined. To define CHM ")
+            self.logger.warning("No CHM was defined. To define CHM ")
         return self.chm
 
     def clean_up_RayTr(self):
