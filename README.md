@@ -105,10 +105,7 @@ needs to be read and stored at once.
 
 Check the pyvista and pyvista_interactive notebooks to visualize occlusion map outputs in 3D.
 
-<video autoplay loop muted playsinline preload="metadata">
-  <source src="assets/pv_readme.mp4" type="video/mp4">
-</video>
-
+![Pyvista demo](assets/pv_readme.webp)
 
 ## Support
 For questions and support, please contact Daniel Kükenbrink via daniel.kuekenbrink@wsl.ch
