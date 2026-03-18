@@ -83,9 +83,9 @@ def vis_pv_static_bounds(occmap_file,
     ----------
     occmap_file : str
         Path to the .npy file containing the occupancy map (3D array).
-    min_bound_voxel : array-like of float, shape (3,)
+    min_bound_voxel : array-like of int, shape (3,)
         Minimum XYZ voxel coordinates to visualize
-    max_bound_voxel : array-like of float, shape (3,)
+    max_bound_voxel : array-like of int, shape (3,)
         Maximum XYZ voxel coordinates to visualize
     config_file : str
         Path to config file containing occpy run parameters.
@@ -104,6 +104,7 @@ def vis_pv_static_bounds(occmap_file,
     return_plotter : bool, default False
         If True, return the PyVista plotter object for further manipulation instead of showing the plot
     """
+
     # check paths
     if not os.path.exists(occmap_file):
         raise FileNotFoundError(f"Occupancy map file not found: {occmap_file}")
@@ -120,21 +121,28 @@ def vis_pv_static_bounds(occmap_file,
     if "vox_dim" not in settings or "plot_dim" not in settings:
         raise ValueError(f"Config file must contain 'vox_dim' and 'plot_dim' keys. Found keys: {list(settings.keys())}")
     
-    vox_dim = settings["vox_dim"]
-    plot_dim = settings["plot_dim"]
-    # get min and max bounds
-    min_bound = plot_dim[:3]
-    max_bound = plot_dim[3:6]
-
-    occmap = np.load(occmap_file)
-    dims = occmap.shape
-    # check if min_bound and max_bound are inside dims
-    for i in range(3):
-        if min_bound[i] < 0 or max_bound[i] > dims[i]:
-            raise ValueError(f"min_bound and max_bound must be within occupancy map dimensions {dims}, got min_bound={min_bound}, max_bound={max_bound}")
+    # check if min_bound_voxel and max_bound_voxel are valid
+    if not all(isinstance(x, int) for x in min_bound_voxel) or not all(isinstance(x, int) for x in max_bound_voxel):
+        raise ValueError(f"min_bound_voxel and max_bound_voxel must be array-like of int. Got min_bound_voxel={min_bound_voxel}, max_bound_voxel={max_bound_voxel}")
     min_bound_voxel = np.array(min_bound_voxel)
     max_bound_voxel = np.array(max_bound_voxel)
 
+    vox_dim = settings["vox_dim"]
+    plot_dim = settings["plot_dim"]
+    # get min and max bounds
+    min_bound = np.array(plot_dim[:3])
+    max_bound = np.array(plot_dim[3:6])
+
+    occmap = np.load(occmap_file)
+    dims = occmap.shape
+
+    print(f"Occlusion map dimensions: {dims}")
+
+    # check if min_bound and max_bound are inside dims
+    for i in range(3):
+        if min_bound_voxel[i] < 0 or max_bound_voxel[i] > dims[i]:
+            raise ValueError(f"min_bound and max_bound must be within occupancy map dimensions {dims}, got min_bound_voxel={min_bound_voxel}, max_bound_voxel={max_bound_voxel}")
+        
     # collect bounding boxes for each voxel type
     bboxs_occl = []
     bbox_unobserved = []
@@ -181,10 +189,13 @@ def vis_pv_static_bounds(occmap_file,
         
         mask = np.all((points >= min_pc_crop) & (points <= max_pc_crop), axis=1)
         points_in_crop = points[mask]
-        point_cloud = pv.PolyData(points_in_crop)
-        point_cloud["point_color"] = np.repeat(point_color, len(points_in_crop), axis=0).reshape(-1, 3)
-        plotter.add_points(point_cloud, scalars='point_color', style="points", point_size=point_size, render_points_as_spheres=True)
-        plotter.remove_scalar_bar()
+        if len(points_in_crop) == 0:
+            print("Warning: No points in the point cloud are within the crop bounds.")
+        else:
+            point_cloud = pv.PolyData(points_in_crop)
+            point_cloud["point_color"] = np.repeat(point_color, len(points_in_crop), axis=0).reshape(-1, 3)
+            plotter.add_points(point_cloud, scalars='point_color', style="points", point_size=point_size, render_points_as_spheres=True)
+            plotter.remove_scalar_bar()
 
     if return_plotter:
         return plotter
@@ -263,6 +274,12 @@ def vis_pv_rotating(occmap_file,
     if "vox_dim" not in settings or "plot_dim" not in settings:
         raise ValueError(f"Config file must contain 'vox_dim' and 'plot_dim' keys. Found keys: {list(settings.keys())}")
 
+    # check if min_bound_voxel and max_bound_voxel are valid
+    if not all(isinstance(x, int) for x in min_bound_voxel) or not all(isinstance(x, int) for x in max_bound_voxel):
+        raise ValueError(f"min_bound_voxel and max_bound_voxel must be array-like of int. Got min_bound_voxel={min_bound_voxel}, max_bound_voxel={max_bound_voxel}")
+    min_bound_voxel = np.array(min_bound_voxel)
+    max_bound_voxel = np.array(max_bound_voxel)
+
     vox_dim = settings["vox_dim"]
     plot_dim = settings["plot_dim"]
     # get min and max bounds
@@ -271,12 +288,11 @@ def vis_pv_rotating(occmap_file,
 
     occmap = np.load(occmap_file)
     dims = occmap.shape
+    
     # check if min_bound and max_bound are inside dims
     for i in range(3):
-        if min_bound[i] < 0 or max_bound[i] > dims[i]:
-            raise ValueError(f"min_bound and max_bound must be within occupancy map dimensions {dims}, got min_bound={min_bound}, max_bound={max_bound}")
-    min_bound_voxel = np.array(min_bound_voxel)
-    max_bound_voxel = np.array(max_bound_voxel)
+        if min_bound_voxel[i] < 0 or max_bound_voxel[i] > dims[i]:
+            raise ValueError(f"min_bound and max_bound must be within occupancy map dimensions {dims}, got min_bound_voxel={min_bound_voxel}, max_bound_voxel={max_bound_voxel}")
 
     # collect bounding boxes for each voxel type
     bboxs_occl = []
@@ -324,29 +340,33 @@ def vis_pv_rotating(occmap_file,
         
         mask = np.all((points >= min_pc_crop) & (points <= max_pc_crop), axis=1)
         points_in_crop = points[mask]
-        point_cloud = pv.PolyData(points_in_crop)
-        point_cloud["point_color"] = np.repeat(point_color, len(points_in_crop), axis=0).reshape(-1, 3)
-        plotter.add_points(point_cloud, scalars='point_color', style="points", point_size=point_size, render_points_as_spheres=True)
-        plotter.remove_scalar_bar()
+        if len(points_in_crop) == 0:
+            print("Warning: No points in the point cloud are within the crop bounds.")
+        else:
+            point_cloud = pv.PolyData(points_in_crop)
+            point_cloud["point_color"] = np.repeat(point_color, len(points_in_crop), axis=0).reshape(-1, 3)
+            plotter.add_points(point_cloud, scalars='point_color', style="points", point_size=point_size, render_points_as_spheres=True)
+            plotter.remove_scalar_bar()
 
     # calculate center and radius for camera orbit
     min_bound_voxel = np.array(min_bound_voxel)
     max_bound_voxel = np.array(max_bound_voxel)
-    center = (min_bound_voxel + max_bound_voxel) / 2
-    bounds_size = max_bound_voxel - min_bound_voxel
-    radius = np.linalg.norm(bounds_size) * distance_factor
+    center_voxel = (min_bound_voxel + max_bound_voxel) / 2
+    bounds_size_voxel = max_bound_voxel - min_bound_voxel
+    center_world = min_bound + center_voxel * vox_dim
+    radius = np.linalg.norm(bounds_size_voxel * vox_dim) * distance_factor
     plotter.open_movie(opath, framerate=framerate)
 
     for i in range(n_frames):
         azimuth = i * (360 / n_frames)
         
         plotter.camera.position = (
-            center[0] + radius * np.cos(np.radians(azimuth)) * np.cos(np.radians(elevation)),
-            center[1] + radius * np.sin(np.radians(azimuth)) * np.cos(np.radians(elevation)),
-            center[2] + radius * np.sin(np.radians(elevation))
+            center_world[0] + radius * np.cos(np.radians(azimuth)) * np.cos(np.radians(elevation)),
+            center_world[1] + radius * np.sin(np.radians(azimuth)) * np.cos(np.radians(elevation)),
+            center_world[2] + radius * np.sin(np.radians(elevation))
         )
         
-        plotter.camera.focal_point = center
+        plotter.camera.focal_point = center_world
         plotter.camera.up = (0, 0, 1)
         
         plotter.write_frame()
@@ -436,7 +456,7 @@ def vis_pv_interactive(occmap_file,
                         continue
                     voxel_coords.append((x, y, z))
                     base = np.array([x, y, z], dtype=float) * vox_dim + min_bound
-                    cube_verts = base + np.array([
+                    cube_verts = base + vox_dim * np.array([
                         [0,0,0],[1,0,0],[1,1,0],[0,1,0],
                         [0,0,1],[1,0,1],[1,1,1],[0,1,1]
                     ])

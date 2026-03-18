@@ -17,5 +17,4 @@ def test_imports_other():
     assert TerrainModel is not None
     assert occpy.visualization is not None
     assert occpy.util is not None
-    assert occpy.vis_pyvista is not None
     assert PyRaytracer is not None
