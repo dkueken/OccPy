@@ -3,10 +3,10 @@
 
 - UAV data for testing - Daniel
 - Testing notebooks with included data - Wout
-- Provide base visualization as seperate function - Wout
-- Documentation - Wout and Daniel
-- Consolidate environment (remove unnecessary packages, less restrictive) - Wout, Daniel
-- improve readme.md installation instructions - Wout, Daniel
+- Provide base visualization as seperate function - Wout 
+- Documentation - Wout and Daniel [Done]
+- Consolidate environment (remove unnecessary packages, less restrictive) - Wout, Daniel [Done]
+- improve readme.md installation instructions - Wout, Daniel [Done]
 - XY flip - Wout, Daniel    [DONE, merged]
 
 NOTES:
@@ -15,7 +15,7 @@ NOTES:
 
 ## Musts for 1.0
 
-- Install through pip - Wout
+- Install through pip - Wout [~Done]
 - More testing
 - Refactoring and cleaning of code
 

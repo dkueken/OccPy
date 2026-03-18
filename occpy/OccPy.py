@@ -9,12 +9,6 @@ import OSToolBox as ost
 from tqdm import tqdm
 
 # plotting functions
-import matplotlib
-try:
-    matplotlib.use('TkAgg')
-except ImportError:
-    print("couldn't change matplotlib backend")
-    
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from matplotlib.colors import to_rgb
@@ -161,6 +155,7 @@ class OccPy:
 
         if plot_dim is None:
             # TODO: Test if this works!
+            # TODO: this assumes laz_in is single file?
             with laspy.open(laz_in) as file:
                 hdr = file.header
                 self.PlotDim = dict(minX=hdr.x_min,

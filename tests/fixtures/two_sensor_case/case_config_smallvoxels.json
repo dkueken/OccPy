@@ -1,0 +1,16 @@
+{
+  "plot_dim": [
+    0,
+    0,
+    0,
+    20,
+    20,
+    20
+  ],
+  "vox_dim": 0.2,
+  "scan_pos_id_stridx": 0,
+  "scan_pos_id_endstridx": 3,
+  "laz_dir": "input/laz",
+  "sensor_positions": "input/sensor_positions.txt",
+  "expected_dir": "expected_small"
+}
