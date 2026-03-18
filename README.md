@@ -44,9 +44,95 @@ pip install -v .
 NOTE: if you want to use RIEGL .rdbx and .rxp files as input, make sure to set the RIVLIB_ROOT and RDBLIB_ROOT environment variables to the root path of the corresponding libraries before installing.
 
 ## Usage
-There are example notebooks provided for different flavors of LiDAR platforms (TLS, MLS, UAVLS), under docs/notebooks.
+The behavior of OccPy can be configured using JSON setting files (see e.g. [settings_MLS_tutorial.JSON](config/settings_MLS_tutorial.JSON) as an example). 
+While this is not strictly necessary, we still recommend setting up such setting files for running OccPy for later reference on the settings.
 
-TODO: maybe add some quick start guide to the webpage?
+First we import OccPy into your python (or jupyter) script:
+```python
+from occpy.OccPy import OccPy  # this loads the OccPy class with the core functionality
+from occpy.util import normalize_occlusion_output   # within occpy.util multiple additional utility functions can be loaded, e.g. to normalize occlusion output
+```
+Afterwards we initiate an OccPy object for voxel traversal like the following:
+```python
+test = OccPy(laz_in="path/to/laz_file.laz",
+             out_dir="path/to/output_dir",
+             vox_dim=0.1,                   # voxel dimesnions in m (for the moment only cubic voxels are allowed)
+             lower_threshold=1,             # lower threshold in meters, to reduce effects caused by terrain (only actually functional if Terrain Model is provided)
+             points_per_iter=10000000,      # number of points to be loaded at once. Note, this is only active if point cloud is sorted along gps_time or it is single return. Otherwise entire dataset needs to be loaded at once
+             plot_dim=[min_x, min_y, min_z, max_x, max_y, max_z] # Corner coordinates of the voxel grid. Note only integer values are currently supported here (do not define sub-meter corner coordiantes for the moment!)
+             )
+```
+In the next step we define the sensor position, either by defining the scanner position or by providing trajectory information for mobile acquisitions. In this example we show the sensor position definition based on a handheld MLS acquistion using a GeoSLAM ZebHorizon processed using FARO Connect processing facilities.
+
+```python
+test.define_sensor_pos(path2file="path/to/trajectory_file.txt", 
+                       is_mobile=True,              # whether acquisition is mobile. Always true for MLS or ULS
+                       single_return=True,          # whether the data is single or multi return
+                       delimiter=" ",               # delimiter used in the trajectory file
+                       hdr_time='//world_time',     # column header for the time information in the trajectory file
+                       hdr_x='x',                   # column header for the x coordiante in the trajectory file
+                       hdr_y='y',                   # column header for the y coordinate in the trajectory file
+                       hdr_z='z'                    # column header for the z coordinate in the trajectory file
+                       )
+```
+Note, sensor position definition differs slightly when using TLS scans. See [TLS jupyter notbooks](docs/notebooks/TLS_notebook.ipynb) for more information on this.
+
+Once OccPy is fully parameterized, we can run it by simply calling
+
+```python
+test.do_raytracing()
+```
+
+This will store four output files as .npy files into the defined output directory: Nhit.npy, Nmiss.npy, Nocc.npy and Classification.npy
+These can be loaded into you python script like:
+```python
+import numpy as np
+Nhit = np.load("output_dir/Nhit.npy")
+Nmiss = np.load("output_dir/Nmiss.npy")
+Nocc = np.load("output_dir/Nocc.npy")
+Classification + np.load("output_dir/Classification.npy")
+```
+- Nhit.npy: 3D numpy array with the number of laser hits per voxel
+- Nmiss.npy: 3D numpy array with the number of misses (i.e. pulses that have no laser return in the specific voxel, but last return has not yet been reached)
+- Nocc.npy: 3D numpy array witht the number of occluded pulses (i.e. the number of pulses that have already reached the last return before traversing the specific voxel)
+- Classification.npy: 3D numpy array stating the classifciation for each voxel into Hit, Empty, Occluded and Unobserved, with the class definition like:
+  - 1: Observed voxel with at least on registered return
+  - 2: Empty voxel which was observed by at least one pulse that has not yet reached its last return
+  - 3: occluded voxel, where all pulses traversing it were occluded
+  - 4: unobserved voxel, where no pulse was traversed through it.
+
+The classification into these classes is performed on the python side by using the following code:
+```python
+Classification[np.logical_and.reduce((Nhit > 0, Nmiss >= 0, Nocc >= 0))] = 1  # voxels that were observed
+Classification[np.logical_and.reduce((Nhit == 0, Nmiss > 0, Nocc >= 0))] = 2  # voxels that are empty
+Classification[np.logical_and.reduce((Nhit == 0, Nmiss == 0, Nocc > 0))] = 3  # voxels that are hidden (occluded)
+Classification[np.logical_and.reduce((Nhit == 0, Nmiss == 0, Nocc == 0))] = 4  # voxels that were not observed # 
+
+```
+Note, this Classification grid follows a binary definition of occlusion, i.e. a voxel is labelled as occluded, only if no pulse was labelled as miss or return in the specific voxel.
+If you prefer to define your own threshold for occlusion, or you would like to assess fractional occlusion, you could calculate the occlusion fraction per voxel like this:
+
+```python
+occl_frac = Nocc.astype(float) / (Nhit.astype(float) + Nmiss.astype(float) + Nocc.astype(float))
+```
+
+If you would like to have the output grids height normalized, this can be perfored using the normalize_occlusion_output function
+
+```python
+from occpy.util import normalize_occlusion_output
+
+normalize_occlusion_output(input_folder='path/to/occpy_output_dir',
+                           PlotDim=plot_dim,           # Plot dimensions, i.e. corner coordinates like [min_x, min_y, min_z, max_x, max_y, max_z]
+                           vox_dim=vox_dim,            # Voxel dimesnions in meters
+                           dtm_file='path/to/DTM.tif', # path to DTM tif 
+                           dsm_file='path/to/DSM.tif', # optional path to DSM
+                           lower_threshold=lower_threshold,    # if voxels close to DTM should be ignored
+                           output_voxels=False
+                           )
+```
+
+For more information and examples, plese see the following example jupytor scripts.
+
 
 ## Requirements for a successful occlusion mapping
 In order for the occlusion mapping to work, several requirements on the input data have to be met. These are listed below specifically for the different flavors of LiDAR platforms.
@@ -87,8 +173,8 @@ As stated before, the biggest requirement for the LAZ file is that gps_time fiel
 **Trajectory file**
 
 As in the case for MLS data, trajectories are a hard requirement for UAVLS data. Please refer to 
-[MLS](MLS) section for the requirements on the trajectory file. Also check out [Test_MLS.py](Test_MLS.py) or 
-[Test_UAVLS](Test_UAVLS.py) python scripts for how to use this tool for occlusion mapping.
+[MLS](#mls) section for the requirements on the trajectory file. Also check out [MLS_notebook.ipynb](docs/notebooks/MLS_notebook.ipynb)  or 
+[ULS_notebook.ipynb](docs/notebooks/ULS_notebook.ipynb) jupyter notebooks for how to use this tool for occlusion mapping.
 
 **LAZ file**
 
@@ -113,14 +199,11 @@ For questions and support, please contact Daniel Kükenbrink via daniel.kuekenbr
 ## Roadmap
 Several open issues and improvements are currently worked on or planned for the future:
 
-- Improve (add) documentation of the different functions and example scripts
-- Add example data which should be used in the example scripts
-- There is currently still an issue with UAVLS data, where some (very few) LiDAR returns are not registered by the algorithm. The implications for that should be analysed and the problem mitigated. This could cause an underestimation of occlusion, as the e.g. the last return is never reached and the pulse will traverse further without declaring an voxels as occluded for that pulse. There is the possibility to overcome this issue by using the function ```RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)``` as used in the script _Test_MLS.py_, where the input data is not initially converted to a pulse dataset, but each return is basically treated as a single pulse. We would only recommend to use this approach, if you are confident about your trajectory information.
-- Add support for reading in a DTM file, so the algorithm could stop, once the pulse reached the terrain.
-- Add functionality for height normalisation of outputs
+- Add support for reading in a DTM file into the voxel traversal, so the algorithm could stop, once the pulse reached the terrain.
 - Substantial performance improvement by using multi core processing
 - Add functionality for PAI/PAD calculation of each voxel (i.e. calculation of path length within voxel for each pulse) 
-- Add visualization solution like (potential idea: https://github.com/msoechting/lexcube)
+- Add interactive visualization solution like pyvista or https://github.com/msoechting/lexcube
+- There is currently still an issue with UAVLS data, where some (very few) LiDAR returns are not registered by the algorithm. The implications for that should be analysed and the problem mitigated. This could cause an underestimation of occlusion, as the e.g. the last return is never reached and the pulse will traverse further without declaring an voxels as occluded for that pulse. There is the possibility to overcome this issue by using the function ```RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)``` as used in the script _Test_MLS.py_, where the input data is not initially converted to a pulse dataset, but each return is basically treated as a single pulse. We would only recommend to use this approach, if you are confident about your trajectory information.
 
 ## Contributing
 
@@ -132,7 +215,7 @@ This algorithm has been used in the publication by Kükenbrink et al. (2017) to 
 is openly available as a Matlab code here: https://www.eufar.net/documents/6028 (user account needed). Big motivation for
 the development of this study came from the interesting paper by Bienert et al. (2010).
 This implementation is a substantial evolution to the Matlab implementation and should now be able to run 
-for any lidar platform available, when requirements as stated in [Requirements section](#Requirements for a successful occlusion mapping) 
+for any lidar platform available, when requirements as stated in [Requirements section](#requirements-for-a-successful-occlusion-mapping) 
 are met. Also performance of this Cython implementation should be largely increased compared to the Matlab implementation.
 
 Development of the initial Matlab implementation was performed during the PhD studies of Daniel Kükenbrink at the University of Zurich 
@@ -142,27 +225,94 @@ Schneider et al. (2019) to map occlusion from TLS and UAVLS acquisitions in a te
 Substantial improvements and further development has been done at the Swiss Federal Institute WSL since then. The development
 is still ongoing also in the framework of the [3DForEcoTech COST action](https://3dforecotech.eu/) (working group 1). 
 
-Big thank you go out to all contributing to this code base since the beginning of my PhD:
-Felix Morsdorf, Fabian Schneider, Meinrad Abegg, Ruedi Bösch, Christian Ginzler
+Big thank you go out to all contributing to this code base since the beginning of my PhD,  Felix Morsdorf, Fabian Schneider, 
+Meinrad Abegg, Ruedi Bösch, Christian Ginzler as well as to those pushing the code base towards the publication of OccPy as
+a python package: William Albert, Wout Cherlet, Bernhard Höfle, and Jonas Wenk. 
+
 
 ## Literature
-Amanatides, J., Woo, A., 1987. A fast voxel traversal algorithm for ray tracing. Proc. EUROGRAPHICS 87, 3–10.
 
-Bienert, A., Queck, R., Schmidt, A., 2010. Voxel Space Analysis of Terrestrial Laser Scans in Forests for Wind Field Modeling. Int. Arch. Photogramm. Remote Sens. Spat. Inf. Sci. - ISPRS Arch. 38, 92–97.
+```
+@article{Amanatides1987,
+    author = {Amanatides, John and Woo, Andrew},
+    year = {1987},
+    month = {08},
+    pages = {},
+    title = {A Fast Voxel Traversal Algorithm for Ray Tracing},
+    volume = {87},
+    journal = {Proceedings of EuroGraphics}
+}
+```
 
-Kükenbrink, D., Schneider, F.D., Leiterer, R., Schaepman, M.E., Morsdorf, F., 2017. Quantification of hidden canopy volume of airborne laser scanning data using a voxel traversal algorithm. Remote Sens. Environ. 194, 424–436. https://doi.org/10.1016/j.rse.2016.10.023
+```
+@article{Bienert2010,
+    author = {Bienert, Anne and Queck, Ronald and A, A. and Maas, Hans-Gerd},
+    year = {2010},
+    month = {01},
+    pages = {92-97},
+    title = {Voxel space analysis of terrestrial laser scans in forests for wind field modelling},
+    volume = {XXXVIII, Part 5},
+    journal = {International Archives of Photogrammetry, Remote Sensing and Spatial Information Sciences}
+}
+```
 
-Schneider, F.D., Kükenbrink, D., Schaepman, M.E., Schimel, D.S., Morsdorf, F., 2019. Quantifying 3D structure and occlusion in dense tropical and temperate forests using close-range LiDAR. Agric. For. Meteorol. 268. https://doi.org/10.1016/j.agrformet.2019.01.033
+```
+@article{KUKENBRINK2017424,
+    title = {Quantification of hidden canopy volume of airborne laser scanning data using a voxel traversal algorithm},
+    journal = {Remote Sensing of Environment},
+    volume = {194},
+    pages = {424-436},
+    year = {2017},
+    issn = {0034-4257},
+    doi = {https://doi.org/10.1016/j.rse.2016.10.023},
+    url = {https://www.sciencedirect.com/science/article/pii/S0034425716303959},
+    author = {Daniel Kükenbrink and Fabian D. Schneider and Reik Leiterer and Michael E. Schaepman and Felix Morsdorf}
+    }
+```
 
+```
+@article{SCHNEIDER2019249,
+    title = {Quantifying 3D structure and occlusion in dense tropical and temperate forests using close-range LiDAR},
+    journal = {Agricultural and Forest Meteorology},
+    volume = {268},
+    pages = {249-257},
+    year = {2019},
+    issn = {0168-1923},
+    doi = {https://doi.org/10.1016/j.agrformet.2019.01.033},
+    url = {https://www.sciencedirect.com/science/article/pii/S0168192319300267},
+    author = {Fabian D. Schneider and Daniel Kükenbrink and Michael E. Schaepman and David S. Schimel and Felix Morsdorf}
+    }
+```
 ## How to cite
 For now, please cite the following studies
 
-Kükenbrink, D., Schneider, F.D., Leiterer, R., Schaepman, M.E., Morsdorf, F., 2017. Quantification of hidden canopy volume of airborne laser scanning data using a voxel traversal algorithm. Remote Sens. Environ. 194, 424–436. https://doi.org/10.1016/j.rse.2016.10.023
+```
+@article{KUKENBRINK2017424,
+    title = {Quantification of hidden canopy volume of airborne laser scanning data using a voxel traversal algorithm},
+    journal = {Remote Sensing of Environment},
+    volume = {194},
+    pages = {424-436},
+    year = {2017},
+    issn = {0034-4257},
+    doi = {https://doi.org/10.1016/j.rse.2016.10.023},
+    url = {https://www.sciencedirect.com/science/article/pii/S0034425716303959},
+    author = {Daniel Kükenbrink and Fabian D. Schneider and Reik Leiterer and Michael E. Schaepman and Felix Morsdorf}
+    }
+```
 
-and
-
-Schneider, F.D., Kükenbrink, D., Schaepman, M.E., Schimel, D.S., Morsdorf, F., 2019. Quantifying 3D structure and occlusion in dense tropical and temperate forests using close-range LiDAR. Agric. For. Meteorol. 268. https://doi.org/10.1016/j.agrformet.2019.01.033
-
+```
+@article{SCHNEIDER2019249,
+    title = {Quantifying 3D structure and occlusion in dense tropical and temperate forests using close-range LiDAR},
+    journal = {Agricultural and Forest Meteorology},
+    volume = {268},
+    pages = {249-257},
+    year = {2019},
+    issn = {0168-1923},
+    doi = {https://doi.org/10.1016/j.agrformet.2019.01.033},
+    url = {https://www.sciencedirect.com/science/article/pii/S0168192319300267},
+    author = {Fabian D. Schneider and Daniel Kükenbrink and Michael E. Schaepman and David S. Schimel and Felix Morsdorf}
+    }
+```
 
 ## License
 See [LICENSE](LICENSE).

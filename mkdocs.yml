@@ -4,8 +4,8 @@ site_dir: site
 docs_dir: docs
 
 theme:
-  logo: img/occpy_icon.png     # light mode logo
-  favicon: img/occpy_icon.png
+  logo: assets/occpy_logo_v3_white.png     # light mode logo
+  favicon: assets/occpy_logo_v3_white.png
   name: material
   custom_dir: docs/overrides
   palette:
@@ -39,12 +39,17 @@ plugins:
       ignore_h1_titles: True
       execute: False
   - mkdocstrings:
-      -handlers:
+      handlers:
         python:
           options:
             docstring_style: numpy
+            show_signature: true
+            show_source: true
+            show_root_full_path: false
+            separate_signature: true
 
 markdown_extensions:
+  - admonition
   - md_in_html
   - attr_list
   - abbr
@@ -57,4 +62,10 @@ nav:
     - TLS_indivLAZ: notebooks/TLS_notebook_individualLAZ.ipynb
     - MLS: notebooks/MLS_notebook.ipynb
     - ULS: notebooks/ULS_notebook.ipynb
-  - Reference: reference.md
+  - Reference:
+    - OccPy: ref_occpy.md
+    - OccPy_Riegl: ref_occpy_riegl.md
+    - util: ref_util.md
+    - TerrainModel: ref_terrain_model.md
+    - Visualization: ref_visualization.md
+    - OccPy_Riegl_IO: ref_occpy_riegl_io.md

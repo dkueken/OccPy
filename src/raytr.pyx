@@ -37,13 +37,21 @@ cdef extern from "Raytracer.hpp":
         vector[vector[vector[int]]]& getNhit()
         vector[vector[vector[int]]]& getNmiss()
         vector[vector[vector[int]]]& getNocc()
-        vector[int]& getGridDimensions()
+        vector[int] getGridDimensions()
+        vector[int] getGridOrigin()
         void getPulseDatasetReport()
         vector[vector[double]]& reportSensorShifts()
         vector[double] getPulsesIntersectingBox(vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[int], vector[int])
 
         void addEmptyPulseData(vector[double] sensor_x, vector[double] sensor_y, vector[double] sensor_z, vector[double] direction_x, vector[double] direction_y, vector[double] direction_z, vector[double] gps_time)
         void doRaytracingEmptyPulses()
+
+        int get_num_traversed_pulses() const
+        int get_total_pulses_in_dataset() const
+        int get_num_registered_hits() const
+        int get_num_echoes_outside() const
+        int get_num_missing_returns() const
+        int get_num_pulses_no_intersection() const
 
 
 
@@ -80,6 +88,8 @@ cdef class PyRaytracer:
         return self.thisptr.getNocc()
     def getGridDimensions(self):
         return self.thisptr.getGridDimensions()
+    def getGridOrigin(self):
+        return self.thisptr.getGridOrigin()
     def getPulseDatasetReport(self):
         self.thisptr.getPulseDatasetReport()
     def reportOnTraversal(self):
@@ -90,4 +100,17 @@ cdef class PyRaytracer:
         return self.thisptr.addEmptyPulseData(sensor_x, sensor_y, sensor_z, direction_x, direction_y, direction_z, gps_time)
     def doRaytracingEmptyPulses(self):
         return self.thisptr.doRaytracingEmptyPulses()
+    def get_num_traversed_pulses(self) -> int:
+        return self.thisptr.get_num_traversed_pulses()
+    def get_total_pulses_in_dataset(self) -> int:
+        return self.thisptr.get_total_pulses_in_dataset()
+    def get_num_registered_hits(self) -> int:
+        return self.thisptr.get_num_registered_hits()
+    def get_num_echoes_outside(self) -> int:
+        return self.thisptr.get_num_echoes_outside()
+    def get_num_missing_returns(self) -> int:
+        return self.thisptr.get_num_missing_returns()
+    def get_num_pulses_no_intersection(self) -> int:
+        return self.thisptr.get_num_pulses_no_intersection()
+
 

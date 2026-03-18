@@ -1,9 +1,9 @@
 {
     "root_folder": "C:\\Users\\Kueken\\dev\\occpy_dev\\OccPy",
-    "laz_in": "C:\\Users\\Kueken\\dev\\occpy_dev\\OccPy\\data\\MLS\\MLS_TestData_20perc_FP10_2025.laz",
+    "laz_in": "C:\\Users\\Kueken\\AppData\\Local\\occpy_test_data_mls\\occpy_test_data_mls\\Cache\\MLS_demo.zip.unzip\\MLS_demo\\LAZ\\MLS_TestData_20perc_FP10_2025.laz",
     "tif_in": {
-        "DTM": "C:\\Users\\Kueken\\dev\\occpy_dev\\OccPy\\data\\Grids\\Ramerenwald_DTM_20250305.tif",
-        "DSM": "C:\\Users\\Kueken\\dev\\occpy_dev\\OccPy\\data\\Grids\\Ramerenwald_DSM_20250305.tif"
+        "DTM": "C:\\Users\\Kueken\\AppData\\Local\\occpy_test_data_mls\\occpy_test_data_mls\\Cache\\MLS_demo.zip.unzip\\MLS_demo\\Grids\\Ramerenwald_DTM_20250305.tif",
+        "DSM": "C:\\Users\\Kueken\\AppData\\Local\\occpy_test_data_mls\\occpy_test_data_mls\\Cache\\MLS_demo.zip.unzip\\MLS_demo\\Grids\\Ramerenwald_DSM_20250305.tif"
     },
     "out_dir": "C:\\Users\\Kueken\\dev\\occpy_dev\\OccPy\\output\\MLS",
     "vox_dim": 0.1,
@@ -17,6 +17,6 @@
         1246113,
         590
     ],
-    "ScanPos": "C:\\Users\\Kueken\\dev\\occpy_dev\\OccPy\\data\\MLS\\MLS_TestData_traj_FP10_2025.txt",
+    "ScanPos": "C:\\Users\\Kueken\\AppData\\Local\\occpy_test_data_mls\\occpy_test_data_mls\\Cache\\MLS_demo.zip.unzip\\MLS_demo\\ScanPos\\MLS_TestData_traj_FP10_2025.txt",
     "output_voxels": false
 }
