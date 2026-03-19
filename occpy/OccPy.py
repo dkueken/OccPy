@@ -10,90 +10,8 @@ import laspy
 import OSToolBox as ost
 from tqdm import tqdm
 
-# plotting functions
-import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
-from matplotlib.colors import to_rgb
-import seaborn as sns
-
 from raytr import PyRaytracer
-from occpy.TerrainModel import TerrainModel
 from occpy.util import prepare_ply, read_trajectory_file, read_sensorpos_file, interpolate_traj, last_nonzero
-
-is_sorted = lambda a: np.all(a[:-1] <= a[1:])
-
-# Function to darken an RGB color
-def darken_color(color, amount=0.6):
-    r, g, b = to_rgb(color)
-    return (r * amount, g * amount, b * amount)
-
-""" Moved to visualization module. delete once everything is working.
-def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_thresh=0, vertBuffer=0, max_percentage=100, fig_prop=None, show_plots=False):
-
-    grid_dim = (int((plot_dim[3] - plot_dim[0]) / vox_dim), int((plot_dim[4] - plot_dim[1]) / vox_dim),
-                int((plot_dim[5] - plot_dim[2]) / vox_dim))
-
-    vert_vect = np.arange(start=low_thresh, stop=Classification.shape[2] * vox_dim, step=vox_dim)
-    Classification = Classification[:,:,int(low_thresh / vox_dim):]
-    # a hack to make sure that vert_vect is of the same length as OcclVertProf TODO: this has to be checked if it is generic!
-
-
-    OcclVertProf = np.sum(Classification == 3, axis=0)
-    OcclVertProf = np.sum(OcclVertProf, axis=0)
-    OcclVertProf_Rel = OcclVertProf / ((grid_dim[0]) * (grid_dim[1]))
-
-    FilledVertProf = np.sum(Classification == 1, axis=0)
-    FilledVertProf = np.sum(FilledVertProf, axis=0)
-    FilledVertProf_Rel = FilledVertProf / (grid_dim[0] * grid_dim[1])
-
-    EmptyVertProf = np.sum(np.logical_or(Classification == 2, Classification==0), axis=0)
-    EmptyVertProf = np.sum(EmptyVertProf, axis=0)
-    EmptyVertProf_Rel = EmptyVertProf / (grid_dim[0] * grid_dim[1])
-
-    heights = vert_vect[0:len(OcclVertProf)]
-
-    percentages = np.column_stack([FilledVertProf_Rel*100, OcclVertProf_Rel*100, EmptyVertProf_Rel*100])
-    categories = ['Filled', 'Occluded', 'Empty']
-    colors = ['skyblue', 'salmon', 'lightgreen']
-
-    # Compute cumulative percentages for stacking
-    cumulative = np.cumsum(percentages, axis=1)
-
-    palette = sns.color_palette('colorblind', n_colors=len(categories))
-    palette[2] = (1.0, 1.0, 1.0) # white for empty
-
-    fig, ax = plt.subplots(figsize=fig_prop['fig_size'])
-
-    for i, cat in enumerate(categories):
-        left = cumulative[:, i - 1] if i > 0 else np.zeros_like(heights)
-        face_color = palette[i]
-        edge_color = darken_color(face_color, 0.8)  # slightly darker for lines
-
-        # Fill area
-        ax.fill_betweenx(
-            heights, left, cumulative[:, i],
-            color=face_color, alpha=0.6
-        )
-        # Outline
-        ax.plot(cumulative[:, i], heights, color=edge_color, linewidth=1.5, label="_nolegend_")
-
-    ax.set_xlabel('Percentage of voxels [%]', fontsize=fig_prop['label_size'])
-    ax.set_ylabel('Height above ground [m]', fontsize=fig_prop['label_size'])
-    ax.set_xlim(0.1,max_percentage)
-    ax.set_ylim(0,np.max(heights) + vertBuffer)
-    plt.xticks(fontsize=fig_prop['label_size_ticks'])
-    plt.yticks(fontsize=fig_prop['label_size_ticks'])
-    ax.legend(categories[0:2], fontsize=fig_prop['label_size_ticks'])
-    plt.tight_layout()
-
-    plt.savefig(f"{out_dir}/OcclusionVertProf.{fig_prop['out_format']}", dpi=300, format=fig_prop['out_format'])
-    if show_plots:
-        plt.show(block=True)
-    else:
-        plt.close()
-"""
-
-
 
 
 class OccPy:
@@ -321,7 +239,7 @@ class OccPy:
 
         self.sens_pos_initialized = True
 
-    def prepare_input(self):
+    def link_positions_to_laz_files(self):
         """
         Prepare input data for ray tracing. Checks for each scan file if a link can be made to the scan positions file.
         Can be called manually to check if linking works, or is called by do_raytracing if not manually called before.
@@ -341,13 +259,15 @@ class OccPy:
 
         if not self.sens_pos_initialized:
             raise ValueError("Sensor positions not defined. Please call define_sensor_pos or define_sensor_pos_singlePos before running ray tracing.")
+        
+        is_sorted = lambda a: np.all(a[:-1] <= a[1:])
 
         # TODO: link positions to laz files first (in case of TLS at least), and warn/error if one/more positions cant be linked before processing
 
         run_raytraycing_after_loading = False
         if os.path.isdir(self.laz_in): # TLS
             ## get list of laz files in input directory
-            fCont = glob.glob(f"{self.laz_in}/*.laz")
+            fCont = glob.glob(os.path.join(self.laz_in, "*.laz"))
 
             for f in fCont:
                 # TODO: this shouldnt be done here but before, see TODO above
@@ -632,9 +552,9 @@ class OccPy:
 
         self.logger.info("Saving Occlusion Outputs As .npy")
         tic = time.time()
-        np.save(f"{self.out_dir}/Nhit.npy", self.Nhit)
-        np.save(f"{self.out_dir}/Nmiss.npy", self.Nmiss)
-        np.save(f"{self.out_dir}/Nocc.npy", self.Nocc)
+        np.save(os.path.join(self.out_dir, "Nhit.npy"), self.Nhit)
+        np.save(os.path.join(self.out_dir, "Nmiss.npy"), self.Nmiss)
+        np.save(os.path.join(self.out_dir, "Nocc.npy"), self.Nocc)
         toc = time.time()
         self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
@@ -650,7 +570,7 @@ class OccPy:
         self.Classification[np.logical_and.reduce((self.Nhit == 0, self.Nmiss == 0,
                                               self.Nocc == 0))] = 4  # voxels that were not observed # TODO: Figure out, why this overwrites voxels that are classified as occluded! -> this was because np.logical_and only takes in 2 arrays as input, not 3! use np.logical_and.reduce() for that!
 
-        np.save(f"{self.out_dir}/Classification.npy", self.Classification)
+        np.save(os.path.join(self.out_dir, "Classification.npy"), self.Classification)
         toc = time.time()
         self.logger.info("Elapsed Time: " + str(toc - tic) + " seconds")
 
@@ -659,18 +579,18 @@ class OccPy:
             self.logger.info("Saving Occlusion Outputs As .ply")
             tic = time.time()
             verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nhit)
-            ost.write_ply(f"{self.out_dir}/Nhit.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(os.path.join(self.out_dir, "Nhit.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nmiss)
-            ost.write_ply(f"{self.out_dir}/Nmiss.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(os.path.join(self.out_dir, "Nmiss.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Nocc)
-            ost.write_ply(f"{self.out_dir}/Nocc.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(os.path.join(self.out_dir, "Nocc.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.Classification)
-            ost.write_ply(f"{self.out_dir}/Classification.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(os.path.join(self.out_dir, "Classification.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             self.occl = np.zeros(shape=self.Classification.shape)
             x4, y4, z4 = np.where(self.Classification == 4)
             self.occl[x4, y4, z4] = self.Classification[x4, y4, z4]
             verts, faces = prepare_ply(self.vox_dim, self.PlotDim, self.occl)
-            ost.write_ply(f"{self.out_dir}/Occl.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(os.path.join(self.out_dir, "Occl.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             toc = time.time()
             self.logger.info("Elapsed Time: " + str(toc - tic) + " seconds")
 
