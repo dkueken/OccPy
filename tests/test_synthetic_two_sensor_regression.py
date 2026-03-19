@@ -48,27 +48,30 @@ def test_occpy_two_sensor_regression_against_fixture_expected(tmp_path: Path) ->
 
     out_dir = tmp_path / "occpy_out"
 
-    occpy = OccPy(
-        laz_in=str(input_laz_dir),
-        out_dir=str(out_dir),
-        vox_dim=float(cfg["vox_dim"]),
-        lower_threshold=0,
-        points_per_iter=100000,
-        plot_dim=cfg["plot_dim"],
-        output_voxels=False,
-    )
+    occpy_cfg = {
+        "laz_in": str(input_laz_dir),
+        "out_dir": str(out_dir),
+        "vox_dim": float(cfg["vox_dim"]),
+        "lower_threshold": 0,
+        "points_per_iter": 100000,
+        "plot_dim": cfg["plot_dim"],
+        "output_voxels": False,
+        "is_mobile": False,
+        "single_return": True,
+        "str_idxs_ScanPosID": [
+            int(cfg["scan_pos_id_stridx"]),
+            int(cfg["scan_pos_id_endstridx"]),
+        ],
+    }
+    occpy = OccPy(config=occpy_cfg)
 
     occpy.define_sensor_pos(
         path2file=str(senspos_file),
-        is_mobile=False,
-        single_return=True,
         delimiter=" ",
         hdr_scanpos_id="ScanPos",
         hdr_x="x",
         hdr_y="y",
         hdr_z="z",
-        str_idx_ScanPosID=int(cfg["scan_pos_id_stridx"]),
-        str_end_idx_ScanPosID=int(cfg["scan_pos_id_endstridx"]),
     )
 
     occpy.do_raytracing()

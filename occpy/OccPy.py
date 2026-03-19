@@ -98,7 +98,7 @@ def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_
 
 class OccPy:
 
-    def __init__(self, config_file):
+    def __init__(self, config=None, config_file=None):
         """
         initialize OccPy object
 
@@ -121,12 +121,24 @@ class OccPy:
             - 'str_idxs_ScanPosID': string indices of where the scan position identifier is written in the laz file name. If not given, will use file name as ID (without extension) (default: None)
         Parameters
         ----------
-        config_file : str
+        config : dict, optional
+            Configuration dictionary containing processing parameters.
+        config_file : str, optional
             Path to a JSON configuration file containing processing parameters.
+            If both config and config_file are provided, config takes precedence.
         """
 
-        with open(config_file) as f:
-            config = json.load(f)
+        if config is None and config_file is None:
+            raise ValueError("Either 'config' or 'config_file' must be provided.")
+
+        if config is None:
+            with open(config_file) as f:
+                config = json.load(f)
+        elif not isinstance(config, dict):
+            raise TypeError("'config' must be a dict when provided.")
+
+        # Keep an internal copy of the input config for record keeping.
+        config = dict(config)
 
         necessary_args = ["laz_in", "vox_dim", "plot_dim"]
 
@@ -191,7 +203,7 @@ class OccPy:
         if not os.path.exists(self.out_dir):
             os.makedirs(self.out_dir)
 
-        # copy config file to output directory for record keeping
+        # Write config to output directory for record keeping.
         with open(os.path.join(self.out_dir, "config.json"), "w") as to:
             json.dump(config, to)
 
