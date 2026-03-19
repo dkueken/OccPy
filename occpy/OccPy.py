@@ -2,6 +2,7 @@ import logging
 import time
 import os
 import glob
+import json
 
 import numpy as np
 import pandas as pd
@@ -96,95 +97,68 @@ def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_
 
 
 class OccPy:
-    def __init__(self, laz_in, out_dir, vox_dim=0.1, lower_threshold=1, points_per_iter=10000000, plot_dim=None, output_voxels=False, debug=False, verbose=False):
+
+    def __init__(self, config_file):
         """
         initialize OccPy object
 
+        Parameters in config file:  
+        Must include:  
+            - 'laz_in' : path to single .laz file or directory with multiple .laz files
+            - 'vox_dim' : voxel size in meters  
+            - 'plot_dim': grid for occlusion mapping: [minX, minY, minZ, maxX, maxY, maxZ]  
+        Optional parameters:  
+            - 'out_dir' : output directory (default: ./output)
+            - 'output_voxels' : whether to export `.ply` voxel grids (default: False)
+            - 'verbose': set logging level  (default: False)
+            - 'debug': set logging level (default: False)
+            - 'lower_threshold': lower threshold above ground to exclude from occlusion mapping in voxels (default: 0)
+            - 'points_per_iter': number of points read in from laz file in each iteration (default: 10000000)
+            - 'delimiter': csv delimiter for scan position file (default: ",")
+            - 'root_folder': if given, will assume other paths are relative to this root folder and will prepend it to the paths (default: None)
+            - 'is_mobile': whether the acquisition is mobile (MLS/ULS) or static (TLS) (default: False)
+            - 'single_return': whether the data is single return or multi return data (default: False)
+            - 'str_idxs_ScanPosID': string indices of where the scan position identifier is written in the laz file name. If not given, will use file name as ID (without extension) (default: None)
         Parameters
         ----------
-        laz_in: str
-            path to laz file or directory with multiple laz files
-        out_dir: str
-            path to output directory for occlusion maps
-        vox_dim: float [default: 0.1]
-            voxel dimension in meters. We currently assume cubic voxels.
-        lower_threshold: float [default: 1]
-            lower threshold above ground to exclude from occlusion mapping in voxels. TODO: figure out, if this is needed at this place!
-        points_per_iter: int [default: 10000000
-            number of points read in from laz file in each iteration. Warning: this only applies to LAZ files with either
-            only single returns or when points have been sorted by GPSTime and return number.
-        plot_dim: list [default: None]
-            corner coordinates of the plot in question. Expected format is: [minX, minY, minZ, maxX, maxY, maxZ]
-        output_voxels: bool [default: False]
-            whether voxel grid should be outputed as ply file. WARNING: this requires significant resources and takes a long time. Has not been properly tested!
-        debug: bool [default: False]
-            whether to output debug information during raytracing, e.g. about the pulse dataset
-        verbose: bool [default: False]
-            whether to output info level logging during raytracing, e.g. about the time elapsed for raytracing batches
+        config_file : str
+            Path to a JSON configuration file containing processing parameters.
         """
-        self.laz_in_f = laz_in
-        self.out_dir = out_dir
-        os.makedirs(out_dir, exist_ok=True)
-        self.vox_dim = vox_dim  # voxel dimension (cubic) in meters TODO: maybe implement non-cubic voxels?
-        self.lower_threshold = lower_threshold  # lower threshold above ground to exclude TODO: check if necessary
-        self.points_per_iter = points_per_iter  # number of points read in from laz file in each iteration
-        self.output_voxels = output_voxels
-        self.is_mobile = False
-        self.traj_f = None
-        self.traj = None
-        self.senspos_f = None
-        self.senspos = None
-        self.single_return = None
-        # TODO: find a better way to link scan position id between laz file and scan pos file!
-        self.scan_pos_id_stridx = 0
-        self.scan_pos_id_endstridx = 0
 
-        self.debug = debug
-        self.verbose = verbose
+        with open(config_file) as f:
+            config = json.load(f)
 
-        # some parameters that will be filled during function calls
-        self.TotalVolume = 0
-        self.TotalOcclusion = 0
+        necessary_args = ["laz_in", "vox_dim", "plot_dim"]
 
-        self.OcclFrac2D = None
+        missing = []
+        for key in necessary_args:
+            if key not in config:
+                missing.append(key)
 
-        # 3DGrids
-        self.Nhit = None
-        self.Nmiss = None
-        self.Nocc = None
-        self.Classification = None
+        if len(missing) > 0:
+            raise ValueError(f"Missing necessary arguments in config file: {missing}")
+        
+        self.laz_in = config["laz_in"]
+        self.vox_dim = config["vox_dim"]
+        self.plot_dim = config["plot_dim"]
+        
+        optional_args = ["out_dir", "output_voxels", "verbose", "debug", "lower_threshold", "points_per_iter", "delimiter", "root_folder", "single_return", "str_idxs_ScanPosID"]
+        
+        print(f"INFO: optional arguments: {optional_args}")
 
-        # 2D Grids
-        self.dtm = None
-        self.dsm = None
-        self.chm = None
+        # set optional arguments with defaults if not provided
+        self.out_dir = config.get("out_dir", "./output")
+        self.output_voxels = config.get("output_voxels", False)
+        self.verbose = config.get("verbose", False)
+        self.debug = config.get("debug", False)
+        self.lower_threshold = config.get("lower_threshold", 0)
+        self.points_per_iter = config.get("points_per_iter", 10000000)
+        self.root_folder = config.get("root_folder", None)
+        self.is_mobile = config.get("is_mobile", False)
+        self.single_return = config.get("single_return", False)
+        self.str_idxs_ScanPosID = config.get("str_idxs_ScanPosID", None)
 
-        if plot_dim is None:
-            # TODO: Test if this works!
-            # TODO: this assumes laz_in is single file?
-            with laspy.open(laz_in) as file:
-                hdr = file.header
-                self.PlotDim = dict(minX=hdr.x_min,
-                                    maxX=hdr.x_max,
-                                    minY=hdr.y_min,
-                                    maxY=hdr.y_max,
-                                    minZ=hdr.z_min,
-                                    maxZ=hdr.z_max)
-
-        else:
-            # we expect the format of plot_dim to be [minX, minY, minZ, maxX, maxY, maxZ]
-            self.PlotDim = dict(minX=plot_dim[0],
-                                maxX=plot_dim[3],
-                                minY=plot_dim[1],
-                                maxY=plot_dim[4],
-                                minZ=plot_dim[2],
-                                maxZ=plot_dim[5])
-
-        self.grid_dim = dict(nx=int((self.PlotDim['maxX'] - self.PlotDim['minX']) / self.vox_dim),
-                             ny=int((self.PlotDim['maxY'] - self.PlotDim['minY']) / self.vox_dim),
-                             nz=int((self.PlotDim['maxZ'] - self.PlotDim['minZ']) / self.vox_dim))
-
-        # -- config logging 
+        # config logging 
         if self.debug:
             logging_level = logging.DEBUG
         elif self.verbose:
@@ -193,25 +167,75 @@ class OccPy:
             logging_level = logging.WARNING
         self.logger = logging.getLogger('occpy_logger')
         self.logger.setLevel(logging_level)
+        self.logger.propagate = False
+        if self.logger.handlers:
+            self.logger.handlers.clear()
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging_level)
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
 
-        # TODO: check input arguments below
+        # config paths
+        if self.root_folder is not None and self.root_folder != "":
+            self.root_folder = os.path.abspath(self.root_folder)
+            if not os.path.exists(self.root_folder):
+                raise ValueError(f"Root folder {self.root_folder} does not exist.")
+            self.logger.info(f"Prepending root folder {self.root_folder} to input and output paths.")
+            self.out_dir = os.path.join(self.root_folder, self.out_dir)
+            self.laz_in = os.path.join(self.root_folder, self.laz_in)
+
+        if not os.path.exists(self.laz_in):
+            raise ValueError(f"Input path {self.laz_in} does not exist.")
+
+        if not os.path.exists(self.out_dir):
+            os.makedirs(self.out_dir)
+
+        # copy config file to output directory for record keeping
+        with open(os.path.join(self.out_dir, "config.json"), "w") as to:
+            json.dump(config, to)
 
 
-        # initialize RayTr Object
+        # configure occpy input
+        self.TotalVolume = 0
+        self.TotalOcclusion = 0
+        self.OcclFrac2D = None
+        self.Nhit = None
+        self.Nmiss = None
+        self.Nocc = None
+        self.Classification = None
+        self.dtm = None
+        self.dsm = None
+        self.chm = None
+        self.sens_pos_initialized = False
+        
+        
+        # initialize RayTr Object and define grid
         self.RayTr = PyRaytracer()
-
-        # Define Grid
+        self.PlotDim = dict(minX=self.plot_dim[0],
+                                maxX=self.plot_dim[3],
+                                minY=self.plot_dim[1],
+                                maxY=self.plot_dim[4],
+                                minZ=self.plot_dim[2],
+                                maxZ=self.plot_dim[5])
+        # TODO: here, we should watch out with non-integer bounds. nx is rounded to nearest multiple of vox_dim, which can lead to edge effects when using non-integer bounds. 
+        # desired behaviour would be 
+        #       a. not require integer bounds -> then voxel indexing logic needs to be rewritten on c++ side to not use max_bound-min_bound but min_bound + index
+        #           in this case, the voxelgrid is started at min_bound always, and the amount of voxels is determined by how many voxels fit into the plot_dim. Max_bound in practice is then not equal to max_bound if the extent is not a multiple of vox_dim, so user needs to be warned about this. But this shouldnt be a huge problem.
+        #           some untested code for this case is already ready
+        #       b. require integer bounds, round here -> then we need to clearly warn the user, and save the actual bounds used to the output directory in some way
+        self.grid_dim = dict(nx=int((self.PlotDim['maxX'] - self.PlotDim['minX']) / self.vox_dim),
+                             ny=int((self.PlotDim['maxY'] - self.PlotDim['minY']) / self.vox_dim),
+                             nz=int((self.PlotDim['maxZ'] - self.PlotDim['minZ']) / self.vox_dim))
         minBound = np.array([self.PlotDim['minX'], self.PlotDim['minY'], self.PlotDim['minZ']])
         maxBound = np.array([self.PlotDim['maxX'], self.PlotDim['maxY'], self.PlotDim['maxZ']])
         self.RayTr.defineGrid(minBound, maxBound, self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz'],
                               self.vox_dim)
+        
+        return
 
-    def define_sensor_pos(self, path2file, is_mobile, single_return=None, delimiter=" ", hdr_time='%time', hdr_scanpos_id='', hdr_x='x', hdr_y='y', hdr_z='z', sens_pos_id_offset=0, str_idx_ScanPosID=0, str_end_idx_ScanPosID=0):
+
+    def define_sensor_pos(self, path2file, delimiter=" ", hdr_time='%time', hdr_scanpos_id='', hdr_x='x', hdr_y='y', hdr_z='z', sens_pos_id_offset=0):
         """
         defines sensor position based on the provided csv file. CSV file needs to include
         Parameters
@@ -220,8 +244,6 @@ class OccPy:
             path to csv file with sensor position information
         is_mobile: bool [mandatory]
             True or False whether platform is mobile (MLS, ULS) or static (TLS)
-        single_return: bool [adviced]
-            True or False whether data is single return or multi return data
         delimiter: str [default: " "]
             csv delimiter
         hdr_time: str
@@ -236,28 +258,25 @@ class OccPy:
             column header for z coordinates
         sens_pos_id_offset: int
             Very specific use case where Scan Pos ID in position file does not correspond with Scan Pos ID in LAZ files and we need to add an offset
-        str_idx_ScanPosID: int
-            string index of where the scan position identifier is written in the laz file name TODO: find a better way to handle this!
-        str_end_idx_ScanPosID: int
-            string index of where the scan position identifier ends in the laz file name TODO: find a better way to handle this!
-
-        Returns
-        -------
 
         """
-        self.is_mobile = is_mobile
-        self.single_return = single_return
+        # resolve path
+        if not os.path.isabs(path2file):
+            self.logger.warning(f"Provided path to sensor position file {path2file} is not absolute. Resolving relative to root folder {self.root_folder}.")
+            if self.root_folder is not None:
+                path2file = os.path.join(self.root_folder, path2file)
+            else:
+                path2file = os.path.abspath(path2file)
+        if not os.path.exists(path2file):
+            raise ValueError(f"Provided path to sensor position file {path2file} does not exist. Please check the path and try again.")
 
-        if is_mobile: # case of mobile acquisitions (MLS, ULS)
+        if self.is_mobile: # case of mobile acquisitions (MLS, ULS)
             self.logger.info("Defining sensor positions for mobile acquisition. Interpolating trajectory for each pulse based on provided trajectory file.")
             self.traj = read_trajectory_file(path2traj=path2file, delimiter=delimiter, hdr_time=hdr_time, hdr_x=hdr_x, hdr_y=hdr_y, hdr_z = hdr_z)
         else: # case of static acquisition (TLS)
             self.logger.info("Defining sensor positions for static acquisition.")
             self.senspos = read_sensorpos_file(path2senspos=path2file, delimiter=delimiter, hdr_scanpos_id=hdr_scanpos_id, hdr_x=hdr_x, hdr_y=hdr_y, hdr_z=hdr_z, sens_pos_id_offset=sens_pos_id_offset)
-            self.scan_pos_id_stridx = str_idx_ScanPosID
-            self.scan_pos_id_endstridx = str_end_idx_ScanPosID
-
-    # TODO: change to structure of occpyRIEGL: read input las files and link to scan positions/ trajectory first (how to do this for MLS/ULS?) -> allows us to error out/log early when position link is not properly found
+        self.sens_pos_initialized = True
 
     # TODO: ugly workaround for the case where a single laz file from a single TLS position should be run
     def define_sensor_pos_singlePos(self, scan_pos_id, x, y, z):
@@ -288,6 +307,14 @@ class OccPy:
 
         self.senspos = senspos
 
+        self.sens_pos_initialized = True
+
+    def prepare_input(self):
+        """
+        Prepare input data for ray tracing. Checks for each scan file if a link can be made to the scan positions file.
+        Can be called manually to check if linking works, or is called by do_raytracing if not manually called before.
+        """
+        raise NotImplementedError("TODO!")
 
     def do_raytracing(self):
         """
@@ -298,29 +325,27 @@ class OccPy:
         In the case of TLS, for each LAZ file, it extracts point positions and sensor positions, and
         then performs ray tracing, accounting for single or multi-return pulse information. Multi-return handling
         supports on-the-fly processing if the data is sorted by GPS time; otherwise, the full dataset must be loaded first.
-
-        Raises
-        ------
-        FileNotFoundError
-            TODO: Needs to be implemented: If `self.laz_in_f` is not a valid file or directory.
-
-        RuntimeWarning
-            TODO: Needs to be implemented: If multi-return data is detected but the LAZ file is not sorted by GPS time.
-
         """
 
+        if not self.sens_pos_initialized:
+            raise ValueError("Sensor positions not defined. Please call define_sensor_pos or define_sensor_pos_singlePos before running ray tracing.")
+
+        # TODO: link positions to laz files first (in case of TLS at least), and warn/error if one/more positions cant be linked before processing
+
         run_raytraycing_after_loading = False
-        if os.path.isdir(self.laz_in_f):
+        if os.path.isdir(self.laz_in): # TLS
             ## get list of laz files in input directory
-            fCont = glob.glob(f"{self.laz_in_f}/*.laz")
+            fCont = glob.glob(f"{self.laz_in}/*.laz")
 
             for f in fCont:
-                # get scan position
-                # lastdir_ind = f.rfind("/")
+                # TODO: this shouldnt be done here but before, see TODO above
+                # get scan position ID
                 scan_name = os.path.basename(f)
-                # TODO: This is very specific to the test data and needs to be made generic!
-                #end_of_scanID_idx = scan_name.rfind("_")
-                scan_id = int(scan_name[self.scan_pos_id_stridx:self.scan_pos_id_endstridx])
+                scan_id = scan_name.split(".")[0] # default: use file name without extension as scan ID
+                if self.str_idxs_ScanPosID is not None: # if given, use sting indices
+                    scan_id = int(scan_name[self.str_idxs_ScanPosID[0]:self.str_idxs_ScanPosID[1]])
+
+                self.logger.debug(f"Using scan ID {scan_id} for file {scan_name}.")
 
                 print(f"###############################")
                 print(f"##### Processing {scan_name}...")
@@ -329,8 +354,6 @@ class OccPy:
                 scanpos_X = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_x'].values[0]
                 scanpos_Y = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_y'].values[0]
                 scanpos_Z = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_z'].values[0]
-
-
 
                 # read in laz file
                 tic = time.time()
@@ -455,8 +478,8 @@ class OccPy:
                 toc = time.time()
                 self.logger.info("Time elapsed for raytracing: {:.2f} seconds".format(toc - tic))
 
-        else: # if input is a single laz file
-            with laspy.open(self.laz_in_f) as file:
+        else: # if input is a single laz file, TLS with single scan position or MLS/ULS with trajectory
+            with laspy.open(self.laz_in) as file:
                 count = 0
                 with tqdm(total=file.header.point_count, desc="Tracing Pulses...", unit="pulses") as pbar:
                     for points in file.chunk_iterator(points_per_iteration=self.points_per_iter):
@@ -489,9 +512,6 @@ class OccPy:
                                                            'sensor_x': np.ones(gps_time.shape) * self.senspos['sensor_x'].values[0],
                                                            'sensor_y': np.ones(gps_time.shape) * self.senspos['sensor_y'].values[0],
                                                            'sensor_z': np.ones(gps_time.shape) * self.senspos['sensor_z'].values[0]})
-
-
-
 
                         if np.max(number_of_returns) == 1 or np.max(return_number) == 1:
                             run_raytraycing_after_loading = False
@@ -702,7 +722,6 @@ class OccPy:
 
         """
         return np.int32(self.RayTr.get_num_traversed_pulses())
-
 
     def getTotalNumPulses(self):
         """
