@@ -116,18 +116,25 @@ class OccPyRIEGL:
             else:
                 buffer = [0,0,0,0]
             # TODO: implement
-            plot_dim = self.determine_grid(buffer)
+            self.plot_dim = self.determine_grid(buffer)
         else:
             if "plot_dim" not in config:
                 raise ValueError("plot_dim must be provided if auto_dim is not set to True")
             
-            plot_dim = config["plot_dim"]
-            self.plot_dim = dict(minX=plot_dim["minX"],
-                                maxX=plot_dim["maxX"],
-                                minY=plot_dim["minY"],
-                                maxY=plot_dim["maxY"],
-                                minZ=plot_dim["minZ"],
-                                maxZ=plot_dim["maxZ"])
+            self.plot_dim = config["plot_dim"]
+            
+        # ensure extents are exactly divisible by vox_dim by extending max bounds if needed.
+        self.plot_dim, warnings = self.align_plot_dim_to_voxel_size(self.plot_dim, self.vox_dim)
+        for msg in warnings:
+            self.logger.warning(msg)
+
+        
+        self.plot_dim = dict(minX=self.plot_dim["minX"],
+                            maxX=self.plot_dim["maxX"],
+                            minY=self.plot_dim["minY"],
+                            maxY=self.plot_dim["maxY"],
+                            minZ=self.plot_dim["minZ"],
+                            maxZ=self.plot_dim["maxZ"])
         
         self.RayTr = PyRaytracer()
         # Define Grid
@@ -657,3 +664,35 @@ class OccPyRIEGL:
             # ost.write_ply(f"{self.odir}/Occl.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             toc = time.time()
             print("Elapsed Time: " + str(toc - tic) + " seconds")
+
+    @staticmethod
+    def align_plot_dim_to_voxel_size(plot_dim, vox_dim):
+        """extend max bounds so each axis extent is divisible by vox_dim."""
+
+        adjusted = [float(v) for v in plot_dim]
+        messages = []
+        tol = 1e-9
+        axes = (("X", 0, 3), ("Y", 1, 4), ("Z", 2, 5))
+
+        for axis_name, min_idx, max_idx in axes:
+            min_bound = adjusted[min_idx]
+            max_bound = adjusted[max_idx]
+            extent = max_bound - min_bound
+
+            if extent <= 0:
+                raise ValueError(
+                    f"Invalid plot_dim on axis {axis_name}: max ({max_bound}) must be greater than min ({min_bound})."
+                )
+
+            n_voxels = int(np.ceil((extent / vox_dim) - tol))
+            adjusted_extent = n_voxels * vox_dim
+
+            if not np.isclose(extent, adjusted_extent, rtol=0.0, atol=tol):
+                new_max = min_bound + adjusted_extent
+                messages.append(
+                    f"Axis {axis_name}: extent {extent:.12g} is not divisible by vox_dim {vox_dim:.12g}. "
+                    f"Extending max bound from {max_bound:.12g} to {new_max:.12g}."
+                )
+                adjusted[max_idx] = new_max
+
+        return adjusted, messages

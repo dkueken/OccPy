@@ -125,7 +125,6 @@ class OccPy:
         with open(os.path.join(self.out_dir, "config.json"), "w") as to:
             json.dump(config, to)
 
-
         # configure occpy input
         self.TotalVolume = 0
         self.TotalOcclusion = 0
@@ -138,29 +137,31 @@ class OccPy:
         self.dsm = None
         self.chm = None
         self.sens_pos_initialized = False
-        
+
+        # ensure extents are exactly divisible by vox_dim by extending max bounds if needed.
+        self.plot_dim, warnings = self.align_plot_dim_to_voxel_size(self.plot_dim, self.vox_dim)
+        for msg in warnings:
+            self.logger.warning(msg)
+
+        # Keep output config aligned with the effective bounds used by the run.
+        config["plot_dim"] = self.plot_dim
         
         # initialize RayTr Object and define grid
-        self.RayTr = PyRaytracer()
+        self.RayTr = PyRaytracer()        
         self.PlotDim = dict(minX=self.plot_dim[0],
                                 maxX=self.plot_dim[3],
                                 minY=self.plot_dim[1],
                                 maxY=self.plot_dim[4],
                                 minZ=self.plot_dim[2],
                                 maxZ=self.plot_dim[5])
-        # TODO: here, we should watch out with non-integer bounds. nx is rounded to nearest multiple of vox_dim, which can lead to edge effects when using non-integer bounds. 
-        # desired behaviour would be 
-        #       a. not require integer bounds -> then voxel indexing logic needs to be rewritten on c++ side to not use max_bound-min_bound but min_bound + index
-        #           in this case, the voxelgrid is started at min_bound always, and the amount of voxels is determined by how many voxels fit into the plot_dim. Max_bound in practice is then not equal to max_bound if the extent is not a multiple of vox_dim, so user needs to be warned about this. But this shouldnt be a huge problem.
-        #           some untested code for this case is already ready
-        #       b. require integer bounds, round here -> then we need to clearly warn the user, and save the actual bounds used to the output directory in some way
+        
         self.grid_dim = dict(nx=int((self.PlotDim['maxX'] - self.PlotDim['minX']) / self.vox_dim),
-                             ny=int((self.PlotDim['maxY'] - self.PlotDim['minY']) / self.vox_dim),
-                             nz=int((self.PlotDim['maxZ'] - self.PlotDim['minZ']) / self.vox_dim))
-        minBound = np.array([self.PlotDim['minX'], self.PlotDim['minY'], self.PlotDim['minZ']])
-        maxBound = np.array([self.PlotDim['maxX'], self.PlotDim['maxY'], self.PlotDim['maxZ']])
-        self.RayTr.defineGrid(minBound, maxBound, self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz'],
-                              self.vox_dim)
+                     ny=int((self.PlotDim['maxY'] - self.PlotDim['minY']) / self.vox_dim),
+                     nz=int((self.PlotDim['maxZ'] - self.PlotDim['minZ']) / self.vox_dim))
+                     
+        minBound = np.asarray([self.PlotDim['minX'], self.PlotDim['minY'], self.PlotDim['minZ']], dtype=np.float64)
+        maxBound = np.asarray([self.PlotDim['maxX'], self.PlotDim['maxY'], self.PlotDim['maxZ']], dtype=np.float64)
+        self.RayTr.defineGrid(minBound, maxBound, self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz'], self.vox_dim)
         
         return
 
@@ -637,11 +638,11 @@ class OccPy:
         Get the grid origin
         Returns
         -------
-        origin: [int, int, int]
+        origin: [float, float, float]
             with grid origins [minx, miny, minz]
 
         """
-        origin = np.asarray(self.RayTr.getGridOrigin(), dtype=np.int32)
+        origin = np.asarray(self.RayTr.getGridOrigin(), dtype=np.float64)
         return origin
 
     def getNumTraversedPulses(self):
@@ -711,4 +712,36 @@ class OccPy:
 
         """
         return np.int32(self.RayTr.get_num_pulses_no_intersection())
+
+    @staticmethod
+    def align_plot_dim_to_voxel_size(plot_dim, vox_dim):
+        """extend max bounds so each axis extent is divisible by vox_dim."""
+
+        adjusted = [float(v) for v in plot_dim]
+        messages = []
+        tol = 1e-9
+        axes = (("X", 0, 3), ("Y", 1, 4), ("Z", 2, 5))
+
+        for axis_name, min_idx, max_idx in axes:
+            min_bound = adjusted[min_idx]
+            max_bound = adjusted[max_idx]
+            extent = max_bound - min_bound
+
+            if extent <= 0:
+                raise ValueError(
+                    f"Invalid plot_dim on axis {axis_name}: max ({max_bound}) must be greater than min ({min_bound})."
+                )
+
+            n_voxels = int(np.ceil((extent / vox_dim) - tol))
+            adjusted_extent = n_voxels * vox_dim
+
+            if not np.isclose(extent, adjusted_extent, rtol=0.0, atol=tol):
+                new_max = min_bound + adjusted_extent
+                messages.append(
+                    f"Axis {axis_name}: extent {extent:.12g} is not divisible by vox_dim {vox_dim:.12g}. "
+                    f"Extending max bound from {max_bound:.12g} to {new_max:.12g}."
+                )
+                adjusted[max_idx] = new_max
+
+        return adjusted, messages
 
