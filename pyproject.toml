@@ -27,13 +27,14 @@ dependencies = [
   "opencv-python",
   "matplotlib",
   "open3d",
-  "pyvista",
+  "pyvista[jupyter]",
+  "imageio[ffmpeg]",
   "ipykernel"
 ]
 
 [project.urls]
-Homepage = "https://github.com/pypa/sampleproject"
-Issues = "https://github.com/pypa/sampleproject/issues"
+Homepage = "https:/https://github.com/dkueken/OccPy"
+Issues = "https://https://github.com/dkueken/OccPy/issues"
 
 [build-system]
 requires = [

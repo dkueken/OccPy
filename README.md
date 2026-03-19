@@ -15,10 +15,11 @@ Via pip:
 
 Pre-built wheels are available for Python versions 3.10, 3.11, 3.12, 3.13, on:
 - Linux (x86_64)
-- Windows (TODO)
+- Windows
+- MacOS
 A source distribution is also available, which will require a C++ environment with boost libraries installed for a working installation.
 
-Note: Riegl libraries are not packaged, to use RXP and RDBX files, you must build from source.
+Note: Propriatary RIEGL libraries are not packaged, to use RXP and RDBX files, you must build from source.
 
 ### Build from source
 
@@ -139,7 +140,7 @@ In order for the occlusion mapping to work, several requirements on the input da
 
 ### TLS
 **Scan Positions**
-- Scan Position file (as txt), where position should be referring to the laser source position.
+- Scan Position file (as txt), where position should be referring to the laser source position. See examples in notebooks.
 
 **LAZ File**
 - 1 LAZ or LAS file per scan position, preferably not filtered. 
@@ -202,7 +203,6 @@ Several open issues and improvements are currently worked on or planned for the 
 - Add support for reading in a DTM file into the voxel traversal, so the algorithm could stop, once the pulse reached the terrain.
 - Substantial performance improvement by using multi core processing
 - Add functionality for PAI/PAD calculation of each voxel (i.e. calculation of path length within voxel for each pulse) 
-- Add interactive visualization solution like pyvista or https://github.com/msoechting/lexcube
 - There is currently still an issue with UAVLS data, where some (very few) LiDAR returns are not registered by the algorithm. The implications for that should be analysed and the problem mitigated. This could cause an underestimation of occlusion, as the e.g. the last return is never reached and the pulse will traverse further without declaring an voxels as occluded for that pulse. There is the possibility to overcome this issue by using the function ```RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns)``` as used in the script _Test_MLS.py_, where the input data is not initially converted to a pulse dataset, but each return is basically treated as a single pulse. We would only recommend to use this approach, if you are confident about your trajectory information.
 
 ## Contributing
