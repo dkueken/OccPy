@@ -77,7 +77,7 @@ class OccPy:
         print(f"INFO: optional arguments: {optional_args}")
 
         # set optional arguments with defaults if not provided
-        self.out_dir = config.get("out_dir", "./output")
+        self.out_dir = config.get("out_dir", os.path.join(os.getcwd(), "output"))
         self.output_voxels = config.get("output_voxels", False)
         self.verbose = config.get("verbose", False)
         self.debug = config.get("debug", False)

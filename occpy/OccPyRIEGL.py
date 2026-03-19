@@ -36,7 +36,7 @@ class OccPyRIEGL:
             - 'vox_dim' : voxel size in meters  
             - 'plot_dim': grid for occlusion mapping: [minX, minY, minZ, maxX, maxY, maxZ]  
         Optional parameters:  
-            - 'odir' : output directory (default: ./output)
+            - 'out_dir' : output directory (default: ./output)
             - 'buffer' : spatial buffer around point cloud   
             - 'output_voxels' : whether to export `.ply` voxel grids  
             - 'model_empty_pulses' : whether to model empty pulses  
@@ -62,10 +62,9 @@ class OccPyRIEGL:
                 missing.append(key)
 
         if len(missing) > 0:
-            print(f"Please complete the config file with the following entries: {missing}")
-            os._exit(1)
+            raise ValueError(f"Missing necessary arguments in config file: {missing}")
 
-        optional_args = ["model_empty_pulses", "verbose", "debug", "output_voxels", "lower_threshold", "odir", "auto_dim", "buffer", "exclude_scan_pattern"]
+        optional_args = ["model_empty_pulses", "verbose", "debug", "output_voxels", "lower_threshold", "out_dir", "auto_dim", "buffer", "exclude_scan_pattern"]
 
         print(f"INFO: optional arguments: {optional_args}")
 
@@ -73,22 +72,18 @@ class OccPyRIEGL:
         self.proj_folder = config["proj_folder"]
         self.vox_dim = config["vox_dim"]
 
-        self.model_empty_pulses = config["model_empty_pulses"] if "model_empty_pulses" in config else False
-        self.verbose = config["verbose"] if "verbose" in config else False
-        self.debug = config["debug"] if "debug" in config else False
-        self.output_voxels = config["output_voxels"] if "output_voxels" in config else False
-        self.lower_threshold = config["lower_threshold"] if "lower_threshold" in config else 0
-        self.exclude_scan_pattern = config["exclude_scan_pattern"] if "exclude_scan_pattern" in config else None
+        self.model_empty_pulses = config.get("model_empty_pulses", False)
+        self.verbose = config.get("verbose", False)
+        self.debug = config.get("debug", False)
+        self.output_voxels = config.get("output_voxels", False)
+        self.lower_threshold = config.get("lower_threshold", 0)
+        self.exclude_scan_pattern = config.get("exclude_scan_pattern", None)
+        self.out_dir = config.get("out_dir", os.path.join(os.getcwd(), "output"))
 
-        if "odir" not in config:
-            odir = os.path.join(os.getcwd(), "output")
-            self.odir = odir
-        else:
-            self.odir = config["odir"]
-        if not os.path.exists(self.odir):
-            os.makedirs(self.odir, exist_ok=True)
+        if not os.path.exists(self.out_dir):
+            os.makedirs(self.out_dir, exist_ok=True)
         # copy config file for future reference
-        with open(os.path.join(self.odir, "config.json"), "w") as to:
+        with open(os.path.join(self.out_dir, "config.json"), "w") as to:
             json.dump(config, to)
 
         # -- config logging 
@@ -124,8 +119,8 @@ class OccPyRIEGL:
             plot_dim = self.determine_grid(buffer)
         else:
             if "plot_dim" not in config:
-                self.logger.error("Must provide plot dimensions in config if auto_dim is false")
-                os._exit(1)
+                raise ValueError("plot_dim must be provided if auto_dim is not set to True")
+            
             plot_dim = config["plot_dim"]
             self.plot_dim = dict(minX=plot_dim["minX"],
                                 maxX=plot_dim["maxX"],
@@ -134,13 +129,11 @@ class OccPyRIEGL:
                                 minZ=plot_dim["minZ"],
                                 maxZ=plot_dim["maxZ"])
         
+        self.RayTr = PyRaytracer()
+        # Define Grid
         self.grid_dim = dict(nx=int((self.plot_dim['maxX'] - self.plot_dim['minX']) / self.vox_dim),
                              ny=int((self.plot_dim['maxY'] - self.plot_dim['minY']) / self.vox_dim),
                              nz=int((self.plot_dim['maxZ'] - self.plot_dim['minZ']) / self.vox_dim))
-        
-        self.RayTr = PyRaytracer()
-
-        # Define Grid
         min_bound = np.array([self.plot_dim['minX'], self.plot_dim['minY'], self.plot_dim['minZ']])
         max_bound = np.array([self.plot_dim['maxX'], self.plot_dim['maxY'], self.plot_dim['maxZ']])
         self.RayTr.defineGrid(min_bound, max_bound, self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz'],
@@ -160,9 +153,7 @@ class OccPyRIEGL:
 
         rdbx_scan_list = glob.glob(os.path.join(self.riscan_folder, "project.rdb", "SCANS", "**"))
         if len(rdbx_scan_list) == 0:
-            self.logger.error(f"No rdbx files found in riscan folder {self.riscan_folder}")
-            self.logger.debug(f'path checked: {os.path.join(self.riscan_folder, "project.rdb", "SCANS", "**")}')
-            os._exit(1)
+            raise ValueError(f'No rdbx files found in riscan folder {self.riscan_folder}. Please check the path and ensure it contains RIEGL scan data with .rdbx files. Path checked: {os.path.join(self.riscan_folder, "project.rdb", "SCANS", "**")}')
 
         for folder in rdbx_scan_list:
             if "@" in folder:
@@ -516,8 +507,8 @@ class OccPyRIEGL:
             if self.model_empty_pulses:
                 self.logger.info("Reading preview and masking empty pulses")
                 if scan not in self.png_scans:
-                    self.logger.error(f"Model empty pulses on but scan preview not found for {scan}, exiting.")
-                    os._exit(1)
+                    raise ValueError(f"Model empty pulses on but scan preview not found for {scan}, exiting.")
+                
                 empty_pulse_df = self.mask_empty_pulses_preview(empty_pulse_df, self.png_scans[scan], max_scanline_idx, max_scanline)
 
             self.logger.info("Adding point data")
