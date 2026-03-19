@@ -262,7 +262,7 @@ class OccPy:
         """
         # resolve path
         if not os.path.isabs(path2file):
-            self.logger.warning(f"Provided path to sensor position file {path2file} is not absolute. Resolving relative to root folder {self.root_folder}.")
+            self.logger.info(f"Provided path to sensor position file {path2file} is not absolute. Resolving relative to root folder {self.root_folder}.")
             if self.root_folder is not None:
                 path2file = os.path.join(self.root_folder, path2file)
             else:

@@ -1,11 +1,11 @@
 {
-    "root_folder": "/Users/danielkukenbrink/dev/OccPy",
-    "laz_in": "/Users/danielkukenbrink/Library/Caches/occpy_test_data/TLS_demo.zip.unzip/TLS_demo/LAZ",
+    "root_folder": "../..",
+    "laz_in": "data_notebooks/TLS_demo/LAZ",
     "tif_in": {
-        "DTM": "/Users/danielkukenbrink/Library/Caches/occpy_test_data/TLS_demo.zip.unzip/TLS_demo/Grids/Ramerenwald_DTM_20250305.tif",
-        "DSM": "/Users/danielkukenbrink/Library/Caches/occpy_test_data/TLS_demo.zip.unzip/TLS_demo/Grids/Ramerenwald_DSM_20250305.tif"
+        "DTM": "data_notebooks/TLS_demo/Grids/Ramerenwald_DTM_20250305.tif",
+        "DSM": "data_notebooks/TLS_demo/Grids/Ramerenwald_DSM_20250305.tif"
     },
-    "out_dir": "/Users/danielkukenbrink/dev/OccPy/output/TLS",
+    "out_dir": "output/TLS_individual",
     "vox_dim": 0.1,
     "lower_threshold": 1,
     "points_per_iter": 1000000,
@@ -17,6 +17,9 @@
         1246113,
         590
     ],
-    "ScanPos": "/Users/danielkukenbrink/Library/Caches/occpy_test_data/TLS_demo.zip.unzip/TLS_demo/ScanPos/ScanPositions.txt",
-    "output_voxels": false
+    "ScanPos": "data_notebooks/TLS_demo/ScanPos/ScanPositions.txt",
+    "output_voxels": false,
+    "single_return": false,
+    "is_mobile": false,
+    "str_idxs_ScanPosID": [7,10]
 }
