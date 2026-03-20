@@ -238,12 +238,6 @@ class OccPy:
 
         self.sens_pos_initialized = True
 
-    def link_positions_to_laz_files(self):
-        """
-        Prepare input data for ray tracing. Checks for each scan file if a link can be made to the scan positions file.
-        Can be called manually to check if linking works, or is called by do_raytracing if not manually called before.
-        """
-        raise NotImplementedError("TODO!")
 
     def do_raytracing(self):
         """
@@ -263,7 +257,7 @@ class OccPy:
 
         # TODO: link positions to laz files first (in case of TLS at least), and warn/error if one/more positions cant be linked before processing
 
-        run_raytraycing_after_loading = False
+        run_raytracing_after_loading = False
         if os.path.isdir(self.laz_in): # TLS
             ## get list of laz files in input directory
             fCont = glob.glob(os.path.join(self.laz_in, "*.laz"))
@@ -293,18 +287,7 @@ class OccPy:
                     count = 0
                     for points in file.chunk_iterator(self.points_per_iter):
 
-                        # if self.single_return is not set, check data to find out if there are multiple returns stored per pulse
-                        if self.single_return == None:
-                            self.logger.warning(
-                                f"TIPP: it was not specified if the point cloud stores single return data. to avoid any "
-                                f"issues where there are only single return pulses in the first chunk, put there are "
-                                f"multi return pulses in the whole dataset, please set the single_return variable within "
-                                f"the define_sensor_pos function")
-                            max_ret_num = np.max(points.return_number)
-                            if max_ret_num > 1:
-                                self.single_return = False
-                            else:
-                                self.single_return = True
+                        self.check_multi_return_handling(points, scan_name)
 
                         if self.single_return:
                             sorted = True
@@ -429,6 +412,8 @@ class OccPy:
                             return_number[:] = 1
                             number_of_returns[:] = 1
 
+                        self.check_multi_return_handling(points, self.laz_in)
+
                         # for the case of mobile acquisitions, inerpolate trajectory for gps_time
                         if self.is_mobile:
                             # call interpolate function for trajectory to extract sensor position for each gps_time
@@ -492,7 +477,7 @@ class OccPy:
                         count = count + len(gps_time)
                         pbar.update(len(points))
 
-        if run_raytraycing_after_loading:
+        if run_raytracing_after_loading:
             self.RayTr.doRaytracing()
 
         self.get_raytracing_report()
@@ -592,6 +577,35 @@ class OccPy:
             ost.write_ply(os.path.join(self.out_dir, "Occl.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             toc = time.time()
             self.logger.info("Elapsed Time: " + str(toc - tic) + " seconds")
+
+
+    def link_positions_to_laz_files(self):
+        """
+        Prepare input data for ray tracing. Checks for each scan file if a link can be made to the scan positions file.
+        Can be called manually to check if linking works, or is called by do_raytracing if not manually called before.
+        """
+        raise NotImplementedError("TODO!")
+
+    def check_multi_return_handling(self, points, scan_name):
+        """
+        Check if the input laz data contains multiple returns per pulse and set self.single_return accordingly if not already set by the user.
+        If self.single_return is already set by the user, this function will check if the data is consistent with the provided setting and will raise a warning if not.
+
+        Parameters
+        ----------
+        points: laspy points object
+            The points object read from a laz file chunk, containing point attributes such as x, y, z, gps_time, return_number, number_of_returns, etc.
+
+        """
+
+        if self.single_return:
+            if np.any(points.return_number > 1):
+                raise ValueError(f"Data appears to contain multiple returns per pulse (detected in {scan_name}), but single_return is set to True. This leads to unexpected behavior.")
+        else:
+            if not np.any(points.return_number > 1) and not np.any(points.number_of_returns > 1):
+                self.logger.warning(f"Data appears to contain only single returns per pulse (detected in {scan_name}), but single_return is set to False. Consider setting single_return to True for more efficient processing of single return data.")
+
+        return
 
 
     def get_chm(self):
