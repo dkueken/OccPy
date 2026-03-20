@@ -129,7 +129,7 @@ class OccPyRIEGL:
             self.logger.warning(msg)
 
         
-        self.plot_dim = dict(minX=self.plot_dim["minX"],
+        self.PlotDim = dict(minX=self.plot_dim["minX"],
                             maxX=self.plot_dim["maxX"],
                             minY=self.plot_dim["minY"],
                             maxY=self.plot_dim["maxY"],
@@ -138,11 +138,11 @@ class OccPyRIEGL:
         
         self.RayTr = PyRaytracer()
         # Define Grid
-        self.grid_dim = dict(nx=int((self.plot_dim['maxX'] - self.plot_dim['minX']) / self.vox_dim),
-                             ny=int((self.plot_dim['maxY'] - self.plot_dim['minY']) / self.vox_dim),
-                             nz=int((self.plot_dim['maxZ'] - self.plot_dim['minZ']) / self.vox_dim))
-        min_bound = np.array([self.plot_dim['minX'], self.plot_dim['minY'], self.plot_dim['minZ']])
-        max_bound = np.array([self.plot_dim['maxX'], self.plot_dim['maxY'], self.plot_dim['maxZ']])
+        self.grid_dim = dict(nx=int((self.PlotDim['maxX'] - self.PlotDim['minX']) / self.vox_dim),
+                             ny=int((self.PlotDim['maxY'] - self.PlotDim['minY']) / self.vox_dim),
+                             nz=int((self.PlotDim['maxZ'] - self.PlotDim['minZ']) / self.vox_dim))
+        min_bound = np.array([self.PlotDim['minX'], self.PlotDim['minY'], self.PlotDim['minZ']])
+        max_bound = np.array([self.PlotDim['maxX'], self.PlotDim['maxY'], self.PlotDim['maxZ']])
         self.RayTr.defineGrid(min_bound, max_bound, self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz'],
                               self.vox_dim)
 
@@ -408,7 +408,7 @@ class OccPyRIEGL:
 
         if self.debug:
             # write image to output folder
-            ofolder = os.path.join(self.odir, "debug")
+            ofolder = os.path.join(self.out_dir, "debug")
             if not os.path.exists(ofolder):
                 os.makedirs(ofolder)
             opath = os.path.join(ofolder, f"preview_mask_{os.path.basename(preview_png)}")
@@ -596,40 +596,40 @@ class OccPyRIEGL:
         for visualization if `self.output_voxels` is True.
         """
         self.logger.info("Saving output")
-        print("Extracting Nhit")
+        self.logger.info("Extracting Nhit")
         tic = time.time()
         self.Nhit = self.RayTr.getNhit()
         self.Nhit = np.array(self.Nhit, dtype=np.int32)
 
         toc = time.time()
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
-        print("Extracting Nocc")
+        self.logger.info("Extracting Nocc")
         tic = time.time()
         self.Nocc = self.RayTr.getNocc()
         self.Nocc = np.array(self.Nocc, dtype=np.int32)
 
         toc = time.time()
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
-        print("Extracting Nmiss")
+        self.logger.info("Extracting Nmiss")
         tic = time.time()
         self.Nmiss = self.RayTr.getNmiss()
         self.Nmiss = np.array(self.Nmiss, dtype=np.int32)
 
         toc = time.time()
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
-        print("Saving Occlusion Outputs As .npy")
+        self.logger.info("Saving Occlusion Outputs As .npy")
         tic = time.time()
-        np.save(f"{self.odir}/Nhit.npy", self.Nhit)
-        np.save(f"{self.odir}/Nmiss.npy", self.Nmiss)
-        np.save(f"{self.odir}/Nocc.npy", self.Nocc)
+        np.save(os.path.join(self.out_dir, "Nhit.npy"), self.Nhit)
+        np.save(os.path.join(self.out_dir, "Nmiss.npy"), self.Nmiss)
+        np.save(os.path.join(self.out_dir, "Nocc.npy"), self.Nocc)
         toc = time.time()
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
         # Create Classification grid
-        print("Classify Grid")
+        self.logger.info("Classify Grid")
         tic = time.time()
         self.Classification = np.zeros((self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz']), dtype=int)
 
@@ -640,30 +640,30 @@ class OccPyRIEGL:
         self.Classification[np.logical_and.reduce((self.Nhit == 0, self.Nmiss == 0,
                                             self.Nocc == 0))] = 4  # voxels that were not observed # TODO: Figure out, why this overwrites voxels that are classified as occluded! -> this was because np.logical_and only takes in 2 arrays as input, not 3! use np.logical_and.reduce() for that!
 
-        np.save(f"{self.odir}/Classification.npy", self.Classification)
+        np.save(os.path.join(self.out_dir, "Classification.npy"), self.Classification)
         toc = time.time()
-        print("Elapsed Time: " + str(toc - tic) + " seconds")
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
         # write ply file
         if self.output_voxels:
-            print("Saving Occlusion Outputs As .ply")
+            self.logger.info("Saving Occlusion Outputs As .ply")
+            self.logger.warning("Saving ply files can take a while, especially for large grids. Consider setting output_voxels to False if you only need the .npy output arrays.")
             tic = time.time()
             verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Nhit)
-            ost.write_ply(f"{self.odir}/Nhit.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(os.path.join(self.out_dir, "Nhit.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Nmiss)
-            ost.write_ply(f"{self.odir}/Nmiss.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(os.path.join(self.out_dir, "Nmiss.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Nocc)
-            ost.write_ply(f"{self.odir}/Nocc.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
-            # TODO: TEMP disable: these take up a lot of space, so disable for now
-            # verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Classification)
-            # ost.write_ply(f"{self.odir}/Classification.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
-            # self.occl = np.zeros(shape=self.Classification.shape)
-            # x4, y4, z4 = np.where(self.Classification == 4)
-            # self.occl[x4, y4, z4] = self.Classification[x4, y4, z4]
-            # verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.occl)
-            # ost.write_ply(f"{self.odir}/Occl.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(os.path.join(self.out_dir, "Nocc.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Classification)
+            ost.write_ply(os.path.join(self.out_dir, "Classification.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            self.occl = np.zeros(shape=self.Classification.shape)
+            x4, y4, z4 = np.where(self.Classification == 4)
+            self.occl[x4, y4, z4] = self.Classification[x4, y4, z4]
+            verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.occl)
+            ost.write_ply(os.path.join(self.out_dir, "Occl.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             toc = time.time()
-            print("Elapsed Time: " + str(toc - tic) + " seconds")
+            self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
     @staticmethod
     def align_plot_dim_to_voxel_size(plot_dim, vox_dim):

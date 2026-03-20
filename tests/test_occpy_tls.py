@@ -17,7 +17,7 @@ def find_project_root(markers=('README.md', '.gitignore', 'environment.yml', 'se
 
     return current  # fallback if nothing found
 
-def test_occpy_run_tls():
+def test_occpy_run_tls(tmp_path):
     from occpy.OccPy import OccPy
 
     # Download test data
@@ -42,7 +42,7 @@ def test_occpy_run_tls():
     settings['tif_in']['DTM'] = os.path.join(data_path, 'Grids', 'Ramerenwald_DTM_20250305.tif')
     settings['tif_in']['DSM'] = os.path.join(data_path, 'Grids', 'Ramerenwald_DSM_20250305.tif')
     settings['ScanPos'] = os.path.join(data_path, 'ScanPos', 'ScanPositions.txt')
-    settings['out_dir'] = os.path.join(settings['root_folder'], 'output', 'TLS')
+    settings['out_dir'] = str(tmp_path / 'TLS')
 
     # Initialize OccPy object from config dict
     test = OccPy(config=settings)

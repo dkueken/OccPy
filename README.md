@@ -19,7 +19,7 @@ Pre-built wheels are available for Python versions 3.10, 3.11, 3.12, 3.13, on:
 - MacOS
 A source distribution is also available, which will require a C++ environment with boost libraries installed for a working installation.
 
-Note: Propriatary RIEGL libraries are not packaged, to use RXP and RDBX files, you must build from source.
+Note: Proprietary RIEGL libraries are not packaged, to use RXP and RDBX files, you must build from source.
 
 ### Build from source
 

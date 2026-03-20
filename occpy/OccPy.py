@@ -121,10 +121,6 @@ class OccPy:
         if not os.path.exists(self.out_dir):
             os.makedirs(self.out_dir)
 
-        # Write config to output directory for record keeping.
-        with open(os.path.join(self.out_dir, "config.json"), "w") as to:
-            json.dump(config, to)
-
         # configure occpy input
         self.TotalVolume = 0
         self.TotalOcclusion = 0
@@ -142,10 +138,10 @@ class OccPy:
         self.plot_dim, warnings = self.align_plot_dim_to_voxel_size(self.plot_dim, self.vox_dim)
         for msg in warnings:
             self.logger.warning(msg)
+        if len(warnings) > 0:
+            # write the adapted max bound to the config for record keeping
+            config["adapted_max_bound"] = self.plot_dim[3:6]
 
-        # Keep output config aligned with the effective bounds used by the run.
-        config["plot_dim"] = self.plot_dim
-        
         # initialize RayTr Object and define grid
         self.RayTr = PyRaytracer()        
         self.PlotDim = dict(minX=self.plot_dim[0],
@@ -163,6 +159,10 @@ class OccPy:
         maxBound = np.asarray([self.PlotDim['maxX'], self.PlotDim['maxY'], self.PlotDim['maxZ']], dtype=np.float64)
         self.RayTr.defineGrid(minBound, maxBound, self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz'], self.vox_dim)
         
+        # Write config to output directory for record keeping.
+        with open(os.path.join(self.out_dir, "config.json"), "w") as to:
+            json.dump(config, to)
+
         return
 
 
@@ -173,8 +173,6 @@ class OccPy:
         ----------
         path2file: str [mandatory]
             path to csv file with sensor position information
-        is_mobile: bool [mandatory]
-            True or False whether platform is mobile (MLS, ULS) or static (TLS)
         delimiter: str [default: " "]
             csv delimiter
         hdr_time: str

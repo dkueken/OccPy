@@ -2,10 +2,23 @@ import numpy as np
 import json
 import os
 import pooch
+from pathlib import Path
 from occpy.OccPy import OccPy
-from test_occpy_tls import find_project_root
 
-def test_occpy_run_mls():
+def find_project_root(markers=('README.md', '.gitignore', 'environment.yml', 'setup.py')):
+    try:
+        import ipynbname
+        current = ipynbname.path().parent
+    except Exception:
+        current = Path(os.getcwd())
+
+    for parent in [current, *current.parents]:
+        if any((parent / m).exists() for m in markers):
+            return parent
+
+    return current  # fallback if nothing found
+
+def test_occpy_run_mls(tmp_path):
 
     # Download test data
     p = pooch.create(
@@ -31,7 +44,7 @@ def test_occpy_run_mls():
     settings['tif_in']['DTM'] = os.path.join(data_path, 'Grids', 'Ramerenwald_DTM_20250305.tif')
     settings['tif_in']['DSM'] = os.path.join(data_path, 'Grids', 'Ramerenwald_DSM_20250305.tif')
     settings['ScanPos'] = os.path.join(data_path, 'ScanPos', 'MLS_TestData_traj_FP10_2025.txt')
-    settings['out_dir'] = os.path.join(settings['root_folder'], 'output', 'MLS')
+    settings['out_dir'] = str(tmp_path / 'MLS')
 
     # initiate OccPy object from config dict
     test = OccPy(config=settings)
