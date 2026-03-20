@@ -133,6 +133,7 @@ class OccPy:
         self.dsm = None
         self.chm = None
         self.sens_pos_initialized = False
+        self.scans_linked = None
 
         # ensure extents are exactly divisible by vox_dim by extending max bounds if needed.
         self.plot_dim, warnings = self.align_plot_dim_to_voxel_size(self.plot_dim, self.vox_dim)
@@ -207,8 +208,7 @@ class OccPy:
             self.senspos = read_sensorpos_file(path2senspos=path2file, delimiter=delimiter, hdr_scanpos_id=hdr_scanpos_id, hdr_x=hdr_x, hdr_y=hdr_y, hdr_z=hdr_z, sens_pos_id_offset=sens_pos_id_offset)
         self.sens_pos_initialized = True
 
-    # TODO: ugly workaround for the case where a single laz file from a single TLS position should be run
-    def define_sensor_pos_singlePos(self, scan_pos_id, x, y, z):
+    def define_sensor_pos_singlePos(self, scan_pos_id, x, y, z):    # TODO: ugly workaround for the case where a single laz file from a single TLS position should be run
         """
         defines the scanner position of a single TLS scan position. This is currently just a work-around where we have
         the case of a single laz file and a single position without a text file defining e.g. multiple scan positions.
@@ -258,27 +258,25 @@ class OccPy:
         # TODO: link positions to laz files first (in case of TLS at least), and warn/error if one/more positions cant be linked before processing
 
         run_raytracing_after_loading = False
-        if os.path.isdir(self.laz_in): # TLS
-            ## get list of laz files in input directory
-            fCont = glob.glob(os.path.join(self.laz_in, "*.laz"))
+        if os.path.isdir(self.laz_in): # multi-pos TLS 
 
-            for f in fCont:
-                # TODO: this shouldnt be done here but before, see TODO above
-                # get scan position ID
-                scan_name = os.path.basename(f)
-                scan_id = scan_name.split(".")[0] # default: use file name without extension as scan ID
-                if self.str_idxs_ScanPosID is not None: # if given, use sting indices
-                    scan_id = int(scan_name[self.str_idxs_ScanPosID[0]:self.str_idxs_ScanPosID[1]])
+            if self.is_mobile: # TODO: could it occur that we have mobile acquisition with multiple laz files corresponding to one traj file? if so, should implement
+                raise NotImplementedError("The case of mobile acquisition with multiple laz files is currently not implemented. Please provide a single laz file for mobile acquisitions or set is_mobile to False for TLS.")
+            
+            if self.scans_linked is None:
+                self.link_positions_to_laz_files()
 
-                self.logger.debug(f"Using scan ID {scan_id} for file {scan_name}.")
+            for scan in self.scans_linked:
+                f = scan['laz_file']
+                scan_name = scan['scan_name']
 
                 print(f"###############################")
                 print(f"##### Processing {scan_name}...")
                 print(f"###############################")
 
-                scanpos_X = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_x'].values[0]
-                scanpos_Y = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_y'].values[0]
-                scanpos_Z = self.senspos.loc[self.senspos['ScanPos'] == scan_id, 'sensor_z'].values[0]
+                scanpos_X = scan['sensor_x']
+                scanpos_Y = scan['sensor_y']
+                scanpos_Z = scan['sensor_z']
 
                 # read in laz file
                 tic = time.time()
@@ -422,8 +420,6 @@ class OccPy:
 
                         else:
                             SensorPos = self.senspos
-
-                            # TODO: figure out, why we have to repeat scan position to the shape of input point cloud and try to implement it, so that we only have to pass one position
                             SensorPos = pd.DataFrame(data={'ScanPos': np.ones(gps_time.shape) * self.senspos['ScanPos'].values[0],
                                                            'sensor_x': np.ones(gps_time.shape) * self.senspos['sensor_x'].values[0],
                                                            'sensor_y': np.ones(gps_time.shape) * self.senspos['sensor_y'].values[0],
@@ -581,10 +577,67 @@ class OccPy:
 
     def link_positions_to_laz_files(self):
         """
-        Prepare input data for ray tracing. Checks for each scan file if a link can be made to the scan positions file.
-        Can be called manually to check if linking works, or is called by do_raytracing if not manually called before.
+        Link TLS LAZ files from a directory input to scanner positions before processing.
+
+        This method is only applicable for TLS runs where ``self.laz_in`` is a directory.
+        It validates that each LAZ file can be linked to exactly one sensor position and
+        stores the links for re-use in ``do_raytracing``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Table with columns ["laz_file", "scan_name", "scan_id", "sensor_x", "sensor_y", "sensor_z"].
         """
-        raise NotImplementedError("TODO!")
+
+        if self.is_mobile:
+            raise ValueError("link_positions_to_laz_files is only valid for TLS (is_mobile=False).")
+
+        if not os.path.isdir(self.laz_in):
+            raise ValueError("link_positions_to_laz_files requires laz_in to be a directory containing TLS LAZ files.")
+
+        if not self.sens_pos_initialized:
+            raise ValueError("Sensor positions not defined. Please call define_sensor_pos first.")
+
+        laz_files = sorted(glob.glob(os.path.join(self.laz_in, "*.laz")))
+        if len(laz_files) == 0:
+            raise ValueError(f"No LAZ files found in input directory: {self.laz_in}")
+
+        links = []
+        for laz_file in laz_files:
+            scan_name = os.path.basename(laz_file)
+            scan_id = os.path.splitext(scan_name)[0]
+
+            if self.str_idxs_ScanPosID is not None:
+                # TODO: we are forcing integer ids, this might not always be te case, but for now ok.
+                scan_id = int(scan_name[self.str_idxs_ScanPosID[0]:self.str_idxs_ScanPosID[1]])
+
+            self.logger.debug(f"Using scan ID {scan_id} for file {scan_name}.")
+            matches = self.senspos.loc[self.senspos['ScanPos'] == scan_id]
+
+            if matches.empty:
+                raise ValueError(
+                    f"No sensor position found for scan ID '{scan_id}' (file '{scan_name}'). "
+                    f"Please check str_idxs_ScanPosID and the scan position file."
+                )
+            if len(matches) > 1:
+                raise ValueError(
+                    f"Multiple sensor positions found for scan ID '{scan_id}' (file '{scan_name}'). "
+                    f"ScanPos IDs must be unique."
+                )
+
+            links.append({
+                'laz_file': laz_file,
+                'scan_name': scan_name,
+                'scan_id': scan_id,
+                'sensor_x': matches['sensor_x'].values[0],
+                'sensor_y': matches['sensor_y'].values[0],
+                'sensor_z': matches['sensor_z'].values[0],
+            })
+
+        self.scans_linked = links
+
+        self.logger.info(f"Linked {len(links)} TLS LAZ files to scan positions.")
+        return pd.DataFrame(links)
 
     def check_multi_return_handling(self, points, scan_name):
         """
