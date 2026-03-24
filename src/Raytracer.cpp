@@ -32,7 +32,7 @@ Raytracer::~Raytracer()
 
 }
 
-void Raytracer::defineGrid(vector<int> minBound, vector<int> maxBound, int nx, int ny, int nz, float voxSize){
+void Raytracer::defineGrid(vector<double> minBound, vector<double> maxBound, int nx, int ny, int nz, float voxSize){
     //Test without adapting the grid origin: Meaning, we will take the minBound vector as the grid origin
     this->gridDim.origin = minBound;
 
@@ -896,7 +896,7 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
     */
 }
 
-void Raytracer::rayBoxIntersection (vector<double> origin, vector<double> direction, vector<int> vmin, vector<int> vmax, int & flag, double & tmin){
+void Raytracer::rayBoxIntersection (vector<double> origin, vector<double> direction, vector<double> vmin, vector<double> vmax, int & flag, double & tmin){
     // Ray/box intersection using the Smits' algorithm
     // Input:
     //  origin
@@ -995,11 +995,11 @@ vector<int > Raytracer::getGridDimensions(){
     return grid_dim;
 }
 
-vector<int > Raytracer::getGridOrigin(){
+vector<double > Raytracer::getGridOrigin(){
     return this->gridDim.origin;
 }
 
-vector<double> Raytracer::getPulsesIntersectingBox(vector<double> x, vector<double> y, vector<double> z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time, vector<int> vmin, vector<int> vmax){
+vector<double> Raytracer::getPulsesIntersectingBox(vector<double> x, vector<double> y, vector<double> z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time, vector<double> vmin, vector<double> vmax){
 
     int pulsecount = 0;
     int numNoGridIntersection = 0;

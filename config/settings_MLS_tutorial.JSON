@@ -1,11 +1,11 @@
 {
-    "root_folder": "f:\\Projects\\3DForEcoTech\\WG_1_OcclusionMapping\\OcclusionMapping_Examples\\OccPy",
-    "laz_in": "data/MLS/MLS_TestData_20perc_FP10_2025.laz",
+    "root_folder": "../..",
+    "laz_in": "data_notebooks/MLS_demo/LAZ/MLS_TestData_20perc_FP10_2025.laz",
     "tif_in": {
-        "DTM": "data/Grids/Ramerenwald_DTM_20250305.tif",
-        "DSM": "data/Grids/Ramerenwald_DSM_20250305.tif"
+        "DTM": "data_notebooks/MLS_demo/Grids/Ramerenwald_DTM_20250305.tif",
+        "DSM": "data_notebooks/MLS_demo/Grids/Ramerenwald_DSM_20250305.tif"
     },
-    "out_dir": "output\\MLS",
+    "out_dir": "output/MLS",
     "vox_dim": 0.1,
     "lower_threshold": 1,
     "points_per_iter": 1000000,
@@ -17,6 +17,8 @@
         1246113,
         590
     ],
-    "ScanPos": "data/MLS/MLS_TestData_traj_FP10_2025.txt",
-    "output_voxels": false
+    "ScanPos": "data_notebooks/MLS_demo/ScanPos/MLS_TestData_traj_FP10_2025.txt",
+    "output_voxels": false,
+    "single_return": true,
+    "is_mobile": true
 }

@@ -30,9 +30,9 @@ struct dimensions {
     int nx;
     int ny;
     int nz;
-    vector<int> minBound;
-    vector<int> maxBound;
-    vector<int> origin;
+    vector<double> minBound;
+    vector<double> maxBound;
+    vector<double> origin;
     float voxSize;
 };
 
@@ -78,7 +78,7 @@ class Raytracer {
         Raytracer();
         ~Raytracer();
 
-        void rayBoxIntersection (vector<double> origin, vector<double> direction, vector<int> vmin, vector<int> vmax, int & flag, double & tmin);
+        void rayBoxIntersection (vector<double> origin, vector<double> direction, vector<double> vmin, vector<double> vmax, int & flag, double & tmin);
 
         void addPointData(vector<double> X, vector<double> Y, vector<double> Z,
                           vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z,
@@ -88,15 +88,15 @@ class Raytracer {
         void doRaytracing();
         void doRaytracing_singleReturnPulses(vector<double> X, vector<double> Y, vector<double> Z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time);
 
-        void defineGrid(vector<int> minBound, vector<int> maxBound, int nx, int ny, int nz, float voxSize);
+        void defineGrid(vector<double> minBound, vector<double> maxBound, int nx, int ny, int nz, float voxSize);
 
         vector<vector<vector<int > > >& getNhit();
         vector<vector<vector<int > > >& getNmiss();
         vector<vector<vector<int > > >& getNocc();
         vector<vector<double > >& reportSensorShifts();
         vector<int > getGridDimensions();
-        vector<int > getGridOrigin();
-        vector<double> getPulsesIntersectingBox(vector<double> x, vector<double> y, vector<double> z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time, vector<int> vmin, vector<int> vmax);
+        vector<double > getGridOrigin();
+        vector<double> getPulsesIntersectingBox(vector<double> x, vector<double> y, vector<double> z, vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z, vector<double> gps_time, vector<double> vmin, vector<double> vmax);
 
         // Get status reports on raytracing
         int get_num_traversed_pulses() const;

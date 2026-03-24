@@ -105,15 +105,18 @@ def test_occpy_single_sensor_synthetic_baseline(tmp_path: Path) -> None:
     plot_dim = [0, 0, 0, 10, 10, 10]  # integer bbox by design
     vox_dim = 1.0
 
-    occpy = OccPy(
-        laz_in=str(laz_path),
-        out_dir=str(out_dir),
-        vox_dim=vox_dim,
-        lower_threshold=0,
-        points_per_iter=1000,
-        plot_dim=plot_dim,
-        output_voxels=False,
-    )
+    cfg = {
+        "laz_in": str(laz_path),
+        "out_dir": str(out_dir),
+        "vox_dim": vox_dim,
+        "lower_threshold": 0,
+        "points_per_iter": 1000,
+        "plot_dim": plot_dim,
+        "output_voxels": False,
+        "is_mobile": False,
+        "single_return": True,
+    }
+    occpy = OccPy(config=cfg)
     occpy.define_sensor_pos_singlePos(
         scan_pos_id=1,
         x=float(synthetic["sensor"][0]),

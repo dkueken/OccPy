@@ -16,14 +16,14 @@ cdef extern from "Raytracer.hpp":
         vector[vector[vector[int]]] Nmiss
         vector[vector[vector[int]]] Nocc
 
-        void defineGrid(vector[int], vector[int], int, int, int, float)
+        void defineGrid(vector[double], vector[double], int, int, int, float)
 
         void addPointData(vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[int], vector[int])
 
         void doRaytracing()
         void doRaytracing_singleReturnPulses(vector[double] X, vector[double] Y, vector[double] Z, vector[double] sensor_x, vector[double] sensor_y, vector[double] sensor_z, vector[double] gps_time)
 
-        void rayBoxIntersection(vector[double], vector[double], vector[int], vector[int], int &, double &)
+        void rayBoxIntersection(vector[double], vector[double], vector[double], vector[double], int &, double &)
 
         void cleanUpPulseDataset()
 
@@ -38,10 +38,10 @@ cdef extern from "Raytracer.hpp":
         vector[vector[vector[int]]]& getNmiss()
         vector[vector[vector[int]]]& getNocc()
         vector[int] getGridDimensions()
-        vector[int] getGridOrigin()
+        vector[double] getGridOrigin()
         void getPulseDatasetReport()
         vector[vector[double]]& reportSensorShifts()
-        vector[double] getPulsesIntersectingBox(vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[int], vector[int])
+        vector[double] getPulsesIntersectingBox(vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[double], vector[double])
 
         void addEmptyPulseData(vector[double] sensor_x, vector[double] sensor_y, vector[double] sensor_z, vector[double] direction_x, vector[double] direction_y, vector[double] direction_z, vector[double] gps_time)
         void doRaytracingEmptyPulses()

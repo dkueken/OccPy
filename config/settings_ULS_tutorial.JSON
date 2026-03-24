@@ -1,11 +1,11 @@
 {
-    "root_folder": "C:\\Users\\Kueken\\dev\\occpy_dev\\OccPy",
-    "laz_in": "C:\\Users\\Kueken\\AppData\\Local\\occpy_test_data_uls\\occpy_test_data_uls\\Cache\\ULS_demo.zip.unzip\\ULS_demo\\LAZ\\ULS_TestData_20perc_FP10_2025_LeafOn.laz",
+    "root_folder": "../..",
+    "laz_in": "data_notebooks/ULS_demo/LAZ/ULS_TestData_20perc_FP10_2025_LeafOn.laz",
     "tif_in": {
-        "DTM": "C:\\Users\\Kueken\\AppData\\Local\\occpy_test_data_uls\\occpy_test_data_uls\\Cache\\ULS_demo.zip.unzip\\ULS_demo\\Grids\\Ramerenwald_DTM_20250305.tif",
-        "DSM": "C:\\Users\\Kueken\\AppData\\Local\\occpy_test_data_uls\\occpy_test_data_uls\\Cache\\ULS_demo.zip.unzip\\ULS_demo\\Grids\\Ramerenwald_DSM_20250305.tif"
+        "DTM": "data_notebooks/ULS_demo/Grids/Ramerenwald_DTM_20250305.tif",
+        "DSM": "data_notebooks/ULS_demo/Grids/Ramerenwald_DSM_20250305.tif"
     },
-    "out_dir": "C:\\Users\\Kueken\\dev\\occpy_dev\\OccPy\\output\\ULS",
+    "out_dir": "output/ULS",
     "vox_dim": 0.1,
     "lower_threshold": 1,
     "points_per_iter": 1000000,
@@ -17,6 +17,8 @@
         1246113,
         590
     ],
-    "ScanPos": "C:\\Users\\Kueken\\AppData\\Local\\occpy_test_data_uls\\occpy_test_data_uls\\Cache\\ULS_demo.zip.unzip\\ULS_demo\\ScanPos\\ULS_TestData_traj_FP10_2025_LeafOn.txt",
-    "output_voxels": false
+    "ScanPos": "data_notebooks/ULS_demo/ScanPos/ULS_TestData_traj_FP10_2025_LeafOn.txt",
+    "output_voxels": false,
+    "single_return": false,
+    "is_mobile": true
 }

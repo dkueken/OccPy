@@ -190,7 +190,7 @@ def normalize_occlusion_output(input_folder, PlotDim, vox_dim, dtm_file, dsm_fil
                 if len(prof_class) > max_len_prof:
                     max_len_prof = len(prof_class)
 
-                Classification_norm[y, x, 0:len(prof_class)] = Classification[y, x, zind_dtm:zind_dsm]
+                Classification_norm[x, y, 0:len(prof_class)] = Classification[x, y, zind_dtm:zind_dsm]
                 Nhit_norm[x, y, 0:len(prof_class)] = Nhit[x, y, zind_dtm:zind_dsm]
                 Nmiss_norm[x, y, 0:len(prof_class)] = Nmiss[x, y, zind_dtm:zind_dsm]
                 Nocc_norm[x, y, 0:len(prof_class)] = Nocc[x, y, zind_dtm:zind_dsm]

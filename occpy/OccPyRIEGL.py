@@ -36,7 +36,7 @@ class OccPyRIEGL:
             - 'vox_dim' : voxel size in meters  
             - 'plot_dim': grid for occlusion mapping: [minX, minY, minZ, maxX, maxY, maxZ]  
         Optional parameters:  
-            - 'odir' : output directory (default: ./output)
+            - 'out_dir' : output directory (default: ./output)
             - 'buffer' : spatial buffer around point cloud   
             - 'output_voxels' : whether to export `.ply` voxel grids  
             - 'model_empty_pulses' : whether to model empty pulses  
@@ -62,10 +62,9 @@ class OccPyRIEGL:
                 missing.append(key)
 
         if len(missing) > 0:
-            print(f"Please complete the config file with the following entries: {missing}")
-            os._exit(1)
+            raise ValueError(f"Missing necessary arguments in config file: {missing}")
 
-        optional_args = ["model_empty_pulses", "verbose", "debug", "output_voxels", "lower_threshold", "odir", "auto_dim", "buffer", "exclude_scan_pattern"]
+        optional_args = ["model_empty_pulses", "verbose", "debug", "output_voxels", "lower_threshold", "out_dir", "auto_dim", "buffer", "exclude_scan_pattern"]
 
         print(f"INFO: optional arguments: {optional_args}")
 
@@ -73,22 +72,18 @@ class OccPyRIEGL:
         self.proj_folder = config["proj_folder"]
         self.vox_dim = config["vox_dim"]
 
-        self.model_empty_pulses = config["model_empty_pulses"] if "model_empty_pulses" in config else False
-        self.verbose = config["verbose"] if "verbose" in config else False
-        self.debug = config["debug"] if "debug" in config else False
-        self.output_voxels = config["output_voxels"] if "output_voxels" in config else False
-        self.lower_threshold = config["lower_threshold"] if "lower_threshold" in config else 0
-        self.exclude_scan_pattern = config["exclude_scan_pattern"] if "exclude_scan_pattern" in config else None
+        self.model_empty_pulses = config.get("model_empty_pulses", False)
+        self.verbose = config.get("verbose", False)
+        self.debug = config.get("debug", False)
+        self.output_voxels = config.get("output_voxels", False)
+        self.lower_threshold = config.get("lower_threshold", 0)
+        self.exclude_scan_pattern = config.get("exclude_scan_pattern", None)
+        self.out_dir = config.get("out_dir", os.path.join(os.getcwd(), "output"))
 
-        if "odir" not in config:
-            odir = os.path.join(os.getcwd(), "output")
-            self.odir = odir
-        else:
-            self.odir = config["odir"]
-        if not os.path.exists(self.odir):
-            os.makedirs(self.odir, exist_ok=True)
+        if not os.path.exists(self.out_dir):
+            os.makedirs(self.out_dir, exist_ok=True)
         # copy config file for future reference
-        with open(os.path.join(self.odir, "config.json"), "w") as to:
+        with open(os.path.join(self.out_dir, "config.json"), "w") as to:
             json.dump(config, to)
 
         # -- config logging 
@@ -121,28 +116,33 @@ class OccPyRIEGL:
             else:
                 buffer = [0,0,0,0]
             # TODO: implement
-            plot_dim = self.determine_grid(buffer)
+            self.plot_dim = self.determine_grid(buffer)
         else:
             if "plot_dim" not in config:
-                self.logger.error("Must provide plot dimensions in config if auto_dim is false")
-                os._exit(1)
-            plot_dim = config["plot_dim"]
-            self.plot_dim = dict(minX=plot_dim["minX"],
-                                maxX=plot_dim["maxX"],
-                                minY=plot_dim["minY"],
-                                maxY=plot_dim["maxY"],
-                                minZ=plot_dim["minZ"],
-                                maxZ=plot_dim["maxZ"])
+                raise ValueError("plot_dim must be provided if auto_dim is not set to True")
+            
+            self.plot_dim = config["plot_dim"]
+            
+        # ensure extents are exactly divisible by vox_dim by extending max bounds if needed.
+        self.plot_dim, warnings = self.align_plot_dim_to_voxel_size(self.plot_dim, self.vox_dim)
+        for msg in warnings:
+            self.logger.warning(msg)
+
         
-        self.grid_dim = dict(nx=int((self.plot_dim['maxX'] - self.plot_dim['minX']) / self.vox_dim),
-                             ny=int((self.plot_dim['maxY'] - self.plot_dim['minY']) / self.vox_dim),
-                             nz=int((self.plot_dim['maxZ'] - self.plot_dim['minZ']) / self.vox_dim))
+        self.PlotDim = dict(minX=self.plot_dim["minX"],
+                            maxX=self.plot_dim["maxX"],
+                            minY=self.plot_dim["minY"],
+                            maxY=self.plot_dim["maxY"],
+                            minZ=self.plot_dim["minZ"],
+                            maxZ=self.plot_dim["maxZ"])
         
         self.RayTr = PyRaytracer()
-
         # Define Grid
-        min_bound = np.array([self.plot_dim['minX'], self.plot_dim['minY'], self.plot_dim['minZ']])
-        max_bound = np.array([self.plot_dim['maxX'], self.plot_dim['maxY'], self.plot_dim['maxZ']])
+        self.grid_dim = dict(nx=int((self.PlotDim['maxX'] - self.PlotDim['minX']) / self.vox_dim),
+                             ny=int((self.PlotDim['maxY'] - self.PlotDim['minY']) / self.vox_dim),
+                             nz=int((self.PlotDim['maxZ'] - self.PlotDim['minZ']) / self.vox_dim))
+        min_bound = np.array([self.PlotDim['minX'], self.PlotDim['minY'], self.PlotDim['minZ']])
+        max_bound = np.array([self.PlotDim['maxX'], self.PlotDim['maxY'], self.PlotDim['maxZ']])
         self.RayTr.defineGrid(min_bound, max_bound, self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz'],
                               self.vox_dim)
 
@@ -160,9 +160,7 @@ class OccPyRIEGL:
 
         rdbx_scan_list = glob.glob(os.path.join(self.riscan_folder, "project.rdb", "SCANS", "**"))
         if len(rdbx_scan_list) == 0:
-            self.logger.error(f"No rdbx files found in riscan folder {self.riscan_folder}")
-            self.logger.debug(f'path checked: {os.path.join(self.riscan_folder, "project.rdb", "SCANS", "**")}')
-            os._exit(1)
+            raise ValueError(f'No rdbx files found in riscan folder {self.riscan_folder}. Please check the path and ensure it contains RIEGL scan data with .rdbx files. Path checked: {os.path.join(self.riscan_folder, "project.rdb", "SCANS", "**")}')
 
         for folder in rdbx_scan_list:
             if "@" in folder:
@@ -410,7 +408,7 @@ class OccPyRIEGL:
 
         if self.debug:
             # write image to output folder
-            ofolder = os.path.join(self.odir, "debug")
+            ofolder = os.path.join(self.out_dir, "debug")
             if not os.path.exists(ofolder):
                 os.makedirs(ofolder)
             opath = os.path.join(ofolder, f"preview_mask_{os.path.basename(preview_png)}")
@@ -516,8 +514,8 @@ class OccPyRIEGL:
             if self.model_empty_pulses:
                 self.logger.info("Reading preview and masking empty pulses")
                 if scan not in self.png_scans:
-                    self.logger.error(f"Model empty pulses on but scan preview not found for {scan}, exiting.")
-                    os._exit(1)
+                    raise ValueError(f"Model empty pulses on but scan preview not found for {scan}, exiting.")
+                
                 empty_pulse_df = self.mask_empty_pulses_preview(empty_pulse_df, self.png_scans[scan], max_scanline_idx, max_scanline)
 
             self.logger.info("Adding point data")
@@ -598,40 +596,40 @@ class OccPyRIEGL:
         for visualization if `self.output_voxels` is True.
         """
         self.logger.info("Saving output")
-        print("Extracting Nhit")
+        self.logger.info("Extracting Nhit")
         tic = time.time()
         self.Nhit = self.RayTr.getNhit()
         self.Nhit = np.array(self.Nhit, dtype=np.int32)
 
         toc = time.time()
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
-        print("Extracting Nocc")
+        self.logger.info("Extracting Nocc")
         tic = time.time()
         self.Nocc = self.RayTr.getNocc()
         self.Nocc = np.array(self.Nocc, dtype=np.int32)
 
         toc = time.time()
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
-        print("Extracting Nmiss")
+        self.logger.info("Extracting Nmiss")
         tic = time.time()
         self.Nmiss = self.RayTr.getNmiss()
         self.Nmiss = np.array(self.Nmiss, dtype=np.int32)
 
         toc = time.time()
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
-        print("Saving Occlusion Outputs As .npy")
+        self.logger.info("Saving Occlusion Outputs As .npy")
         tic = time.time()
-        np.save(f"{self.odir}/Nhit.npy", self.Nhit)
-        np.save(f"{self.odir}/Nmiss.npy", self.Nmiss)
-        np.save(f"{self.odir}/Nocc.npy", self.Nocc)
+        np.save(os.path.join(self.out_dir, "Nhit.npy"), self.Nhit)
+        np.save(os.path.join(self.out_dir, "Nmiss.npy"), self.Nmiss)
+        np.save(os.path.join(self.out_dir, "Nocc.npy"), self.Nocc)
         toc = time.time()
-        print("Elapsed Time: {:.2f} seconds".format(toc - tic))
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
         # Create Classification grid
-        print("Classify Grid")
+        self.logger.info("Classify Grid")
         tic = time.time()
         self.Classification = np.zeros((self.grid_dim['nx'], self.grid_dim['ny'], self.grid_dim['nz']), dtype=int)
 
@@ -642,27 +640,59 @@ class OccPyRIEGL:
         self.Classification[np.logical_and.reduce((self.Nhit == 0, self.Nmiss == 0,
                                             self.Nocc == 0))] = 4  # voxels that were not observed # TODO: Figure out, why this overwrites voxels that are classified as occluded! -> this was because np.logical_and only takes in 2 arrays as input, not 3! use np.logical_and.reduce() for that!
 
-        np.save(f"{self.odir}/Classification.npy", self.Classification)
+        np.save(os.path.join(self.out_dir, "Classification.npy"), self.Classification)
         toc = time.time()
-        print("Elapsed Time: " + str(toc - tic) + " seconds")
+        self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
 
         # write ply file
         if self.output_voxels:
-            print("Saving Occlusion Outputs As .ply")
+            self.logger.info("Saving Occlusion Outputs As .ply")
+            self.logger.warning("Saving ply files can take a while, especially for large grids. Consider setting output_voxels to False if you only need the .npy output arrays.")
             tic = time.time()
             verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Nhit)
-            ost.write_ply(f"{self.odir}/Nhit.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(os.path.join(self.out_dir, "Nhit.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Nmiss)
-            ost.write_ply(f"{self.odir}/Nmiss.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(os.path.join(self.out_dir, "Nmiss.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Nocc)
-            ost.write_ply(f"{self.odir}/Nocc.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
-            # TODO: TEMP disable: these take up a lot of space, so disable for now
-            # verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Classification)
-            # ost.write_ply(f"{self.odir}/Classification.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
-            # self.occl = np.zeros(shape=self.Classification.shape)
-            # x4, y4, z4 = np.where(self.Classification == 4)
-            # self.occl[x4, y4, z4] = self.Classification[x4, y4, z4]
-            # verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.occl)
-            # ost.write_ply(f"{self.odir}/Occl.ply", verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            ost.write_ply(os.path.join(self.out_dir, "Nocc.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.Classification)
+            ost.write_ply(os.path.join(self.out_dir, "Classification.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
+            self.occl = np.zeros(shape=self.Classification.shape)
+            x4, y4, z4 = np.where(self.Classification == 4)
+            self.occl[x4, y4, z4] = self.Classification[x4, y4, z4]
+            verts, faces = prepare_ply(self.vox_dim, self.plot_dim, self.occl)
+            ost.write_ply(os.path.join(self.out_dir, "Occl.ply"), verts, ['X', 'Y', 'Z', 'data'], triangular_faces=faces)
             toc = time.time()
-            print("Elapsed Time: " + str(toc - tic) + " seconds")
+            self.logger.info("Elapsed Time: {:.2f} seconds".format(toc - tic))
+
+    @staticmethod
+    def align_plot_dim_to_voxel_size(plot_dim, vox_dim):
+        """extend max bounds so each axis extent is divisible by vox_dim."""
+
+        adjusted = [float(v) for v in plot_dim]
+        messages = []
+        tol = 1e-9
+        axes = (("X", 0, 3), ("Y", 1, 4), ("Z", 2, 5))
+
+        for axis_name, min_idx, max_idx in axes:
+            min_bound = adjusted[min_idx]
+            max_bound = adjusted[max_idx]
+            extent = max_bound - min_bound
+
+            if extent <= 0:
+                raise ValueError(
+                    f"Invalid plot_dim on axis {axis_name}: max ({max_bound}) must be greater than min ({min_bound})."
+                )
+
+            n_voxels = int(np.ceil((extent / vox_dim) - tol))
+            adjusted_extent = n_voxels * vox_dim
+
+            if not np.isclose(extent, adjusted_extent, rtol=0.0, atol=tol):
+                new_max = min_bound + adjusted_extent
+                messages.append(
+                    f"Axis {axis_name}: extent {extent:.12g} is not divisible by vox_dim {vox_dim:.12g}. "
+                    f"Extending max bound from {max_bound:.12g} to {new_max:.12g}."
+                )
+                adjusted[max_idx] = new_max
+
+        return adjusted, messages
