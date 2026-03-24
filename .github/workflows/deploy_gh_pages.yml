@@ -11,10 +11,21 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: 3.11
-      - run: pip install --upgrade pip && pip install -U mkdocs mkdocs-jupyter jupyter_contrib_nbextensions notebook==6.5.5 mkdocstrings mkdocstrings-python
+      - name: Install docs dependencies (pinned)
+        run: |
+          pip install --upgrade pip
+          pip install \
+            "mkdocs==1.6.1" \
+            "mkdocs-material==9.6.11" \
+            "mkdocs-jupyter<0.26" \
+            "nbconvert<7.17" \
+            "mkdocstrings==0.30.1" \
+            "mkdocstrings-python==1.16.12"
+      - name: Build docs
+        run: mkdocs build --config-file mkdocs.yml --strict
       - run: git config user.name 'github-actions[bot]' && git config user.email 'github-actions[bot]@users.noreply.github.com'
       - run: mkdocs gh-deploy --config-file mkdocs.yml --force --clean

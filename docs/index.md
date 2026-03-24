@@ -70,10 +70,10 @@ pip install -v .
 ```
 
 NOTE: if you want to use RIEGL .rdbx and .rxp files as input, make sure to set the RIVLIB_ROOT and RDBLIB_ROOT environment variables to the root path of the corresponding libraries before installing.
-The paths to RIVLIB_ROOT and RDBLIB_ROOT can be defined within the environment YAML file [environment.yml](../environment.yml), where the necessary Variables are commented out per default.
+The paths to RIVLIB_ROOT and RDBLIB_ROOT can be defined within the environment YAML file [environment.yml](https://github.com/dkueken/OccPy/blob/master/environment.yml), where the necessary Variables are commented out per default.
 
 ## Usage
-The behavior of OccPy can be configured using JSON setting files (see e.g. [settings_MLS_tutorial.JSON](../config/settings_MLS_tutorial.JSON) as an example). 
+The behavior of OccPy can be configured using JSON setting files (see e.g. [settings_MLS_tutorial.JSON](https://github.com/dkueken/OccPy/blob/master/config/settings_MLS_tutorial.JSON) as an example). 
 While this is not strictly necessary, we still recommend setting up such setting files for running OccPy for later reference on the settings.
 
 First we import OccPy into your python (or jupyter) script:

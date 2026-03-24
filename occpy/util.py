@@ -28,11 +28,14 @@ def normalize_occlusion_output(input_folder, PlotDim, vox_dim, dtm_file, dsm_fil
         directory to the output of the raytracing algorithm
     PlotDim : list
         Plot Dimensions defined as a list: (minX, minY, minZ, maxX, maxY, maxZ)
-    :param dtm_file: DTM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
-    :param dsm_file: DSM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
-    :param lower_threshold: minimum Z coordinate to cut off lower part of the canopy, i.e. Voxels lieing at or below DTM. default=0
-    :param output_voxels: if the voxel grids should be outputted as a ply file. default=False -> not yet working properly, recommend leaving this to False!
-    :return:
+    dtm_file: str
+        DTM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
+    dsm_file: str, optional
+        DSM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
+    lower_threshold: float, optional
+        minimum Z coordinate to cut off lower part of the canopy, i.e. Voxels lieing at or below DTM. default=0
+    output_voxels: bool, optional
+        if the voxel grids should be outputted as a ply file. default=False -> not yet working properly, recommend leaving this to False!
 
     Returns
     ----------
@@ -46,8 +49,7 @@ def normalize_occlusion_output(input_folder, PlotDim, vox_dim, dtm_file, dsm_fil
         height normalized 3D voxel grid with classification (1 = observed with hit, 2 = observed but no hit, 3 = occluded, 4 = unobserved)
     chm : numpy array (2D)
         canopy height model as raster with specified vox_dim dimensions
-
-
+        
     """
 
     Nhit = np.load(os.path.join(input_folder, "Nhit.npy"))

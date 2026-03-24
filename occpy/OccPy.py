@@ -225,9 +225,6 @@ class OccPy:
         z: float
             Z-Coordinates of scanner position
 
-        Returns
-        -------
-
         """
         d = {'ScanPos': scan_pos_id,
              'sensor_x': x, 'sensor_y': y, 'sensor_z': z}
@@ -481,11 +478,7 @@ class OccPy:
 
     def get_raytracing_report(self):
         """
-        prints a report on the voxel traversal to the console
-
-        Returns
-        -------
-
+        Prints a report on the voxel traversal.
         """
         # Get report on traversal
         self.RayTr.reportOnTraversal()
@@ -501,9 +494,6 @@ class OccPy:
         - 3 = occluded (occlusion > 0, hit == 0, miss == 0)
         - 4 = unobserved (all three == 0)
         3. Writes `.ply` files for all voxel outputs if `self.output_voxels` is True (takes long and creates large files)
-
-        Returns
-        -------
 
         """
         self.logger.info("Extracting Nhit")
@@ -677,10 +667,6 @@ class OccPy:
     def clean_up_RayTr(self):
         """
         Free up memory after raytracing.
-
-        Returns
-        -------
-
         """
         del self.RayTr
 

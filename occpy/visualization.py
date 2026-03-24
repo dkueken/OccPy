@@ -17,11 +17,6 @@ import seaborn as sns
 
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-
-
-# TODO: temp, give as parameter
-VOX_DIM = 0.1
-
 def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, out_dir, start_ind=None, end_ind=None, axis=0, chm=None, vertBuffer=0, fig_prop=None, show_plots=False):
     """
     get_Occl_TransectFigure creates a matplotlib figure of a defined transect through the occlusion mapping output grid
@@ -63,9 +58,6 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
 
     show_plots: bool [default=False]
         Whether output figures should be shown [will pause the execution until figure is closed] or not.
-
-    Returns
-    -------
 
     """
 
@@ -276,9 +268,6 @@ def get_Occl_TransectFigure_BinaryOcclusion(Nhit, Classification, plot_dim, vox_
         show_plots: bool [default=False]
             Whether output figures should be shown [will pause the execution until figure is closed] or not.
 
-        Returns
-        -------
-
         """
     if fig_prop is None:
         fig_prop = dict(fig_size=(3.14, 2.25),
@@ -477,10 +466,6 @@ def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_
                             out_format='png')       # output format of figure file
     show_plots: bool, default False
             Whether output figures should be shown [will pause the execution until figure is closed] or not.
-
-    Returns
-    -------
-
     """
 
     grid_dim = (int((plot_dim[3] - plot_dim[0]) / vox_dim), int((plot_dim[4] - plot_dim[1]) / vox_dim),
@@ -567,6 +552,8 @@ def interactive_figure(output_dir, axis=0):
     axis : int, default 0
         Axis orthogonal to the slicing plane (0, 1, or 2).
     """
+
+    raise ValueError("Not working yet. Use get_Occl_TransectFigure instead for now.")
 
     classification_arr = np.load(os.path.join(output_dir, "Classification.npy"))
     nhit_arr = np.load(os.path.join(output_dir, "Nhit.npy"))
@@ -913,7 +900,7 @@ def vis_pv_rotating(occmap_file,
                 framerate=30,
                 n_frames=180,
                 distance_factor=2,
-                elevation=30):
+                camera_elevation=30):
     """
     Create a rotating visualization of an occupancy map with PyVista.
 
@@ -1058,9 +1045,9 @@ def vis_pv_rotating(occmap_file,
         azimuth = i * (360 / n_frames)
         
         plotter.camera.position = (
-            center_world[0] + radius * np.cos(np.radians(azimuth)) * np.cos(np.radians(elevation)),
-            center_world[1] + radius * np.sin(np.radians(azimuth)) * np.cos(np.radians(elevation)),
-            center_world[2] + radius * np.sin(np.radians(elevation))
+            center_world[0] + radius * np.cos(np.radians(azimuth)) * np.cos(np.radians(camera_elevation)),
+            center_world[1] + radius * np.sin(np.radians(azimuth)) * np.cos(np.radians(camera_elevation)),
+            center_world[2] + radius * np.sin(np.radians(camera_elevation))
         )
         
         plotter.camera.focal_point = center_world
