@@ -39,6 +39,7 @@ Issues = "https://github.com/dkueken/OccPy/issues"
 [build-system]
 requires = [
   "setuptools>=61",
+  "packaging>=24.2",
   "wheel",
   "Cython>=0.29.36",
   "numpy>=1.21"
