@@ -10,6 +10,8 @@ jobs:
   build-wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    env:
+      CIBW_DEPENDENCY_VERSIONS: latest
     strategy:
       fail-fast: false
       matrix:

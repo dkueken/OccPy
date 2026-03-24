@@ -7,6 +7,8 @@ jobs:
   build-windows:
     name: Build Windows wheels
     runs-on: windows-latest
+    env:
+      CIBW_DEPENDENCY_VERSIONS: latest
 
     steps:
       - uses: actions/checkout@v4
