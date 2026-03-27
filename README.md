@@ -44,23 +44,23 @@ pip install -v .
 NOTE: if you want to use RIEGL .rdbx and .rxp files as input, make sure to set the RIVLIB_ROOT and RDBLIB_ROOT environment variables to the root path of the corresponding libraries before installing.
 
 ## Usage
-Head over to the Documentation page [TODO: add link to published github page] and have a look at the various jupyter notebooks
+Head over to the [Documentation page](https://dkueken.github.io/OccPy/) and have a look at the various jupyter notebooks
 to find out how to configure and run OccPy.
 
 ### TLS examples
 There are two ways to run OccPy on a multi-station TLS dataset, where the point cloud of each scan position is stored in a separate LAZ file:
-- passing the input folder and let OccPy handle all files automatically: [TODO: Link to notebook]
-- handling the separate laz files in the input folder individually yourself: [TODO: Link to notebook]. This approach can bring some performance benefits and provides more flexibility on how to treat the individual scans.
+- passing the input folder and let OccPy handle all files automatically: [TLS](https://dkueken.github.io/OccPy/notebooks/TLS_notebook.html)
+- handling the separate laz files in the input folder individually yourself: [TLS individual run](https://dkueken.github.io/OccPy/notebooks/TLS_notebook_individualLAZ.html). This approach can bring some performance benefits and provides more flexibility on how to treat the individual scans.
 ### Mobile examples
 Both MLS and ULS acquisitions can be treated similarly, as shown in these two notebooks:
-- MLS: [TODO: Link to notebook]
-- ULS: [TODO: Link to notebook]
+- [MLS](https://dkueken.github.io/OccPy/notebooks/MLS_notebook.html)
+- [ULS](https://dkueken.github.io/OccPy/notebooks/ULS_notebook.html)
 
 ### Visualization
 The above stated notebooks provide some inputs on creating 2D visualizations of the occlusion mapping outputs.
 If you would like to visualize occlusion outputs in 3D, please check out the pyvista and pyvista_interactive notebooks:
-- PyVista demo: [TODO: Link to notebook]
-- PyVista interactive demo: [TODO: Link to notebook]
+- [PyVista demo](https://dkueken.github.io/OccPy/notebooks/pyvista.html)
+- [PyVista interactive demo](https://dkueken.github.io/OccPy/notebooks/pyvista_interactive.html)
 
 Here is an example 3D visualization of an occlusion map for a multi-station TLS campaign as provided by Wout Cherlet and 
 shown at SilviLaser 2025 in Québec City.

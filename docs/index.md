@@ -1,6 +1,3 @@
-# Welcome to OccPy
-
-
 <figure markdown>
   ![OccPy logo](assets/occpy_logo_v3_white.png#only-light){ width="500" }
   ![OccPy logo](assets/occpy_logo_v3_trans.png#only-dark){ width="500" } 
