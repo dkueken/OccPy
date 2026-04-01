@@ -1,14 +1,7 @@
-# Welcome to OccPy
-
-
 <figure markdown>
   ![OccPy logo](assets/occpy_logo_v3_white.png#only-light){ width="500" }
   ![OccPy logo](assets/occpy_logo_v3_trans.png#only-dark){ width="500" } 
 </figure>
-
-<span style="color:red"> 
-TOCHECK: Change license if not the good one
-</span>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -38,12 +31,13 @@ OccPy can be easily installed via pip:
 (TODO: replace with pypi version)
 
 ```commandline
- pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple occpy_ls==0.1
+ pip install occpy-ls
 ```
 
 Pre-built wheels are available for Python versions 3.10, 3.11, 3.12, 3.13, on:
 - Linux (x86_64)
-- Windows (TODO)
+- Windows
+- Mac OS
 
 A source distribution is also available, which will require a C++ environment with boost libraries installed for a working installation.
 
@@ -74,30 +68,22 @@ The paths to RIVLIB_ROOT and RDBLIB_ROOT can be defined within the environment Y
 
 ## Usage
 The behavior of OccPy can be configured using JSON setting files (see e.g. [settings_MLS_tutorial.JSON](https://github.com/dkueken/OccPy/blob/master/config/settings_MLS_tutorial.JSON) as an example). 
-While this is not strictly necessary, we still recommend setting up such setting files for running OccPy for later reference on the settings.
+Alternatively, a dictionary with all necessary input variables can be passed. We recommend setting up setting files for later reference on the settings.
 
 First we import OccPy into your python (or jupyter) script:
 ```python
 from occpy.OccPy import OccPy  # this loads the OccPy class with the core functionality
 from occpy.util import normalize_occlusion_output   # within occpy.util multiple additional utility functions can be loaded, e.g. to normalize occlusion output
 ```
-Afterwards we initiate an OccPy object for voxel traversal like the following:
+Afterwards we initiate an OccPy object for voxel traversal using the configured settings file:
 ```python
-test = OccPy(laz_in="path/to/laz_file.laz",
-             out_dir="path/to/output_dir",
-             vox_dim=0.1,                   # voxel dimesnions in m (for the moment only cubic voxels are allowed)
-             lower_threshold=1,             # lower threshold in meters, to reduce effects caused by terrain (only actually functional if Terrain Model is provided)
-             points_per_iter=10000000,      # number of points to be loaded at once. Note, this is only active if point cloud is sorted along gps_time or it is single return. Otherwise entire dataset needs to be loaded at once
-             plot_dim=[min_x, min_y, min_z, max_x, max_y, max_z] # Corner coordinates of the voxel grid. Note only integer values are currently supported here (do not define sub-meter corner coordiantes for the moment!)
-             )
+test = OccPy(config_file="path/to/config_file.json")
 ```
 In the next step we define the sensor position, either by defining the scanner position or by providing trajectory information for mobile acquisitions. In this example we show the sensor position definition based on a handheld MLS acquistion using a GeoSLAM ZebHorizon processed using FARO Connect processing facilities.
 
 ```python
-test.define_sensor_pos(path2file="path/to/trajectory_file.txt", 
-                       is_mobile=True,              # whether acquisition is mobile. Always true for MLS or ULS
-                       single_return=True,          # whether the data is single or multi return
-                       delimiter=" ",               # delimiter used in the trajectory file
+test.define_sensor_pos(path2file='path/to/trajectory_file.txt', 
+                       delimiter=' ',               # delimiter used in the trajectory file
                        hdr_time='//world_time',     # column header for the time information in the trajectory file
                        hdr_x='x',                   # column header for the x coordiante in the trajectory file
                        hdr_y='y',                   # column header for the y coordinate in the trajectory file
@@ -113,13 +99,13 @@ test.do_raytracing()
 ```
 
 This will store four output files as .npy files into the defined output directory: Nhit.npy, Nmiss.npy, Nocc.npy and Classification.npy
-These can be loaded into you python script like:
+These can be loaded into your python script like:
 ```python
 import numpy as np
 Nhit = np.load("output_dir/Nhit.npy")
 Nmiss = np.load("output_dir/Nmiss.npy")
 Nocc = np.load("output_dir/Nocc.npy")
-Classification + np.load("output_dir/Classification.npy")
+Classification = np.load("output_dir/Classification.npy")
 ```
 - Nhit.npy: 3D numpy array with the number of laser hits per voxel
 - Nmiss.npy: 3D numpy array with the number of misses (i.e. pulses that have no laser return in the specific voxel, but last return has not yet been reached)
@@ -145,7 +131,7 @@ If you prefer to define your own threshold for occlusion, or you would like to a
 occl_frac = Nocc.astype(float) / (Nhit.astype(float) + Nmiss.astype(float) + Nocc.astype(float))
 ```
 
-If you would like to have the output grids height normalized, this can be perfored using the normalize_occlusion_output function
+If you would like to have the output grids height normalized, this can be performed using the normalize_occlusion_output function
 
 ```python
 from occpy.util import normalize_occlusion_output
@@ -160,14 +146,10 @@ normalize_occlusion_output(input_folder='path/to/occpy_output_dir',
                            )
 ```
 
-For more information and examples, plese see the following example jupytor scripts.
+For more information and examples, please see the following example jupyter scripts.
 
 
 ## 🎮 Examples
-
-<span style="color:red"> 
-TOCHECK: Update figures with more representative ones
-</span>
 
 <table>
   <tr>
@@ -197,6 +179,70 @@ TOCHECK: Update figures with more representative ones
   <tr>
 </table>
 
+## Config file examples
+### TLS
+This is an example for a configuration file to define the behavior of OccPy. This configuration file is defined for a 
+TLS acquisition campaign and is used to run the [TLS jupyter notebook](notebooks/TLS_notebook.ipynb).
+```json
+{
+    "root_folder": "../..",
+    "laz_in": "data_notebooks/TLS_demo/LAZ/",
+    "out_dir": "output/TLS",
+    "vox_dim": 0.1,
+    "lower_threshold": 1,
+    "points_per_iter": 1000000,
+    "plot_dim": [
+        2676515,
+        1246063,
+        545,
+        2676525,
+        1246113,
+        590
+    ],
+    "output_voxels": false,
+    "single_return": false,
+    "is_mobile": false,
+    "str_idxs_ScanPosID": [7,10],
+    "debug": true,
+    "verbose": true,
+    "tif_in": {
+        "DTM": "data_notebooks/TLS_demo/Grids/Ramerenwald_DTM_20250305.tif",
+        "DSM": "data_notebooks/TLS_demo/Grids/Ramerenwald_DSM_20250305.tif"
+    },
+    "ScanPos": "data_notebooks/TLS_demo/ScanPos/ScanPositions.txt"
+}
+```
+### MLS / ULS
+Tis is an example for a configuration file for the use with mobile acquisition (MLS/ULS). This specific configuration file
+is used in the [MLS jupyter notebook](notebooks/MLS_notebook.ipynb). Most importantly, *is_mobile* should be set to *true*
+and the trajectory file should be defined in *ScanPos*.
+```json
+{
+    "root_folder": "../..",
+    "laz_in": "data_notebooks/MLS_demo/LAZ/MLS_TestData_20perc_FP10_2025.laz",
+    "tif_in": {
+        "DTM": "data_notebooks/MLS_demo/Grids/Ramerenwald_DTM_20250305.tif",
+        "DSM": "data_notebooks/MLS_demo/Grids/Ramerenwald_DSM_20250305.tif"
+    },
+    "out_dir": "output/MLS",
+    "vox_dim": 0.1,
+    "lower_threshold": 1,
+    "points_per_iter": 1000000,
+    "plot_dim": [
+        2676515,
+        1246063,
+        545,
+        2676525,
+        1246113,
+        590
+    ],
+    "ScanPos": "data_notebooks/MLS_demo/ScanPos/MLS_TestData_traj_FP10_2025.txt",
+    "output_voxels": false,
+    "single_return": true,
+    "is_mobile": true
+}
+```
+Please see documentation of the OccPy class for further explanation on the various parameters.
 
 
 
@@ -220,33 +266,22 @@ combined point cloud. OccPy currently expects the linkage between scan position 
 via the laz-file name. E.g. if your scan position information file has the following information:
 ```csv
 ScanID, X,  Y,  Z
-1,      1,  2,  3
-2,      5,  2,  4
+ScanPos001,      1,  2,  3
+ScanPos002,      5,  2,  4
 ```
 We would expect the ScanID number to be present in the laz-file name like this:
 ```commandline
 ScanPos_001.laz
 ```
-The exact location of the scan position identification number can be specified when calling the *define_sensor_pos* function
-of the OccPy object using the function variables *str_idx_ScanPosID* and *str_end_idx_ScanPosID*. In the next code snippet 
-you can see the specific implementation for the example given above:
+The exact location of the scan position identification number can be specified when initializing the OccPy object using 
+the *str_idxs_ScanPosID* parameter either defined in *config_file* or the *config* dictionary. A list with the start and 
+end index of the scan position identifier is expected, i.e. in the case of 'ScanPos010', ```python str_idxs_ScanPosID=[7,10]```.
+Please see the [TLS config file example](#config-file-examples) for an example on setting the scan position linkage.
 
-```python
-test.define_sensor_pos(path2file="path/to/sensor_pos_file.txt",
-                       is_mobile=False,
-                       single_return=True,
-                       delimiter=',',
-                       hdr_scanpos_id='ScanID',
-                       hdr_x='X',
-                       hdr_y='Y',
-                       hdr_z='Z',
-                       str_idx_ScanPosID=8,
-                       str_end_idx_ScanPosID=11)
-```
 Note that according to python convention, positional indices in a vector is zero-based. Therefore, in the example given 
-above, the scan posdtion identification *001* starts with the first *0* at index 8. Also following python convention, subsetting
+above, the scan posdtion identification *001* starts with the first *0* at index 7. Also following python convention, subsetting
 a string will exclude the ending index. Therefore we have to add *+1* to the actual ending index of the scan position identification
-(i.e. in the example given above, the *1* is located at index 10, therefore we have to specify 11).
+(i.e. in the example given above, the *1* is located at index 9, therefore we have to specify 10).
 
 If a multi return TLS is used, you can improve performance by sorting the LAZ file according to GPS Time and return number, 
 e.g. by using LASTools's lassort function:
@@ -391,7 +426,6 @@ a python package: William Albert, Wout Cherlet, Bernhard Höfle, and Jonas Wenk.
 
 
 ## Contact / bugs / feature requests
-
 Have you found a bug or have specific request for a new feature? Please open a new issue in the online code repository on <a href="https://github.com/dkueken/OccPy">Github</a>.
 
 Scientific requests or questions can be directed to
@@ -403,18 +437,13 @@ Several open issues and improvements are currently worked on or planned for the 
 - Add support for reading in a DTM file into the voxel traversal, so the algorithm could stop, once the pulse reached the terrain.
 - Substantial performance improvement by using multi core processing
 - Add functionality for PAI/PAD calculation of each voxel (i.e. calculation of path length within voxel for each pulse)
-- Add interactive visualization solution like pyvista or https://github.com/msoechting/lexcube
-- There is currently still an issue with UAVLS data, where some (very few) LiDAR returns are not registered by the algorithm. The implications for that should be analysed and the problem mitigated. This could cause an underestimation of occlusion, as the e.g. the last return is never reached and the pulse will traverse further without declaring a voxels as occluded for that pulse. There is the possibility to overcome this issue by using the function RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number, number_of_returns) as used in the script Test_MLS.py, where the input data is not initially converted to a pulse dataset, but each return is basically treated as a single pulse. We would only recommend to use this approach, if you are confident about your trajectory information.
+
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
 ## License
-<span style="color:red">  
-TOCHECK: Change license if not the good one
-</span>
-
 This is licensed under the [MIT license](https://opensource.org/licenses/MIT).
 
 ## Project status

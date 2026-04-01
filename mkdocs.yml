@@ -62,6 +62,8 @@ nav:
     - TLS_indivLAZ: notebooks/TLS_notebook_individualLAZ.ipynb
     - MLS: notebooks/MLS_notebook.ipynb
     - ULS: notebooks/ULS_notebook.ipynb
+    - PyVista visualization: notebooks/pyvista.ipynb
+    - PyVista interactive visualization: notebooks/pyvista_interactive.ipynb
   - Reference:
     - OccPy: ref_occpy.md
     - OccPy_Riegl: ref_occpy_riegl.md
