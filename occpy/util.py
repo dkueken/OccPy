@@ -355,7 +355,15 @@ def read_sensorpos_file(path2senspos, delimiter=" ", hdr_scanpos_id='', hdr_x=''
 
     sens_pos_in = pd.read_csv(path2senspos, sep=delimiter)
 
-    d = {'ScanPos': sens_pos_in[hdr_scanpos_id]+sens_pos_id_offset,
+    scanpos = sens_pos_in[hdr_scanpos_id]
+    # check type of values, if one is not int and sens_pos_id_offset is not 0, raise error
+    if any(not isinstance(val, int) for val in scanpos) and sens_pos_id_offset != 0:
+        raise ValueError("Scan position IDs in the sensor position file are not integers, but a non-zero sens_pos_id_offset is provided. Please ensure that scan position IDs are integers or set sens_pos_id_offset to 0.")
+    
+    if sens_pos_id_offset != 0:
+        scanpos += sens_pos_id_offset
+
+    d = {'ScanPos': scanpos,
          'sensor_x': sens_pos_in[hdr_x], 'sensor_y': sens_pos_in[hdr_y], 'sensor_z': sens_pos_in[hdr_z]}
 
     senspos = pd.DataFrame(data=d)

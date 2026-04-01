@@ -593,13 +593,14 @@ class OccPy:
             raise ValueError(f"No LAZ files found in input directory: {self.laz_in}")
 
         links = []
+        self.logger.debug(f"Sensor position file: {self.senspos}")
         for laz_file in laz_files:
             scan_name = os.path.basename(laz_file)
             scan_id = os.path.splitext(scan_name)[0]
 
             if self.str_idxs_ScanPosID is not None:
-                # TODO: we are forcing integer ids, this might not always be te case, but for now ok.
-                scan_id = int(scan_name[self.str_idxs_ScanPosID[0]:self.str_idxs_ScanPosID[1]])
+                scan_id = scan_name[self.str_idxs_ScanPosID[0]:self.str_idxs_ScanPosID[1]]
+                self.logger.debug(f"Using str_idxs_ScanPosID {self.str_idxs_ScanPosID} to extract scan ID from file name, resulting in scan ID {scan_id}.")
 
             self.logger.debug(f"Using scan ID {scan_id} for file {scan_name}.")
             matches = self.senspos.loc[self.senspos['ScanPos'] == scan_id]
@@ -614,6 +615,8 @@ class OccPy:
                     f"Multiple sensor positions found for scan ID '{scan_id}' (file '{scan_name}'). "
                     f"ScanPos IDs must be unique."
                 )
+            
+            self.logger.debug(f"Found matching sensor position for scan ID {scan_id}: (x={matches['sensor_x'].values[0]:.3f}, y={matches['sensor_y'].values[0]:.3f}, z={matches['sensor_z'].values[0]:.3f}).")
 
             links.append({
                 'laz_file': laz_file,

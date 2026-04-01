@@ -16,7 +16,7 @@
     "output_voxels": false,
     "single_return": false,
     "is_mobile": false,
-    "str_idxs_ScanPosID": [7,10],
+    "str_idxs_ScanPosID": [0,10],
     "debug": false,
     "verbose": true,
     "tif_in": {
