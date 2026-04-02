@@ -43,6 +43,7 @@ def load_tls_settings(data_path, out_dir, str_idxs=None):
     settings["tif_in"]["DSM"] = os.path.join(data_path, "Grids", "Ramerenwald_DSM_20250305.tif")
     settings["ScanPos"] = os.path.join(data_path, "ScanPos", "ScanPositions.txt")
     settings["out_dir"] = str(out_dir)
+    settings["debug"] = True
     if str_idxs is not None:
         settings["str_idxs_ScanPosID"] = str_idxs
 
@@ -56,7 +57,7 @@ def _init_tls_occpy(settings):
     test.define_sensor_pos(
         path2file=settings["ScanPos"],
         delimiter=",",
-        hdr_scanpos_id="ID",
+        hdr_scanpos_id="#Name",
         hdr_x="X",
         hdr_y="Y",
         hdr_z="Z",

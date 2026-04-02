@@ -12,5 +12,6 @@
   "scan_pos_id_endstridx": 3,
   "laz_dir": "input/laz",
   "sensor_positions": "input/sensor_positions.txt",
-  "expected_dir": "expected"
+  "expected_dir": "expected",
+  "debug": true
 }

@@ -353,11 +353,23 @@ def read_sensorpos_file(path2senspos, delimiter=" ", hdr_scanpos_id='', hdr_x=''
         DataFrame with columns ['ScanPos', 'sensor_x', 'sensor_y', 'sensor_z'] representing sensor positions.
     """
 
-    sens_pos_in = pd.read_csv(path2senspos, sep=delimiter)
+    sens_pos_in = pd.read_csv(path2senspos, sep=delimiter, dtype=str)
 
-    d = {'ScanPos': sens_pos_in[hdr_scanpos_id]+sens_pos_id_offset,
-         'sensor_x': sens_pos_in[hdr_x], 'sensor_y': sens_pos_in[hdr_y], 'sensor_z': sens_pos_in[hdr_z]}
+    # try adding offset, only if scanpos is int otherwise error out. 
+    # also, if scanpos is int but has leading 0's, these will be removed which can cause problems when matching.
+    # I would remove this option in the future and just require the user to provide the correct scan position IDs in the input file, but for now this should work
+    scanpos = sens_pos_in[hdr_scanpos_id]
+    if sens_pos_id_offset != 0:
+        try:
+            scanpos = scanpos.astype(int)
+        except ValueError:
+            raise ValueError("Scan position IDs cannot be converted to integers. Please check the input file or set sens_pos_id_offset to 0.")
+        print("WARNING: if scan position IDs have leading 0's, these will be removed when converting to int, which may cause issues when matching.")
+        scanpos += sens_pos_id_offset
 
+    d = {'ScanPos': scanpos,
+         'sensor_x': sens_pos_in[hdr_x].astype(float), 'sensor_y': sens_pos_in[hdr_y].astype(float), 'sensor_z': sens_pos_in[hdr_z].astype(float)}
+    
     senspos = pd.DataFrame(data=d)
 
     return senspos
