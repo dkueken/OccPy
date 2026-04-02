@@ -1,0 +1,119 @@
+[data-md-color-scheme="wslLight"] img[src$="#only-dark"],
+[data-md-color-scheme="wslLight"] img[src$="#gh-dark-mode-only"] {
+  display: none; /* Hide dark images in light mode */
+}
+
+[data-md-color-scheme="slate"] img[src$="#only-light"],
+[data-md-color-scheme="slate"] img[src$="#gh-light-mode-only"] {
+  display: none; /* Hide light images in dark mode */
+}
+
+/* Custom Light Color Scheme */
+[data-md-color-scheme="wslLight"] {
+    --md-primary-fg-color: #006268;      /* Header color */
+    --md-primary-bg-color: #fbf0b2;      /* Icons on header */
+    --md-default-bg-color: #ffffff;      /* Background color */
+    --md-typeset-a-color: #003f3f;       /* Link color */
+    --md-default-fg-color: #666666;      /* Default text color */
+}
+
+
+/* Custom Dark Color Scheme */
+[data-md-color-scheme="slate"] {
+    --md-primary-fg-color: #006268;      /* Header color */
+    --md-primary-bg-color: #fbf0b2;      /* Icons on header */
+    --md-default-bg-color: #1E2129;      /* Background color */
+    --md-typeset-a-color: #2e807a;       /* Link color */
+    --md-default-fg-color: #b3b3b3;      /* Default text color */
+}
+
+
+
+/*== FOR LINKS ==*/
+/* Link styling for light mode */
+[data-md-color-scheme="wslLight"] .md-typeset a {
+    color: #006268;
+}
+[data-md-color-scheme="wslLight"] .md-typeset a:hover {
+    color: #003f3f;
+    text-decoration: underline;
+}
+
+/* Link styling for dark mode */
+[data-md-color-scheme="slate"] .md-typeset a {
+    color: #008b92;
+}
+[data-md-color-scheme="slate"] .md-typeset a:hover {
+    color: #00aab3;
+    text-decoration: underline;
+}
+
+
+
+/*== FOR NAVIGATION BARS ==*/
+/* LIGHT mode */
+[data-md-color-scheme="wslLight"] .md-nav__link--active {
+    color: #006268 !important;
+    font-weight: 575; /* Make it bold */
+}
+[data-md-color-scheme="wslLight"] .md-nav__item--active > label.md-nav__link {
+    color: #006268 !important;
+}
+/* When menu is dropped down */
+[data-md-color-scheme="wslLight"] .md-nav__item input:checked + label.md-nav__link {
+    color: #212121 !important;
+}
+/* Set default label color */
+[data-md-color-scheme="wslLight"] label.md-nav__link {
+    color: #212121 !important;
+}
+/* Hover effect */
+[data-md-color-scheme="wslLight"] .md-nav__link:hover {
+    color: #003f3f !important;
+}
+
+
+/* DARK mode */
+[data-md-color-scheme="slate"] .md-nav__link--active {
+    color: #008b92 !important;
+    font-weight: 575; /* Make it bold */
+}
+[data-md-color-scheme="slate"] .md-nav__item--active > label.md-nav__link {
+    color: #008b92 !important;
+}
+/* When menu is dropped down */
+[data-md-color-scheme="slate"] .md-nav__item input:checked + label.md-nav__link {
+    color: #b3b3b3 !important;
+}
+/* Set default label color */
+[data-md-color-scheme="slate"] label.md-nav__link {
+    color: #b3b3b3 !important;
+}
+/* Hover effect */
+[data-md-color-scheme="slate"] .md-nav__link:hover {
+    color: #00aab3 !important;
+}
+
+
+
+
+/* TABLE BORDER */
+/* LIGHT mode */
+[data-md-color-scheme="wslLight"] .md-typeset table tr td,
+[data-md-color-scheme="wslLight"] .md-typeset table tr th {
+    border: 5px solid #f5f5f5;
+}
+
+/* DARK mode */
+[data-md-color-scheme="slate"] .md-typeset table tr td,
+[data-md-color-scheme="slate"] .md-typeset table tr th {
+    border: 5px solid #008b92;
+}
+
+
+
+/* TO JUSTIFY TEXT BY DEFAULT */
+/* Ensure the figure is left-aligned */
+.md-typeset p {
+    text-align: justify;
+}
