@@ -50,7 +50,7 @@ def test_occpy_run_tls(tmp_path):
     # Define sensor positions
     test.define_sensor_pos(path2file=settings['ScanPos'],
                            delimiter=",",
-                           hdr_scanpos_id='ID',
+                           hdr_scanpos_id='#Name',
                            hdr_x='X',
                            hdr_y='Y',
                            hdr_z='Z',
