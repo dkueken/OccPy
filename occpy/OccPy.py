@@ -38,6 +38,7 @@ class OccPy:
             - 'single_return': whether the data is single return or multi return data (default: False)
             - 'str_idxs_ScanPosID': string indices of where the scan position identifier is written in the laz file name. If not given, will use file name as ID (without extension) (default: None)
             - 'cleanup_incomplete_pulses': whether incomplete pulses should be cleaned so there are no missing returns (e.g. a pulse with number_of_return==3 only has 2 returns with the same GPSTime. If set to True, return number and number of return values for this pulse is manually changed to make it appear complete. (default: False)) CAUTION: This can result in unexpected behavior. If set to True we recommend to set 'verbose' and 'debug' to True
+            - 'move_senspos_to_collinearity': There are occasions where the sensor position is not on a line built up by all returns (if multiple returns). In this case one could force collinearity with this flag. Be aware of potential caveats when using this flag. default=False
         Parameters
         ----------
         config : dict, optional
@@ -73,7 +74,7 @@ class OccPy:
         self.vox_dim = config["vox_dim"]
         self.plot_dim = config["plot_dim"]
         
-        optional_args = ["out_dir", "output_voxels", "verbose", "debug", "lower_threshold", "points_per_iter", "delimiter", "root_folder", "single_return", "str_idxs_ScanPosID", "cleanup_incomplete_pulses"]
+        optional_args = ["out_dir", "output_voxels", "verbose", "debug", "lower_threshold", "points_per_iter", "delimiter", "root_folder", "single_return", "str_idxs_ScanPosID", "cleanup_incomplete_pulses", "move_senspos_to_collinearity"]
         
         print(f"INFO: optional arguments: {optional_args}")
 
@@ -89,6 +90,7 @@ class OccPy:
         self.single_return = config.get("single_return", False)
         self.str_idxs_ScanPosID = config.get("str_idxs_ScanPosID", None)
         self.cleanup_incomplete_pulses = config.get("cleanup_incomplete_pulses", False)
+        self.move_senspos_to_collinearity = config.get("move_senspos_to_collinearity", False)
 
         # config logging 
         if self.debug:
@@ -467,6 +469,10 @@ class OccPy:
                                 if self.debug:
                                     self.RayTr.getPulseDatasetReport()
 
+                                if self.move_senspos_to_collinearity:
+                                    self.logger.info("Moving sensor pos to force collinearity")
+                                    self.RayTr.moveSensorPos2Collinearity()
+
                                 # run raytracing on added points
                                 self.logger.info("Do raytracing with stored pulses")
                                 tic_r = time.time()
@@ -493,6 +499,10 @@ class OccPy:
             self.logger.info("Pulse Dataset report")
             self.RayTr.getPulseDatasetReport()
 
+            if self.move_senspos_to_collinearity:
+                self.logger.info("Moving sensor pos to force collinearity")
+                self.RayTr.moveSensorPos2Collinearity()
+
             self.logger.info("Do actual raytracing with all complete pulses")
             tic = time.time()
             self.RayTr.doRaytracing()
@@ -509,6 +519,11 @@ class OccPy:
                 if self.debug:
                     self.logger.debug("Pulse dataset report after cleaning up incomplete pulses")
                     self.RayTr.getPulseDatasetReport()
+
+                if self.move_senspos_to_collinearity:
+                    self.logger.info("Moving sensor pos to force collinearity for incomplete pulses")
+                    self.RayTr.moveSensorPos2Collinearity()
+
                 self.logger.info("Run raytracing for incomplete pulses")
                 tic_r = time.time()
                 self.RayTr.doRaytracing()
@@ -526,6 +541,11 @@ class OccPy:
             if self.debug:
                 self.logger.info("Pulse dataset report after cleaning up incomplete pulses")
                 self.RayTr.getPulseDatasetReport()
+
+            if self.move_senspos_to_collinearity:
+                self.logger.info("Move sensor pos to force collinearity for incomplete pulses")
+                self.RayTr.moveSensorPos2Collinearity()
+
             self.logger.info("Run raytracing for incomplete pulses")
             tic_r = time.time()
             self.RayTr.doRaytracing()
