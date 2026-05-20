@@ -37,6 +37,7 @@ class OccPy:
             - 'is_mobile': whether the acquisition is mobile (MLS/ULS) or static (TLS) (default: False)
             - 'single_return': whether the data is single return or multi return data (default: False)
             - 'str_idxs_ScanPosID': string indices of where the scan position identifier is written in the laz file name. If not given, will use file name as ID (without extension) (default: None)
+            - 'cleanup_incomplete_pulses': whether incomplete pulses should be cleaned so there are no missing returns (e.g. a pulse with number_of_return==3 only has 2 returns with the same GPSTime. If set to True, return number and number of return values for this pulse is manually changed to make it appear complete. (default: False)) CAUTION: This can result in unexpected behavior. If set to True we recommend to set 'verbose' and 'debug' to True
         Parameters
         ----------
         config : dict, optional
@@ -72,7 +73,7 @@ class OccPy:
         self.vox_dim = config["vox_dim"]
         self.plot_dim = config["plot_dim"]
         
-        optional_args = ["out_dir", "output_voxels", "verbose", "debug", "lower_threshold", "points_per_iter", "delimiter", "root_folder", "single_return", "str_idxs_ScanPosID"]
+        optional_args = ["out_dir", "output_voxels", "verbose", "debug", "lower_threshold", "points_per_iter", "delimiter", "root_folder", "single_return", "str_idxs_ScanPosID", "cleanup_incomplete_pulses"]
         
         print(f"INFO: optional arguments: {optional_args}")
 
@@ -87,6 +88,7 @@ class OccPy:
         self.is_mobile = config.get("is_mobile", False)
         self.single_return = config.get("single_return", False)
         self.str_idxs_ScanPosID = config.get("str_idxs_ScanPosID", None)
+        self.cleanup_incomplete_pulses = config.get("cleanup_incomplete_pulses", False)
 
         # config logging 
         if self.debug:
@@ -353,15 +355,17 @@ class OccPy:
                         count = count + len(gps_time)
 
             toc = time.time()
-            if sorted and not self.single_return:
+            if sorted and not self.single_return and self.cleanup_incomplete_pulses:
                 # optional: incomplete pulses can occur if the data has been filtered (either actively or during black box processing
                 # of the processing software. We could actively turn the incomplete pulses into complete ones and do the raytracing
                 # for them!
                 self.logger.info("convert incomplete pulses to complete ones - be cautious with that!")
                 if self.debug:
+                    self.logger.info("Pulse dataset report before cleaning up incomplete pulses")
                     self.RayTr.getPulseDatasetReport()
                 self.RayTr.cleanUpPulseDataset()
                 if self.debug:
+                    self.logger.info("Pulse dataset report after cleaning up incomplete pulses")
                     self.RayTr.getPulseDatasetReport()
                 self.logger.info("Run raytracing for incomplete pulses")
                 tic_r = time.time()
@@ -370,27 +374,37 @@ class OccPy:
                 self.logger.info("Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
                 self.logger.info("Time elapsed for reading and raytracing entire data: {:.2f} seconds".format(toc_r - tic))
             elif not sorted and not self.single_return:
-                self.logger.info("Time elapsed for reading in data: {:.2f} seconds".format(toc - tic))
+                self.logger.info("Time elapsed for reading in data: {:.2f} seconds. Raytracing starts now".format(toc - tic))
 
-                if self.debug:
-                    self.RayTr.getPulseDatasetReport()
-
-                self.logger.info("Clean up pulse dataset in order to handle incomplete pulses")
-                self.RayTr.cleanUpPulseDataset()
-
-                if self.debug:
-                    self.RayTr.getPulseDatasetReport()
-
-                self.logger.info("Do actual raytracing with all pulses")
+                self.logger.info("Do actual raytracing with all complete pulses")
                 tic = time.time()
                 self.RayTr.doRaytracing()
                 toc = time.time()
                 self.logger.info("Time elapsed for raytracing: {:.2f} seconds".format(toc - tic))
 
+                if self.cleanup_incomplete_pulses:
+
+                    if self.debug:
+                        self.logger.info("Pulse dataset report before cleaning up incomplete pulses")
+                        self.RayTr.getPulseDatasetReport()
+                    self.RayTr.cleanUpPulseDataset()
+                    if self.debug:
+                        self.logger.info("Pulse dataset report after cleaning up incomplete pulses")
+                        self.RayTr.getPulseDatasetReport()
+                    self.logger.info("Run raytracing for incomplete pulses")
+                    tic_r = time.time()
+                    self.RayTr.doRaytracing()
+                    toc_r = time.time()
+                    self.logger.info(
+                        "Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
+
+
+
         else: # if input is a single laz file, TLS with single scan position or MLS/ULS with trajectory
+            tic = time.time()
             with laspy.open(self.laz_in) as file:
                 count = 0
-                with tqdm(total=file.header.point_count, desc="Tracing Pulses...", unit="pulses") as pbar:
+                with tqdm(total=file.header.point_count, desc="Processing Pulses...", unit="pulses") as pbar:
                     for points in file.chunk_iterator(points_per_iteration=self.points_per_iter):
 
                         # For performance we need to use copy
@@ -409,7 +423,7 @@ class OccPy:
 
                         self.check_multi_return_handling(points, self.laz_in)
 
-                        # for the case of mobile acquisitions, inerpolate trajectory for gps_time
+                        # for the case of mobile acquisitions, interpolate trajectory for gps_time
                         if self.is_mobile:
                             # call interpolate function for trajectory to extract sensor position for each gps_time
                             SensorPos = interpolate_traj(self.traj['time'], self.traj['sensor_x'], self.traj['sensor_y'],
@@ -423,7 +437,7 @@ class OccPy:
                                                            'sensor_z': np.ones(gps_time.shape) * self.senspos['sensor_z'].values[0]})
 
                         if np.max(number_of_returns) == 1 or np.max(return_number) == 1:
-                            run_raytraycing_after_loading = False
+                            run_raytracing_after_loading = False
                             self.RayTr.doRaytracing_singleReturnPulses(x, y, z,  SensorPos['sensor_x'], SensorPos['sensor_y'],
                                                                        SensorPos['sensor_z'], gps_time)
                         else:
@@ -436,12 +450,12 @@ class OccPy:
                                         f"the system memory. If you have multi return data, consider sorting your laz data first, e.g. using "
                                         f"LASTools lassort: lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v !!!!")
                                     sorted = False
-                                    run_raytraycing_after_loading=True
+                                    run_raytracing_after_loading=True
 
 
                                 else:
                                     sorted = True
-                                    run_raytraycing_after_loading=False
+                                    run_raytracing_after_loading=False
 
 
                             self.RayTr.addPointData(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
@@ -470,8 +484,55 @@ class OccPy:
                         count = count + len(gps_time)
                         pbar.update(len(points))
 
+        toc = time.time()
         if run_raytracing_after_loading:
+
+            self.logger.info(
+                "Time elapsed for reading in data: {:.2f} seconds. Raytracing starts now".format(toc - tic))
+
+            self.logger.info("Pulse Dataset report")
+            self.RayTr.getPulseDatasetReport()
+
+            self.logger.info("Do actual raytracing with all complete pulses")
+            tic = time.time()
             self.RayTr.doRaytracing()
+            toc = time.time()
+            self.logger.info("Time elapsed for raytracing: {:.2f} seconds".format(toc - tic))
+
+            if self.cleanup_incomplete_pulses:
+                self.logger.info("Cleaning up incomplete pulses and run raytracing for these cleaned-up pulses")
+
+                if self.debug:
+                    self.logger.debug("Pulse dataset report before cleaning up incomplete pulses")
+                    self.RayTr.getPulseDatasetReport()
+                self.RayTr.cleanUpPulseDataset()
+                if self.debug:
+                    self.logger.debug("Pulse dataset report after cleaning up incomplete pulses")
+                    self.RayTr.getPulseDatasetReport()
+                self.logger.info("Run raytracing for incomplete pulses")
+                tic_r = time.time()
+                self.RayTr.doRaytracing()
+                toc_r = time.time()
+                self.logger.info(
+                    "Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
+
+        elif not run_raytracing_after_loading and self.cleanup_incomplete_pulses:
+            self.logger.info("Cleaning up incomplete pulses and run raytracing for these cleaned-up pulses")
+
+            if self.debug:
+                self.logger.info("Pulse dataset report beore cleaning up incomplete pulses")
+                self.RayTr.getPulseDatasetReport()
+            self.RayTr.cleanUpPulseDataset()
+            if self.debug:
+                self.logger.info("Pulse dataset report after cleaning up incomplete pulses")
+                self.RayTr.getPulseDatasetReport()
+            self.logger.info("Run raytracing for incomplete pulses")
+            tic_r = time.time()
+            self.RayTr.doRaytracing()
+            toc_r = time.time()
+            self.logger.info("Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
+
+
 
         self.get_raytracing_report()
         self.save_raytracing_output()
