@@ -11,7 +11,7 @@ import OSToolBox as ost
 from tqdm import tqdm
 
 from raytr import PyRaytracer
-from occpy.util import prepare_ply, read_trajectory_file, read_sensorpos_file, interpolate_traj, last_nonzero
+from occpy.util import prepare_ply, read_trajectory_file, read_sensorpos_file, interpolate_traj
 
 
 class OccPy:
@@ -169,7 +169,6 @@ class OccPy:
             json.dump(config, to)
 
         return
-
 
     def define_sensor_pos(self, path2file, delimiter=" ", hdr_time='%time', hdr_scanpos_id='', hdr_x='x', hdr_y='y', hdr_z='z', sens_pos_id_offset=0):
         """
@@ -399,7 +398,6 @@ class OccPy:
                     toc_r = time.time()
                     self.logger.info(
                         "Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
-
 
 
         else: # if input is a single laz file, TLS with single scan position or MLS/ULS with trajectory
