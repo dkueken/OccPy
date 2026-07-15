@@ -23,7 +23,7 @@ def test_occpy_run_mls(tmp_path):
     # Download test data
     p = pooch.create(
         path=pooch.os_cache("occpy_test_data_mls"),
-        base_url="https://zenodo.org/records/18095821/files/",
+        base_url="https://zenodo.org/records/21281997/files/",
         registry={"MLS_demo.zip": "md5:f217fe4753e97ab9ccf40a2a2a351834"}
     )
     p.fetch("MLS_demo.zip", processor=pooch.Unzip(members=["MLS_demo"]), progressbar=True)

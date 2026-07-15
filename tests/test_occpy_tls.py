@@ -23,8 +23,8 @@ def test_occpy_run_tls(tmp_path):
     # Download test data
     p = pooch.create(
         path=pooch.os_cache("occpy_test_data"),
-        base_url="https://zenodo.org/records/18095821/files/",
-        registry={"TLS_demo.zip": "md5:ae9a8de9ff7110595fffe613b2dc83f2"},
+        base_url="https://zenodo.org/records/21281997/files/",
+        registry={"TLS_demo.zip": "md5:ad0fda9108224b9335715cdc517a8f12"},
     )
     p.fetch("TLS_demo.zip", processor=pooch.Unzip(members=["TLS_demo"]), progressbar=True)
     data_path = os.path.join(p.path, "TLS_demo.zip.unzip", "TLS_demo")
