@@ -17,6 +17,60 @@ import seaborn as sns
 
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
+# --- fig_prop handling ------------------------------------------------------------------------------------------------
+
+# settings shared by all figurefunctions, i.e. everything except fig_size
+_BASE_FIG_PROP = dict(
+    label_size=8,           # font size for labels (e.g. x, y, z-axis labels)
+    label_size_ticks=6,     # font size for tick-labels
+    label_size_tiny=4,      # font size for other labels (e.g. legend labels)
+    out_format='png',       # output format of figure file
+)
+
+# per-function defaults: start from the shared base and override fig_size
+TRANSECT_FIG_PROP_DEFAULTS = dict(_BASE_FIG_PROP, fig_size=(3.14, 2.25))
+PROFILE_FIG_PROP_DEFAULTS = dict(_BASE_FIG_PROP, fig_size=(1.75, 3.2))
+
+def check_fig_prop(fig_prop=None, defaults=None, warn_missing=True):
+    """Ensure a fig_prop dictionary contains all required keys.
+
+    Andy key missing from 'fig_prop' is filled in with the corresponding value from 'defaults'. Keys already present in
+    'fig_prop' are kept as provided by the user.
+
+    Parameters
+    ----------
+    fig_prop: dict or None
+        User-supplied figure properties (possibly incomplete or None).
+    defaults: dict
+        Dictionary of default values tofall back on, e.g.
+        TRANSECT_FIG_PROP_DEFAULTS or PROFILE_FIG_PROP_DEFAULTS.
+    warn_missing: bool, default True
+        If True, print a message for each key that was filled in with a default value.
+
+    Returns
+    -------
+    dict
+        Complete fig_prop dictionary with all required keys present.
+
+    """
+    if defaults is None:
+        defaults =_BASE_FIG_PROP
+
+    if fig_prop is None:
+        return defaults.copy()
+
+    complete_fig_prop = defaults.copy()
+    complete_fig_prop.update(fig_prop)
+
+    if warn_missing:
+        missing_keys = set(defaults) - set(fig_prop)
+        for key in missing_keys:
+            print(f"[fig_prop] '{key}' not provided, using default: {defaults[key]}")
+
+    return complete_fig_prop
+
+
+
 def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, out_dir, start_ind=None, end_ind=None, axis=0, chm=None, vertBuffer=0, fig_prop=None, show_plots=False):
     """
     get_Occl_TransectFigure creates a matplotlib figure of a defined transect through the occlusion mapping output grid
@@ -51,7 +105,7 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
     fig_prop: dict [default=None]
         python dictionary with figure properties. If fig_prop = None [default], the following settings will be defined:
         fig_prop = dict(fig_size=(3.14, 2.25),  # figure size in inch
-                        lable_size=8,           # font size for labels (e.g. x, y, z-axis labels=
+                        label_size=8,           # font size for labels (e.g. x, y, z-axis labels=
                         label_size_ticks=6,     # font size for tick-labels
                         label_size_tiny=4,      # font size for other labels (e.g. legend labels)
                         out_format='png')       # output format of figure file
@@ -61,13 +115,7 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
 
     """
 
-    if fig_prop is None:
-        fig_prop = dict(fig_size=(3.14, 2.25),
-                        label_size=8,
-                        label_size_ticks=6,
-                        label_size_tiny=4,
-                        out_format='png', )
-
+    fig_prop = check_fig_prop(fig_prop, defaults=TRANSECT_FIG_PROP_DEFAULTS)
 
     if start_ind is None:
         start_ind = 0
@@ -261,7 +309,7 @@ def get_Occl_TransectFigure_BinaryOcclusion(Nhit, Classification, plot_dim, vox_
         fig_prop: dict [default=None]
             python dictionary with figure properties. If fig_prop = None [default], the following settings will be defined:
             fig_prop = dict(fig_size=(3.14, 2.25),  # figure size in inch
-                            lable_size=8,           # font size for labels (e.g. x, y, z-axis labels=
+                            label_size=8,           # font size for labels (e.g. x, y, z-axis labels=
                             label_size_ticks=6,     # font size for tick-labels
                             label_size_tiny=4,      # font size for other labels (e.g. legend labels)
                             out_format='png')       # output format of figure file
@@ -269,12 +317,7 @@ def get_Occl_TransectFigure_BinaryOcclusion(Nhit, Classification, plot_dim, vox_
             Whether output figures should be shown [will pause the execution until figure is closed] or not.
 
         """
-    if fig_prop is None:
-        fig_prop = dict(fig_size=(3.14, 2.25),
-                        label_size=8,
-                        label_size_ticks=6,
-                        label_size_tiny=4,
-                        out_format='png', )
+    fig_prop = check_fig_prop(fig_prop, defaults=TRANSECT_FIG_PROP_DEFAULTS)
 
     if start_ind is None:
         start_ind = 0
@@ -459,14 +502,16 @@ def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_
         maximum volume percentage to be shown on x-Axis
     fig_prop: dict, default None
             python dictionary with figure properties. If fig_prop = None [default], the following settings will be defined:
-            fig_prop = dict(fig_size=(3.14, 2.25),  # figure size in inch
-                            lable_size=8,           # font size for labels (e.g. x, y, z-axis labels=
+            fig_prop = dict(fig_size=(1.75, 3.2),  # figure size in inch
+                            label_size=8,           # font size for labels (e.g. x, y, z-axis labels=
                             label_size_ticks=6,     # font size for tick-labels
                             label_size_tiny=4,      # font size for other labels (e.g. legend labels)
                             out_format='png')       # output format of figure file
     show_plots: bool, default False
             Whether output figures should be shown [will pause the execution until figure is closed] or not.
     """
+
+    fig_prop = check_fig_prop(fig_prop, defaults=PROFILE_FIG_PROP_DEFAULTS)
 
     grid_dim = (int((plot_dim[3] - plot_dim[0]) / vox_dim), int((plot_dim[4] - plot_dim[1]) / vox_dim),
                 int((plot_dim[5] - plot_dim[2]) / vox_dim))
