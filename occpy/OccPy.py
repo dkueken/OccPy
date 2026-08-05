@@ -3,6 +3,8 @@ import time
 import os
 import glob
 import json
+from contextlib import contextmanager
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -12,6 +14,38 @@ from tqdm import tqdm
 
 from raytr import PyRaytracer
 from occpy.util import prepare_ply, read_trajectory_file, read_sensorpos_file, interpolate_traj
+from occpy.pulse_util import (
+    ReturnMode,
+    ScanJob,
+    TraceMode,
+    chunk_sortedness,
+    constant_sensor_positions,
+    detect_return_mode,
+    normalise_chunk,
+    single_return_pulse_ids,
+)
+
+
+class TqdmLoggingHandler(logging.StreamHandler):
+    """
+    Log handler that plays nicely with a live tqdm progress bar.
+
+    A plain StreamHandler writes straight to the stream while tqdm is redrawing
+    on the same one, so log lines land in the middle of the bar and the bar is
+    reprinted on the next update. ``tqdm.write`` clears the bar, emits the line,
+    and redraws it, which keeps both readable.
+
+    Falls back to normal StreamHandler behaviour when no bar is active, so this
+    is safe for non-chunked runs and for logging outside the read loop.
+    """
+    def emit(self, record):
+        try:
+            tqdm.write(self.format(record), file=self.stream)
+            self.flush()
+        except RecursionError:
+            raise
+        except Exception:
+            self.handleError(record)
 
 
 class OccPy:
@@ -35,7 +69,8 @@ class OccPy:
             - 'delimiter': csv delimiter for scan position file (default: ",")
             - 'root_folder': if given, will assume other paths are relative to this root folder and will prepend it to the paths (default: None)
             - 'is_mobile': whether the acquisition is mobile (MLS/ULS) or static (TLS) (default: False)
-            - 'single_return': whether the data is single return or multi return data (default: False)
+            - 'single_return': whether the data is single return or multi return data. If omitted (default), it is detected from the data beforre ray tracing starts: from the LAS header when trustworthy, otherwise by scanning the return-number fields.
+            - 'check_returns_all_files': when laz_in is a directory, probe every file for its return mode instead of only the first (default: False)
             - 'str_idxs_ScanPosID': string indices of where the scan position identifier is written in the laz file name. If not given, will use file name as ID (without extension) (default: None)
             - 'cleanup_incomplete_pulses': whether incomplete pulses should be cleaned so there are no missing returns (e.g. a pulse with number_of_return==3 only has 2 returns with the same GPSTime. If set to True, return number and number of return values for this pulse is manually changed to make it appear complete. (default: False)) CAUTION: This can result in unexpected behavior. If set to True we recommend to set 'verbose' and 'debug' to True
             - 'move_senspos_to_collinearity': There are occasions where the sensor position is not on a line built up by all returns (if multiple returns). In this case one could force collinearity with this flag. Be aware of potential caveats when using this flag. default=False
@@ -74,7 +109,7 @@ class OccPy:
         self.vox_dim = config["vox_dim"]
         self.plot_dim = config["plot_dim"]
         
-        optional_args = ["out_dir", "output_voxels", "verbose", "debug", "lower_threshold", "points_per_iter", "delimiter", "root_folder", "single_return", "str_idxs_ScanPosID", "cleanup_incomplete_pulses", "move_senspos_to_collinearity"]
+        optional_args = ["out_dir", "output_voxels", "verbose", "debug", "lower_threshold", "points_per_iter", "delimiter", "root_folder", "single_return", "str_idxs_ScanPosID", "cleanup_incomplete_pulses", "move_senspos_to_collinearity", "check_returns_all_files"]
         
         print(f"INFO: optional arguments: {optional_args}")
 
@@ -87,10 +122,18 @@ class OccPy:
         self.points_per_iter = config.get("points_per_iter", 10000000)
         self.root_folder = config.get("root_folder", None)
         self.is_mobile = config.get("is_mobile", False)
-        self.single_return = config.get("single_return", False)
+        self.single_return = config.get("single_return", None) # None -> detect from data
         self.str_idxs_ScanPosID = config.get("str_idxs_ScanPosID", None)
         self.cleanup_incomplete_pulses = config.get("cleanup_incomplete_pulses", False)
         self.move_senspos_to_collinearity = config.get("move_senspos_to_collinearity", False)
+        self.check_returns_all_files = config.get("check_returns_all_files", False)
+        # Resolved at run time, not here; recorded in run_summary.json.
+        self.returns_all_zero = None
+        self.return_mode_result = None
+        self.return_mode_probed_files = None
+        self.single_return_source = None
+        self.trace_mode = None
+        self.traversal_stats = {}
 
         # config logging 
         if self.debug:
@@ -104,7 +147,7 @@ class OccPy:
         self.logger.propagate = False
         if self.logger.handlers:
             self.logger.handlers.clear()
-        console_handler = logging.StreamHandler()
+        console_handler = TqdmLoggingHandler()
         console_handler.setLevel(logging_level)
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         console_handler.setFormatter(formatter)
@@ -238,329 +281,520 @@ class OccPy:
 
         self.sens_pos_initialized = True
 
-
     def do_raytracing(self):
         """
-        Perform ray tracing.
+        Perform ray tracing over all configured input.
 
-        This method processes either a directory of LAZ files (for TLS with known scan positions) or a single LAZ file
-        (Single TLS position or MLS/ULS with a trajectory, depends on self.is_mobile).
-        In the case of TLS, for each LAZ file, it extracts point positions and sensor positions, and
-        then performs ray tracing, accounting for single or multi-return pulse information. Multi-return handling
-        supports on-the-fly processing if the data is sorted by GPS time; otherwise, the full dataset must be loaded first.
+        Handles three input shapes uniformly:
+
+        * a directory of TLS LAS/LAZ files, each linked to its own scan position,
+        * a single TLS LAS/LAZ file with one fixed scan position
+        * a single mobile (MLS/ULS) LAS/LAZ file with a trajectory
+
+        The return mode (single vs. multi) is resolved once, up front, for the whole dataset.
+        Multi-return data is traced on the flz when it is sorted by GPS time;
+        if unsorted data is detected -- at any point, not only in the first chunk -- processing
+        switches to deferred mode and the remaining dataset is traced in single pass at the end.
+        Returns
+        -------
+
         """
-
         if not self.sens_pos_initialized:
-            raise ValueError("Sensor positions not defined. Please call define_sensor_pos or define_sensor_pos_singlePos before running ray tracing.")
-        
-        is_sorted = lambda a: np.all(a[:-1] <= a[1:])
+            raise ValueError(
+                "Sensor positions not defined. Please call define_sensor_pos or "
+                "define_sensor_pos_singlePos before running ray tracing."
+            )
 
-        # TODO: link positions to laz files first (in case of TLS at least), and warn/error if one/more positions cant be linked before processing
+        started = time.perf_counter()
 
-        run_raytracing_after_loading = False
-        if os.path.isdir(self.laz_in): # multi-pos TLS 
+        jobs = self._build_scan_jobs()
+        self.check_multi_return_handling(jobs)
 
-            if self.is_mobile: # TODO: could it occur that we have mobile acquisition with multiple laz files corresponding to one traj file? if so, should implement
-                raise NotImplementedError("The case of mobile acquisition with multiple laz files is currently not implemented. Please provide a single laz file for mobile acquisitions or set is_mobile to False for TLS.")
-            
+        self.logger.info(f"Ray tracing {len(jobs)} scan(s).")
+        mode = TraceMode.SINGLE_RETURN if self.single_return else TraceMode.STREAMING
+
+        with self._timed("Reading and ray tracing all input"):
+            for i, job in enumerate(jobs, start=1):
+                mode = self._process_scan(job, mode, position=i, total_scans=len(jobs))
+
+        self._finalize(mode)
+        self.trace_mode = mode
+
+        elapsed = time.perf_counter() - started
+        self.get_raytracing_report(elapsed_seconds=elapsed)
+        self.save_raytracing_output()
+        self._write_run_summary(jobs, elapsed_seconds=elapsed)
+
+    # ------------------------------------------------------------------
+    # input assembly
+    # ------------------------------------------------------------------
+
+    def _build_scan_jobs(self):
+        """
+        Turn the three supported input shapes into one list of scan jobs.
+        Returns
+        -------
+
+        """
+        if os.path.isdir(self.laz_in):
+            if self.is_mobile:
+                raise NotImplementedError(
+                    "Mobile acquisition with multiple LAZ files is not yet implemented. "
+                    "Provide a single LAZ file for mobile acquisitions or set "
+                    "is_mobile to False for TLS. If you have multiple input LAZ files for "
+                    "a mobile acquisition (e.g. multiple flight campaigns, multiple scan pattern), "
+                    "please run OccPy once per acquisition."
+                )
             if self.scans_linked is None:
                 self.link_positions_to_laz_files()
 
-            for scan in self.scans_linked:
-                f = scan['laz_file']
-                scan_name = scan['scan_name']
+            return [
+                ScanJob(
+                    laz_file=scan["laz_file"],
+                    name=scan["scan_name"],
+                    sensor_xyz=(scan["sensor_x"], scan["sensor_y"], scan["sensor_z"]),
+                )
+                for scan in self.scans_linked
+            ]
 
-                print(f"###############################")
-                print(f"##### Processing {scan_name}...")
-                print(f"###############################")
+        name = os.path.basename(self.laz_in)
 
-                scanpos_X = scan['sensor_x']
-                scanpos_Y = scan['sensor_y']
-                scanpos_Z = scan['sensor_z']
+        if self.is_mobile:
+            return [ScanJob(laz_file=self.laz_in, name=name, sensor_xyz=None)]
 
-                # read in laz file
-                tic = time.time()
-                with laspy.open(f) as file:
+        if len(self.senspos) > 1:
+            self.logger.warning(
+                f"{len(self.senspos)} sensor positions are defined but laz_in is a single file. "
+                f"Using the first position (ScanPos={self.senspos['ScanPos'].values[0]}) for all pulses."
+            )
+        row = self.senspos.iloc[0]
+        return [
+            ScanJob(
+                laz_file=self.laz_in,
+                name=name,
+                sensor_xyz=(
+                    float(row["sensor_x"]),
+                    float(row["sensor_y"]),
+                    float(row["sensor_z"]),
+                ),
+            )
+        ]
 
-                    count = 0
-                    for points in file.chunk_iterator(self.points_per_iter):
+    # ------------------------------------------------------------------
+    # per-scan processing
+    # ------------------------------------------------------------------
+    def _process_scan(self, job, mode, position=None, total_scans=None):
+        """
+        Process one LAS/LAZ file. Returns the (possibly downgraded) trace mode, so
+        that a switch to DEFERRED persists for the rest of the run.
 
-                        self.check_multi_return_handling(points, scan_name)
+        Per-chunk ray-tracing times are accumulated and reported once, after the
+        progress bar has closed, rather than logged per chunk. The per-chunk
+        numbers are still available at DEBUG level.
 
-                        if self.single_return:
-                            sorted = True
+        Parameters
+        ----------
+        job
+        mode
+        position
+        total_scans
 
-                            x = points.x.copy()
-                            y = points.y.copy()
-                            z = points.z.copy()
+        Returns
+        -------
 
-                            sensor_x = np.ones(x.shape) * scanpos_X
-                            sensor_y = np.ones(x.shape) * scanpos_Y
-                            sensor_z = np.ones(x.shape) * scanpos_Z
+        """
+        self.logger.info(f"===== Processing {job.name} =====")
 
-                            gps_time = np.linspace(start=count + 1, stop=count + len(x), num=len(x), endpoint=True)
+        prev_gps_max = None
+        pulse_id_offset = 0
+        traced_seconds = 0.0
+        traced_batches = 0
 
-                            # run raytracing algorithme using singleReturnPulses version
-                            self.logger.info("Do raytracing with all pulses in batch")
-                            tic_r = time.time()
-                            self.RayTr.doRaytracing_singleReturnPulses(x, y, z, sensor_x, sensor_y,
-                                                                  sensor_z, gps_time)
-                            toc_r = time.time()
-                            self.logger.info("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
+        with self._timed(f"Reading and tracing {job.name}"):
+            for chunk in self._iter_chunks(job, position=position, total_scans=total_scans):
 
-                        else:
-                            x = points.x.copy()
-                            y = points.y.copy()
-                            z = points.z.copy()
-                            gps_time = points.gps_time.copy()
-                            return_number = points.return_number.copy()
-                            number_of_returns = points.number_of_returns.copy()
+                if mode is TraceMode.STREAMING:
+                    is_sorted, reason = chunk_sortedness(chunk, prev_gps_max)
+                    if not is_sorted:
+                        self.logger.warning(
+                            f"{job.name} is not sorted by gps_time ({reason}). Switching to "
+                            f"deferred mode: the remaining data has to be held in memory "
+                            f"until the end of the run, which is considerably slower. "
+                            f"Consider sorting first, e.g. LAStools: "
+                            f"lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v"
+                        )
+                        mode = TraceMode.DEFERRED
+                    prev_gps_max = float(chunk.gps_time[-1])
 
-                            # check if gps_time is sorted
-                            if count == 0:  # only check sort state in the first iteration of the for loop
-                                if not is_sorted(gps_time):
-                                    self.logger.warning(
-                                        f"!!!!! input laz file is not sorted along gps_time. The algorithm will still run. However, the "
-                                        f"performance will be greatly decreased as the entire content of the laz file has to be read into "
-                                        f"the system memory. If you have multi return data, consider sorting your laz data first, e.g. using "
-                                        f"LASTools lassort: lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v !!!!")
-                                    sorted = False
-                                else:
-                                    sorted = True
+                sensor_x, sensor_y, sensor_z = self._sensor_positions(chunk, job)
 
-                            sensor_x = np.ones(gps_time.shape) * scanpos_X
-                            sensor_y = np.ones(gps_time.shape) * scanpos_Y
-                            sensor_z = np.ones(gps_time.shape) * scanpos_Z
+                if mode is TraceMode.SINGLE_RETURN:
+                    pulse_ids = single_return_pulse_ids(chunk, pulse_id_offset)
+                    pulse_id_offset += len(chunk)
+                    tic = time.perf_counter()
+                    self.RayTr.doRaytracing_singleReturnPulses(
+                        chunk.x, chunk.y, chunk.z,
+                        sensor_x, sensor_y, sensor_z,
+                        pulse_ids,
+                    )
+                    elapsed = time.perf_counter() - tic
+                    self.logger.debug(f"Ray tracing batch (single-return): {elapsed:.2f} seconds")
+                    traced_seconds += elapsed
+                    traced_batches += 1
+                    continue
 
-                            self.RayTr.addPointData(x, y, z, sensor_x, sensor_y, sensor_z, gps_time, return_number,
-                                               number_of_returns)
+                self.RayTr.addPointData(
+                    chunk.x, chunk.y, chunk.z,
+                    sensor_x, sensor_y, sensor_z,
+                    chunk.gps_time, chunk.return_number, chunk.number_of_returns,
+                )
 
-                            if sorted:  # only if pulses are sorted run raytracing now. Otherwise we have to read in the entire dataset first!
-                                # Get report on pulse datase
-                                if self.debug:
-                                    self.RayTr.getPulseDatasetReport()
+                if mode is TraceMode.STREAMING:
+                    # Sorted data: trace what we have, then release the traced
+                    # pulses. Incomplete pulses straddling the chunk boundary are
+                    # retained by clearPulseDAtaset and complete by the next chunk.
+                    traced_seconds += self._trace_pulse_dataset(
+                        "stored pulses", clear_after=True, level=logging.DEBUG
+                    )
+                    traced_batches += 1
 
-                                # run raytracing on added points
-                                self.logger.info("Do raytracing with stored pulses")
-                                tic_r = time.time()
-                                self.RayTr.doRaytracing()
-                                toc_r = time.time()
-                                self.logger.info("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
-
-                                self.RayTr.clearPulseDataset()
-
-                                # Check if traversed pulses have been deleted from map
-                                if self.debug:
-                                    self.RayTr.getPulseDatasetReport()
-
-                        count = count + len(gps_time)
-
-            toc = time.time()
-            if sorted and not self.single_return and self.cleanup_incomplete_pulses:
-                # optional: incomplete pulses can occur if the data has been filtered (either actively or during black box processing
-                # of the processing software. We could actively turn the incomplete pulses into complete ones and do the raytracing
-                # for them!
-                self.logger.info("convert incomplete pulses to complete ones - be cautious with that!")
-                if self.debug:
-                    self.logger.info("Pulse dataset report before cleaning up incomplete pulses")
-                    self.RayTr.getPulseDatasetReport()
-                self.RayTr.cleanUpPulseDataset()
-                if self.debug:
-                    self.logger.info("Pulse dataset report after cleaning up incomplete pulses")
-                    self.RayTr.getPulseDatasetReport()
-                self.logger.info("Run raytracing for incomplete pulses")
-                tic_r = time.time()
-                self.RayTr.doRaytracing()
-                toc_r = time.time()
-                self.logger.info("Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
-                self.logger.info("Time elapsed for reading and raytracing entire data: {:.2f} seconds".format(toc_r - tic))
-            elif not sorted and not self.single_return:
-                self.logger.info("Time elapsed for reading in data: {:.2f} seconds. Raytracing starts now".format(toc - tic))
-
-                self.logger.info("Do actual raytracing with all complete pulses")
-                tic = time.time()
-                self.RayTr.doRaytracing()
-                toc = time.time()
-                self.logger.info("Time elapsed for raytracing: {:.2f} seconds".format(toc - tic))
-
-                if self.cleanup_incomplete_pulses:
-
-                    if self.debug:
-                        self.logger.info("Pulse dataset report before cleaning up incomplete pulses")
-                        self.RayTr.getPulseDatasetReport()
-                    self.RayTr.cleanUpPulseDataset()
-                    if self.debug:
-                        self.logger.info("Pulse dataset report after cleaning up incomplete pulses")
-                        self.RayTr.getPulseDatasetReport()
-                    self.logger.info("Run raytracing for incomplete pulses")
-                    tic_r = time.time()
-                    self.RayTr.doRaytracing()
-                    toc_r = time.time()
-                    self.logger.info(
-                        "Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
-
-
-        else: # if input is a single laz file, TLS with single scan position or MLS/ULS with trajectory
-            tic = time.time()
-            with laspy.open(self.laz_in) as file:
-                count = 0
-                with tqdm(total=file.header.point_count, desc="Processing Pulses...", unit="pulses") as pbar:
-                    for points in file.chunk_iterator(points_per_iteration=self.points_per_iter):
-
-                        # For performance we need to use copy
-                        # so that the underlying arrays are contiguous
-                        x = points.x.copy()
-                        y = points.y.copy()
-                        z = points.z.copy()
-                        gps_time = points.gps_time.copy()
-                        return_number = points.return_number.copy()
-                        number_of_returns = points.number_of_returns.copy()
-
-                        if np.max(
-                                return_number) == 0:  # a not very nice hack for the special case where return_number and number_of_returns are all 0 for Horizon measurements - TODO: figure out why!
-                            return_number[:] = 1
-                            number_of_returns[:] = 1
-
-                        self.check_multi_return_handling(points, self.laz_in)
-
-                        # for the case of mobile acquisitions, interpolate trajectory for gps_time
-                        if self.is_mobile:
-                            # call interpolate function for trajectory to extract sensor position for each gps_time
-                            SensorPos = interpolate_traj(self.traj['time'], self.traj['sensor_x'], self.traj['sensor_y'],
-                                                              self.traj['sensor_z'], gps_time)
-
-                        else:
-                            SensorPos = self.senspos
-                            SensorPos = pd.DataFrame(data={'ScanPos': np.ones(gps_time.shape) * self.senspos['ScanPos'].values[0],
-                                                           'sensor_x': np.ones(gps_time.shape) * self.senspos['sensor_x'].values[0],
-                                                           'sensor_y': np.ones(gps_time.shape) * self.senspos['sensor_y'].values[0],
-                                                           'sensor_z': np.ones(gps_time.shape) * self.senspos['sensor_z'].values[0]})
-
-                        if np.max(number_of_returns) == 1 or np.max(return_number) == 1:
-                            run_raytracing_after_loading = False
-                            self.RayTr.doRaytracing_singleReturnPulses(x, y, z,  SensorPos['sensor_x'], SensorPos['sensor_y'],
-                                                                       SensorPos['sensor_z'], gps_time)
-                        else:
-                            # check if gps_time is sorted
-                            if count == 0:  # only check sort state in the first iteration of the for loop
-                                if not is_sorted(gps_time):
-                                    self.logger.warning(
-                                        f"!!!!! input laz file is not sorted along gps_time. The algorithm will still run. However, the "
-                                        f"performance will be greatly decreased as the entire content of the laz file has to be read into "
-                                        f"the system memory. If you have multi return data, consider sorting your laz data first, e.g. using "
-                                        f"LASTools lassort: lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v !!!!")
-                                    sorted = False
-                                    run_raytracing_after_loading=True
-
-
-                                else:
-                                    sorted = True
-                                    run_raytracing_after_loading=False
-
-
-                            self.RayTr.addPointData(x, y, z, SensorPos['sensor_x'], SensorPos['sensor_y'],
-                                                    SensorPos['sensor_z'],
-                                                    gps_time, return_number, number_of_returns)
-
-                            if sorted:  # only if pulses are sorted run raytracing now. Otherwise we have to read in the entire dataset first!
-                                # Get report on pulse dataset
-                                if self.debug:
-                                    self.RayTr.getPulseDatasetReport()
-
-                                if self.move_senspos_to_collinearity:
-                                    self.logger.info("Moving sensor pos to force collinearity")
-                                    self.RayTr.moveSensorPos2Collinearity()
-
-                                # run raytracing on added points
-                                self.logger.info("Do raytracing with stored pulses")
-                                tic_r = time.time()
-                                self.RayTr.doRaytracing()
-                                toc_r = time.time()
-                                self.logger.info("Time elapsed for raytracing batch: {:.2f} seconds".format(toc_r - tic_r))
-
-                                self.RayTr.clearPulseDataset() # clear out data that have been traced.
-
-                                # Check if traversed pulses have been deleted from map
-                                
-                                if self.debug:
-                                    self.RayTr.getPulseDatasetReport()
-
-                        count = count + len(gps_time)
-                        pbar.update(len(points))
-
-        toc = time.time()
-        if run_raytracing_after_loading:
-
+        if traced_batches:
             self.logger.info(
-                "Time elapsed for reading in data: {:.2f} seconds. Raytracing starts now".format(toc - tic))
+                f"{job.name}: ray traced {traced_batches} chunk(s) in "
+                f"{traced_seconds:.2f} seconds."
+            )
 
-            self.logger.info("Pulse Dataset report")
+        return mode
+
+    def _iter_chunks(self, job, position=None, total_scans=None):
+        """
+        Yield normalised chunks from a LAS/LAZ file, with a progress bar.
+        Parameters
+        ----------
+        job
+
+        Returns
+        -------
+
+        """
+        require_gps_time = not self.single_return
+
+        desc = job.name
+        if position is not None and total_scans is not None and total_scans > 1:
+            desc = f"[{position}/{total_scans}] {job.name}"
+
+        with laspy.open(job.laz_file) as file:
+            with tqdm(
+                    total=file.header.point_count,
+                    desc=desc,
+                    unit="pts",
+                    unit_scale=True,
+                    disable=False,
+            ) as pbar:
+                for points in file.chunk_iterator(self.points_per_iter):
+                    n = len(points)
+                    if n == 0:
+                        continue
+                    yield normalise_chunk(points, job.name, require_gps_time)
+                    pbar.update(n)
+
+    def _sensor_positions(self, chunk, job):
+        """
+        Per-echo sensor positions as contiguous float64 arrays.
+
+        The original passed pandas Series straight into the bindings in the single/file branch, which defeats the
+        contiguity the x/y/z copies were made for.
+        Parameters
+        ----------
+        chunk
+        job
+
+        Returns
+        -------
+
+        """
+        if job.is_mobile:
+            pos = interpolate_traj(
+                self.traj["time"],
+                self.traj["sensor_x"],
+                self.traj["sensor_y"],
+                self.traj["sensor_z"],
+                chunk.gps_time
+            )
+            return (
+                np.ascontiguousarray(pos["sensor_x"], dtype=np.float64),
+                np.ascontiguousarray(pos["sensor_y"], dtype=np.float64),
+                np.ascontiguousarray(pos["sensor_z"], dtype=np.float64),
+            )
+
+        return constant_sensor_positions(len(chunk), job.sensor_xyz)
+
+    # ------------------------------------------------------------------
+    # tracing and finalisation
+    # ------------------------------------------------------------------
+
+    def _trace_pulse_dataset(self, label, clear_after, level=logging.INFO):
+        """
+        The single place where the accumulated pulse dataset is traced.
+
+        Centralising this guarantees that move_senspos_to_collinearity, the bug reports and the timing
+        are applied consistently.
+
+        ``level`` controls how loudly the timing and the collinearity notice are
+        reported. The streaming path calls this once per chunk and passes DEBUG,
+        so a live progress bar is not interrupted; the caller aggregates the
+        returned times into a single INFO line per file.
+
+        Returns the ray-tracing time in seconds.
+
+        Parameters
+        ----------
+        label
+        clear_after
+
+        Returns
+        -------
+
+        """
+        self._pulse_report(f"before ray tracing {label}")
+        if self.move_senspos_to_collinearity:
+            self.logger.log(level,f"Moving sensor positions to force collinearity ({label}).")
+            self.RayTr.moveSensorPos2Collinearity()
+
+        tic = time.perf_counter()
+        self.RayTr.doRaytracing()
+        elapsed = time.perf_counter() - tic
+        self.logger.log(level, f"Ray tracing {label}: {elapsed:.2f} seconds")
+
+        if clear_after:
+            self.RayTr.clearPulseDataset()
+
+        self._pulse_report(f"after ray tracing {label}")
+
+        return elapsed
+
+    def _finalize(self, mode):
+        """
+        Run whatever is left over, exactly once.
+
+        This replaces the three overlapping post-loop blocks in the previous version.
+        Because run_raytracing_after_loading was only ever assigned in the single/file branch,
+        a TLS directory run with cleanup_incomplete_pulses enabled executed cleanUpPulseDAtaset
+        + doRaytracing twice, counting the same pulses into Nhit/Nmiss/Nocc two times over
+        Parameters
+        ----------
+        mode
+
+        Returns
+        -------
+
+        """
+        if mode is TraceMode.SINGLE_RETURN:
+            # Nothing was ever added to the pulse dataset, so there is nothing to flush and nothing to clean up.
+            if self.cleanup_incomplete_pulses:
+                self.logger.info(
+                    "cleanup_incomplete_pulses has no effect for single-return data; skipping."
+                )
+            return
+
+        if mode is TraceMode.DEFERRED:
+            self.logger.info("Tracing the full accumulated pulse dataset.")
+            self._trace_pulsedataset("deferred pulses", clear_after=False)
+
+        if self.cleanup_incomplete_pulses:
+            # Incomplete pulses arise when data has been filtered, actively or
+            # inside the vendor's processing. Completing them artificially is deliberatelz opt-in.
+            self.logger.info(
+                "Converting incomplete pulses into complete ones -- be cautious with this."
+            )
+            self._pulse_report("before cleaning up incomplete pulses")
+            self.RayTr.cleanUpPulseDataset()
+            self._pulse_report("after cleaning up incomplete pulses")
+
+            self._trace_pulse_dataset("cleaned-up incomplete pulses", clear_after=False)
+
+    # ------------------------------------------------------------------
+    # small helpers
+    # ------------------------------------------------------------------
+
+    def _write_run_summary(self, jobs, elapsed_seconds):
+        """
+        Record the facts that were resolved at run time, not at construction.
+
+        ``config.json`` says what was requested. This says what actually
+        happened: which return mode was used and where that answer came from,
+        whether the return fields were degenerate, and whether the run had to
+        fall back from streaming to deferred tracing. None of that is
+        recoverable from the config or the output grids, and all of it changes
+        how the grids should be interpreted.
+
+
+        Parameters
+        ----------
+        jobs:
+        elapsed_seconds: int
+
+        Returns
+        -------
+
+        """
+        summary = {
+            "finished": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "elapsed_seconds": round(elapsed_seconds, 2),
+            "scans_processed": len(jobs),
+            "single_return": self.single_return,
+            "single_return_source": self.single_return_source,
+            "returns_all_zero": self.returns_all_zero,
+            "trace_mode": self.trace_mode.value if self.trace_mode else None,
+            "cleanup_incomplete_pulses": self.cleanup_incomplete_pulses,
+            "move_senspos_to_collinearity": self.move_senspos_to_collinearity,
+        }
+
+        if self.return_mode_result is not None:
+            summary["return_mode"] = self.return_mode_result.mode.value
+            summary["return_mode_source"] = self.return_mode_result.source
+            summary["return_mode_detail"] = self.return_mode_result.detail
+            summary["return_mode_probed_files"] = self.return_mode_probed_files
+
+        if self.trace_mode is TraceMode.DEFERRED and not self.single_return:
+            summary["note"] = (
+                "Unsorted gps_time was detected, so tracing fell back to deferred mode. "
+                "Results are unaffected, but the run held the pulse dataset in memory; "
+                "sorting the input by gps_time would be considerably faster."
+            )
+
+        # Traversal counters, read once by get_raytracing_report so that the
+        # console report and this file cannot disagree.
+        stats = self.traversal_stats if self.traversal_stats else self._traversal_stats()
+        if stats:
+            summary["traversal"] = stats
+
+        path = os.path.join(self.out_dir, "run_summary.json")
+        try:
+            with open(path, "w") as to:
+                json.dump(summary, to, indent=2)
+            self.logger.info(f"Wrote run summary to {path}")
+        except OSError as exc:
+            self.logger.warning(f"Could not write the run summary to {path}: {exc}")
+
+        return summary
+
+    @contextmanager
+    def _timed(self, label, level=logging.INFO):
+        """Replaces the hand-rolled tic/toc pairs in the original."""
+        tic = time.perf_counter()
+        try:
+            yield
+        finally:
+            self.logger.log(level, f"{label}: {time.perf_counter() - tic:.2f} seconds")
+
+    def _pulse_report(self, when):
+        if self.debug:
+            self.logger.debug(f"Pulse dataset report {when}")
             self.RayTr.getPulseDatasetReport()
 
-            if self.move_senspos_to_collinearity:
-                self.logger.info("Moving sensor pos to force collinearity")
-                self.RayTr.moveSensorPos2Collinearity()
-
-            self.logger.info("Do actual raytracing with all complete pulses")
-            tic = time.time()
-            self.RayTr.doRaytracing()
-            toc = time.time()
-            self.logger.info("Time elapsed for raytracing: {:.2f} seconds".format(toc - tic))
-
-            if self.cleanup_incomplete_pulses:
-                self.logger.info("Cleaning up incomplete pulses and run raytracing for these cleaned-up pulses")
-
-                if self.debug:
-                    self.logger.debug("Pulse dataset report before cleaning up incomplete pulses")
-                    self.RayTr.getPulseDatasetReport()
-                self.RayTr.cleanUpPulseDataset()
-                if self.debug:
-                    self.logger.debug("Pulse dataset report after cleaning up incomplete pulses")
-                    self.RayTr.getPulseDatasetReport()
-
-                if self.move_senspos_to_collinearity:
-                    self.logger.info("Moving sensor pos to force collinearity for incomplete pulses")
-                    self.RayTr.moveSensorPos2Collinearity()
-
-                self.logger.info("Run raytracing for incomplete pulses")
-                tic_r = time.time()
-                self.RayTr.doRaytracing()
-                toc_r = time.time()
-                self.logger.info(
-                    "Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
-
-        elif not run_raytracing_after_loading and self.cleanup_incomplete_pulses:
-            self.logger.info("Cleaning up incomplete pulses and run raytracing for these cleaned-up pulses")
-
-            if self.debug:
-                self.logger.info("Pulse dataset report beore cleaning up incomplete pulses")
-                self.RayTr.getPulseDatasetReport()
-            self.RayTr.cleanUpPulseDataset()
-            if self.debug:
-                self.logger.info("Pulse dataset report after cleaning up incomplete pulses")
-                self.RayTr.getPulseDatasetReport()
-
-            if self.move_senspos_to_collinearity:
-                self.logger.info("Move sensor pos to force collinearity for incomplete pulses")
-                self.RayTr.moveSensorPos2Collinearity()
-
-            self.logger.info("Run raytracing for incomplete pulses")
-            tic_r = time.time()
-            self.RayTr.doRaytracing()
-            toc_r = time.time()
-            self.logger.info("Time elapsed for raytracing incomplete pulses: {:.2f} seconds".format(toc_r - tic_r))
-
-
-
-        self.get_raytracing_report()
-        self.save_raytracing_output()
-
-    def get_raytracing_report(self):
+    def _traversal_stats(self):
         """
-        Prints a report on the voxel traversal.
+        Read the traversal counters from the C++ side.
+
+        Each getter is wrapped individually so that a signature change in raytr
+        costs one field rather than the whole report or the run summary. The
+        result is cached on ``self.traversal_stats`` so the report and the run
+        summary cannot disagree.
         """
-        # Get report on traversal
-        self.RayTr.reportOnTraversal()
+        getters = {
+            "total_pulses_in_dataset": self.getTotalNumPulses,
+            "traversed_pulses": self.getNumTraversedPulses,
+            "registered_hits": self.getNumRegisteredHits,
+            "echoes_outside_grid": self.getNumEchoesOutside,
+            "missing_returns": self.getNumMissingReturns,
+            "pulses_not_intersecting_grid": self.getNumNonIntersectPulses,
+        }
+        stats = {}
+        for name, getter in getters.items():
+            try:
+                stats[name] = int(getter())
+            except Exception as exc:  # noqa: BLE001 - a report must not break a finished run
+                self.logger.debug(f"Could not read {name}: {exc}")
+
+        self.traversal_stats = stats
+        return stats
+
+    def get_raytracing_report(self, elapsed_seconds=None):
+        """
+        Print a report on the voxel traversal.
+
+        The numbers are read from the C++ counters on the Python side and
+        written out here, rather than relying on ``reportOnTraversal`` printing
+        from C++. That call writes to the C++ standard output stream, which is
+        buffered separately from Python's: in a terminal it usually still
+        appears, but it goes missing in notebooks and under output capture, and
+        it ignores the logger configuration entirely.
+
+        The report is written with ``tqdm.write`` rather than through the
+        logger, because it is a result rather than a log message: it should
+        appear even when the run is not verbose, and it must not collide with a
+        progress bar.
+
+        Parameters
+        ----------
+        elapsed_seconds : float, optional
+            Wall time of the ray-tracing run, included in the report if given.
+
+        Returns
+        -------
+        dict
+            The traversal counters, also stored on ``self.traversal_stats``.
+        """
+        stats = self._traversal_stats()
+
+        if self.debug:
+            # The C++ report, for cross-checking against the Python one.
+            self.RayTr.reportOnTraversal()
+
+        if not stats:
+            self.logger.warning(
+                "Could not read any traversal counters, so no report can be produced. "
+                "The occlusion grids themselves are unaffected."
+            )
+            return stats
+
+        def fmt(key):
+            return f"{stats[key]:,}" if key in stats else "n/a"
+
+        def pct(key, of_key):
+            if key not in stats or of_key not in stats or not stats[of_key]:
+                return ""
+            return f"  ({100.0 * stats[key] / stats[of_key]:.1f}%)"
+
+        total = "total_pulses_in_dataset"
+        lines = [
+            "",
+            "==================== Occlusion mapping report ====================",
+            f"  Pulses traversed          {fmt('traversed_pulses'):>15}"
+            f" of {fmt(total)}{pct('traversed_pulses', total)}",
+            f"  Pulses missing the grid   {fmt('pulses_not_intersecting_grid'):>15}"
+            f"{'':<{len(fmt(total)) + 4}}{pct('pulses_not_intersecting_grid', total)}",
+            f"  Returns registered        {fmt('registered_hits'):>15}",
+            f"  Returns outside the grid  {fmt('echoes_outside_grid'):>15}",
+            f"  Returns missed            {fmt('missing_returns'):>15}",
+        ]
+        if elapsed_seconds is not None:
+            lines.append(f"  Ray tracing time          {elapsed_seconds:>15.2f} s")
+        lines.append("=" * 66)
+
+        tqdm.write("\n".join(lines))
+
+        if stats.get("missing_returns", 0) > 0:
+            self.logger.warning(
+                f"{stats['missing_returns']:,} returns were missed during traversal: they did "
+                f"not fall in a voxel crossed by their own pulse, which means the returns are "
+                f"not collinear with the sensor position. Setting "
+                f"move_senspos_to_collinearity=True can recover them, with the caveats noted "
+                f"in the config documentation."
+            )
+
+        return stats
 
     def save_raytracing_output(self):
         """
@@ -711,27 +945,107 @@ class OccPy:
         self.logger.info(f"Linked {len(links)} TLS LAZ files to scan positions.")
         return pd.DataFrame(links)
 
-    def check_multi_return_handling(self, points, scan_name):
+    def check_multi_return_handling(self, jobs=None):
         """
-        Check if the input laz data contains multiple returns per pulse and set self.single_return accordingly if not already set by the user.
-        If self.single_return is already set by the user, this function will check if the data is consistent with the provided setting and will raise a warning if not.
+       Resolve the return mode for the whole dataset, once, before any tracing.
 
+        The header field ``number_of_points_by_return`` answers this for free
+        when it is trustworthy; otherwise the points are scanned, keeping only
+        the return-number fields, with an early exit as soon as a second return
+        appears. See ``occpy.pulses.detect_return_mode``.
+
+        For a directory of LAZ files only the first file is probed. Multi-station
+        TLS acquisitions write one file per scan position with identical sensor
+        settings, so the return mode is a property of the acquisition rather than
+        of the individual file. Set ``check_returns_all_files`` in the config to
+        probe every file instead.
+
+        If ``single_return`` was set explicitly in the config, detection
+        validates it rather than overriding it: a conflict that would corrupt the
+        results raises, one that only costs performance warns.
         Parameters
         ----------
-        points: laspy points object
-            The points object read from a laz file chunk, containing point attributes such as x, y, z, gps_time, return_number, number_of_returns, etc.
+        jobs: list of ScanJob, optional
+            Scan jobs to probe. BUilt from the config when omitted.
 
+        Returns
+        ----------
+        bool
+            the resolved value of ``self.single_return``.
         """
 
-        if self.single_return:
-            if np.any(points.return_number > 1):
-                raise ValueError(f"Data appears to contain multiple returns per pulse (detected in {scan_name}), but single_return is set to True. This leads to unexpected behavior.")
-        else:
-            if not np.any(points.return_number > 1) and not np.any(points.number_of_returns > 1):
-                self.logger.warning(f"Data appears to contain only single returns per pulse (detected in {scan_name}), but single_return is set to False. Consider setting single_return to True for more efficient processing of single return data.")
+        if jobs is None:
+            jobs = self._build_scan_jobs()
+        if len(jobs) == 0:
+            raise ValueError("No input files to check for return mode.")
 
-        return
+        probes = jobs if self.check_returns_all_files else jobs[:1]
+        if len(jobs) > 1 and not self.check_returns_all_files:
+            self.logger.info(
+                f"Probing the return mode on {jobs[0].name} only and applying it to all "
+                f"{len(jobs)} files. Set check_returns_all_files=True to probe every file."
+            )
 
+        results = []
+        for job in probes:
+            result = detect_return_mode(job.laz_file, self.points_per_iter, progress=self.verbose)
+            self.logger.info(
+                f"{job.name}: return mode {result.mode.value} (from {result.source}) -- {result.detail}"
+            )
+            results.append((job, result))
+
+        # Kept for the run summary: which file was probed and whether the answer
+        # came from the header or from scanning the points
+        self.return_mode_result = results[0][1]
+        self.return_mode_probed_files = [job.name for job, _ in results]
+
+        conflicting = {r.mode for _, r in results}
+        if len(conflicting) > 1:
+            summary = ", ".join(f"{j.name}={r.mode.value}" for j, r in results)
+            raise ValueError(
+                f"Input files disagree on the return mode ({summary}). Process them in "
+                f"separate runs, or fix the acquisition metadata."
+            )
+
+        mode = results[0][1].mode
+        detected_single = mode.implies_single_return
+        self.returns_all_zero = mode is ReturnMode.DEGENERATE_ZERO
+
+        if self.returns_all_zero:
+            self.logger.warning(
+                "return_number and number_of_returns are 0 for every echo. The return "
+                "fields carry no information, so the data is processed as single-return."
+            )
+            if self.single_return is False:
+                raise ValueError(
+                    "single_return is set to False, but the return-number fields are 0 "
+                    "everywhere, so echoes cannot be grouped into pulses. Set "
+                    "single_return to True, or repair the return fields."
+                )
+
+        if self.single_return is None:
+            self.single_return = detected_single
+            self.single_return_source = "detected"
+            self.logger.info(f"Resolved single_return={self.single_return} from the data.")
+            return self.single_return
+
+        self.single_return_source = "config"
+
+        if self.single_return and mode is ReturnMode.MULTI:
+            raise ValueError(
+                f"single_return is set to True, but the data contains multiple returns per "
+                f"pulse ({results[0][1].detail}). This would silently corrupt the occlusion "
+                f"result: every echo would be traced as an independent pulse."
+            )
+
+        if not self.single_return and detected_single:
+            self.logger.warning(
+                "single_return is set to False, but the data contains only single returns. "
+                "The result is unaffected, but setting single_return=True avoids the converting "
+                "the point cloud into a pulse dataset and is considerably faster."
+            )
+
+        return self.single_return
 
     def get_chm(self):
         """
