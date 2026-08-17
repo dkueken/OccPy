@@ -599,7 +599,7 @@ class OccPy:
 
         if mode is TraceMode.DEFERRED:
             self.logger.info("Tracing the full accumulated pulse dataset.")
-            self._trace_pulsedataset("deferred pulses", clear_after=False)
+            self._trace_pulse_dataset("deferred pulses", clear_after=False)
 
         if self.cleanup_incomplete_pulses:
             # Incomplete pulses arise when data has been filtered, actively or
