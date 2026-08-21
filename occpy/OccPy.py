@@ -422,6 +422,8 @@ class OccPy:
                             f"until the end of the run, which is considerably slower. "
                             f"Consider sorting first, e.g. LAStools: "
                             f"lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v"
+                            f"or PDAL: "
+                            f"pdal translate in.laz out.laz sort --filters.sort.dimensions=""GpsTime"" --filters.sort.order=""ASC"" --filters.sort.algorithm=""STABLE"" --writers.las.forward=all --writers.las.extra_dims=all"
                         )
                         mode = TraceMode.DEFERRED
                     prev_gps_max = float(chunk.gps_time[-1])
@@ -599,7 +601,7 @@ class OccPy:
 
         if mode is TraceMode.DEFERRED:
             self.logger.info("Tracing the full accumulated pulse dataset.")
-            self._trace_pulse_dataset("deferred pulses", clear_after=False)
+            self._trace_pulse_dataset("deferred pulses", clear_after=True)
 
         if self.cleanup_incomplete_pulses:
             # Incomplete pulses arise when data has been filtered, actively or
@@ -611,7 +613,7 @@ class OccPy:
             self.RayTr.cleanUpPulseDataset()
             self._pulse_report("after cleaning up incomplete pulses")
 
-            self._trace_pulse_dataset("cleaned-up incomplete pulses", clear_after=False)
+            self._trace_pulse_dataset("cleaned-up incomplete pulses", clear_after=True)
 
     # ------------------------------------------------------------------
     # small helpers
