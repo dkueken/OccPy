@@ -21,8 +21,7 @@ from occpy.pulse_util import (
     chunk_sortedness,
     constant_sensor_positions,
     detect_return_mode,
-    normalise_chunk,
-    single_return_pulse_ids,
+    normalise_chunk
 )
 
 
@@ -406,7 +405,6 @@ class OccPy:
         self.logger.info(f"===== Processing {job.name} =====")
 
         prev_gps_max = None
-        pulse_id_offset = 0
         traced_seconds = 0.0
         traced_batches = 0
 
@@ -431,13 +429,11 @@ class OccPy:
                 sensor_x, sensor_y, sensor_z = self._sensor_positions(chunk, job)
 
                 if mode is TraceMode.SINGLE_RETURN:
-                    pulse_ids = single_return_pulse_ids(chunk, pulse_id_offset)
-                    pulse_id_offset += len(chunk)
                     tic = time.perf_counter()
                     self.RayTr.doRaytracing_singleReturnPulses(
                         chunk.x, chunk.y, chunk.z,
                         sensor_x, sensor_y, sensor_z,
-                        pulse_ids,
+                        chunk.gps_time,
                     )
                     elapsed = time.perf_counter() - tic
                     self.logger.debug(f"Ray tracing batch (single-return): {elapsed:.2f} seconds")

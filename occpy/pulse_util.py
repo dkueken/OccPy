@@ -332,16 +332,3 @@ def constant_sensor_positions(
         np.full(n, sy, dtype=np.float64),
         np.full(n, sz, dtype=np.float64),
     )
-
-
-def single_return_pulse_ids(chunk: Chunk, offset: int) -> np.ndarray:
-    """
-    Pulse identifiers for single-return tracing.
-
-    Each echo is its own pulse, so the identifier only has to be unique within
-    the batch being traced. Real GPS times are used when available, otherwise a
-    running counter.
-    """
-    if np.any(chunk.gps_time != 0.0):
-        return chunk.gps_time
-    return np.arange(offset + 1, offset + len(chunk) + 1, dtype=np.float64)
