@@ -54,7 +54,7 @@ class OccPy:
 
         Parameters in config file:  
         Must include:  
-            - 'laz_in' : path to single .laz file or directory with multiple .laz files
+            - 'laz_in' : path to single .las/.laz file or directory with multiple .las/.laz files
             - 'vox_dim' : voxel size in meters  
             - 'plot_dim': grid for occlusion mapping: [minX, minY, minZ, maxX, maxY, maxZ]  
         Optional parameters:  
@@ -63,13 +63,13 @@ class OccPy:
             - 'verbose': set logging level  (default: False)
             - 'debug': set logging level (default: False)
             - 'lower_threshold': lower threshold above ground to exclude from occlusion mapping in voxels (default: 0)
-            - 'points_per_iter': number of points read in from laz file in each iteration (default: 10000000)
+            - 'points_per_iter': number of points read in from las/laz file in each iteration (default: 10000000)
             - 'delimiter': csv delimiter for scan position file (default: ",")
             - 'root_folder': if given, will assume other paths are relative to this root folder and will prepend it to the paths (default: None)
             - 'is_mobile': whether the acquisition is mobile (MLS/ULS) or static (TLS) (default: False)
             - 'single_return': whether the data is single return or multi return data. If omitted (default), it is detected from the data before ray tracing starts: from the LAS header when trustworthy, otherwise by scanning the return-number fields.
             - 'check_returns_all_files': when laz_in is a directory, probe every file for its return mode instead of only the first (default: False)
-            - 'str_idxs_ScanPosID': string indices of where the scan position identifier is written in the laz file name. If not given, will use file name as ID (without extension) (default: None)
+            - 'str_idxs_ScanPosID': string indices of where the scan position identifier is written in the las/laz file name. If not given, will use file name as ID (without extension) (default: None)
             - 'cleanup_incomplete_pulses': whether incomplete pulses should be cleaned so there are no missing returns (e.g. a pulse with number_of_return==3 only has 2 returns with the same GPSTime. If set to True, return number and number of return values for this pulse is manually changed to make it appear complete. (default: False)) CAUTION: This can result in unexpected behavior. If set to True we recommend to set 'verbose' and 'debug' to True
             - 'move_senspos_to_collinearity': There are occasions where the sensor position is not on a line built up by all returns (if multiple returns). In this case one could force collinearity with this flag. Be aware of potential caveats when using this flag. default=False
         Parameters
@@ -841,10 +841,10 @@ class OccPy:
 
     def link_positions_to_laz_files(self):
         """
-        Link TLS LAZ files from a directory input to scanner positions before processing.
+        Link TLS LAS/LAZ files from a directory input to scanner positions before processing.
 
         This method is only applicable for TLS runs where ``self.laz_in`` is a directory.
-        It validates that each LAZ file can be linked to exactly one sensor position and
+        It validates that each LAS/LAZ file can be linked to exactly one sensor position and
         stores the links for re-use in ``do_raytracing``.
 
         Returns
@@ -857,14 +857,16 @@ class OccPy:
             raise ValueError("link_positions_to_laz_files is only valid for TLS (is_mobile=False).")
 
         if not os.path.isdir(self.laz_in):
-            raise ValueError("link_positions_to_laz_files requires laz_in to be a directory containing TLS LAZ files.")
+            raise ValueError("link_positions_to_laz_files requires laz_in to be a directory containing TLS LAS/LAZ files.")
 
         if not self.sens_pos_initialized:
             raise ValueError("Sensor positions not defined. Please call define_sensor_pos first.")
 
         laz_files = sorted(glob.glob(os.path.join(self.laz_in, "*.laz")))
+        las_files = sorted(glob.glob(os.path.join(self.laz_in, "*.las")))
+        laz_files.extend(las_files)
         if len(laz_files) == 0:
-            raise ValueError(f"No LAZ files found in input directory: {self.laz_in}")
+            raise ValueError(f"No .las or .laz files found in input directory: {self.laz_in}")
 
         links = []
         self.logger.debug(f"Sensor position file: {self.senspos}")
@@ -908,7 +910,7 @@ class OccPy:
 
         self.scans_linked = links
 
-        self.logger.info(f"Linked {len(links)} TLS LAZ files to scan positions.")
+        self.logger.info(f"Linked {len(links)} TLS LAS/LAZ files to scan positions.")
         return pd.DataFrame(links)
 
     def check_multi_return_handling(self, jobs=None):
@@ -920,7 +922,7 @@ class OccPy:
         the return-number fields, with an early exit as soon as a second return
         appears. See ``occpy.pulse_util.detect_return_mode``.
 
-        For a directory of LAZ files only the first file is probed. Multi-station
+        For a directory of LAS/LAZ files only the first file is probed. Multi-station
         TLS acquisitions write one file per scan position with identical sensor
         settings, so the return mode is a property of the acquisition rather than
         of the individual file. Set ``check_returns_all_files`` in the config to
