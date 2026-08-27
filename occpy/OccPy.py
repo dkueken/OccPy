@@ -4,7 +4,6 @@ import os
 import glob
 import json
 from contextlib import contextmanager
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -68,7 +67,7 @@ class OccPy:
             - 'delimiter': csv delimiter for scan position file (default: ",")
             - 'root_folder': if given, will assume other paths are relative to this root folder and will prepend it to the paths (default: None)
             - 'is_mobile': whether the acquisition is mobile (MLS/ULS) or static (TLS) (default: False)
-            - 'single_return': whether the data is single return or multi return data. If omitted (default), it is detected from the data beforre ray tracing starts: from the LAS header when trustworthy, otherwise by scanning the return-number fields.
+            - 'single_return': whether the data is single return or multi return data. If omitted (default), it is detected from the data before ray tracing starts: from the LAS header when trustworthy, otherwise by scanning the return-number fields.
             - 'check_returns_all_files': when laz_in is a directory, probe every file for its return mode instead of only the first (default: False)
             - 'str_idxs_ScanPosID': string indices of where the scan position identifier is written in the laz file name. If not given, will use file name as ID (without extension) (default: None)
             - 'cleanup_incomplete_pulses': whether incomplete pulses should be cleaned so there are no missing returns (e.g. a pulse with number_of_return==3 only has 2 returns with the same GPSTime. If set to True, return number and number of return values for this pulse is manually changed to make it appear complete. (default: False)) CAUTION: This can result in unexpected behavior. If set to True we recommend to set 'verbose' and 'debug' to True
@@ -108,7 +107,7 @@ class OccPy:
         self.vox_dim = config["vox_dim"]
         self.plot_dim = config["plot_dim"]
         
-        optional_args = ["out_dir", "output_voxels", "verbose", "debug", "lower_threshold", "points_per_iter", "delimiter", "root_folder", "single_return", "str_idxs_ScanPosID", "cleanup_incomplete_pulses", "move_senspos_to_collinearity", "check_returns_all_files"]
+        optional_args = ["out_dir", "is_mobile", "output_voxels", "verbose", "debug", "lower_threshold", "points_per_iter", "delimiter", "root_folder", "single_return", "str_idxs_ScanPosID", "cleanup_incomplete_pulses", "move_senspos_to_collinearity", "check_returns_all_files"]
         
         print(f"INFO: optional arguments: {optional_args}")
 
@@ -291,12 +290,9 @@ class OccPy:
         * a single mobile (MLS/ULS) LAS/LAZ file with a trajectory
 
         The return mode (single vs. multi) is resolved once, up front, for the whole dataset.
-        Multi-return data is traced on the flz when it is sorted by GPS time;
+        Multi-return data is traced on the fly when it is sorted by GPS time;
         if unsorted data is detected -- at any point, not only in the first chunk -- processing
         switches to deferred mode and the remaining dataset is traced in single pass at the end.
-        Returns
-        -------
-
         """
         if not self.sens_pos_initialized:
             raise ValueError(
@@ -331,9 +327,6 @@ class OccPy:
     def _build_scan_jobs(self):
         """
         Turn the three supported input shapes into one list of scan jobs.
-        Returns
-        -------
-
         """
         if os.path.isdir(self.laz_in):
             if self.is_mobile:
@@ -397,10 +390,6 @@ class OccPy:
         mode
         position
         total_scans
-
-        Returns
-        -------
-
         """
         self.logger.info(f"===== Processing {job.name} =====")
 
@@ -420,8 +409,8 @@ class OccPy:
                             f"until the end of the run, which is considerably slower. "
                             f"Consider sorting first, e.g. LAStools: "
                             f"lassort -i laz_in -gps_time -return_number -odix _sort -olaz -v"
-                            f"or PDAL: "
-                            f"pdal translate in.laz out.laz sort --filters.sort.dimensions=""GpsTime"" --filters.sort.order=""ASC"" --filters.sort.algorithm=""STABLE"" --writers.las.forward=all --writers.las.extra_dims=all"
+                            f" or PDAL: "
+                            f'pdal translate in.laz out.laz sort --filters.sort.dimensions=""GpsTime"" --filters.sort.order=""ASC"" --filters.sort.algorithm=""STABLE"" --writers.las.forward=all --writers.las.extra_dims=all'
                         )
                         mode = TraceMode.DEFERRED
                     prev_gps_max = float(chunk.gps_time[-1])
@@ -450,7 +439,7 @@ class OccPy:
                 if mode is TraceMode.STREAMING:
                     # Sorted data: trace what we have, then release the traced
                     # pulses. Incomplete pulses straddling the chunk boundary are
-                    # retained by clearPulseDAtaset and complete by the next chunk.
+                    # retained by clearPulseDataset and complete by the next chunk.
                     traced_seconds += self._trace_pulse_dataset(
                         "stored pulses", clear_after=True, level=logging.DEBUG
                     )
@@ -470,10 +459,6 @@ class OccPy:
         Parameters
         ----------
         job
-
-        Returns
-        -------
-
         """
         require_gps_time = not self.single_return
 
@@ -500,16 +485,10 @@ class OccPy:
         """
         Per-echo sensor positions as contiguous float64 arrays.
 
-        The original passed pandas Series straight into the bindings in the single/file branch, which defeats the
-        contiguity the x/y/z copies were made for.
         Parameters
         ----------
         chunk
         job
-
-        Returns
-        -------
-
         """
         if job.is_mobile:
             pos = interpolate_traj(
@@ -549,10 +528,6 @@ class OccPy:
         ----------
         label
         clear_after
-
-        Returns
-        -------
-
         """
         self._pulse_report(f"before ray tracing {label}")
         if self.move_senspos_to_collinearity:
@@ -573,19 +548,13 @@ class OccPy:
 
     def _finalize(self, mode):
         """
-        Run whatever is left over, exactly once.
+        Run what is left in dataset.
+        If deffered mode, this is full pulse dataset.
+        Otherwise, if set, incomplete pulses are cleaned up and traced.
 
-        This replaces the three overlapping post-loop blocks in the previous version.
-        Because run_raytracing_after_loading was only ever assigned in the single/file branch,
-        a TLS directory run with cleanup_incomplete_pulses enabled executed cleanUpPulseDAtaset
-        + doRaytracing twice, counting the same pulses into Nhit/Nmiss/Nocc two times over
         Parameters
         ----------
         mode
-
-        Returns
-        -------
-
         """
         if mode is TraceMode.SINGLE_RETURN:
             # Nothing was ever added to the pulse dataset, so there is nothing to flush and nothing to clean up.
@@ -601,7 +570,7 @@ class OccPy:
 
         if self.cleanup_incomplete_pulses:
             # Incomplete pulses arise when data has been filtered, actively or
-            # inside the vendor's processing. Completing them artificially is deliberatelz opt-in.
+            # inside the vendor's processing. Completing them artificially is deliberately opt-in.
             self.logger.info(
                 "Converting incomplete pulses into complete ones -- be cautious with this."
             )
@@ -626,15 +595,10 @@ class OccPy:
         recoverable from the config or the output grids, and all of it changes
         how the grids should be interpreted.
 
-
         Parameters
         ----------
         jobs:
         elapsed_seconds: int
-
-        Returns
-        -------
-
         """
         summary = {
             "finished": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -679,7 +643,6 @@ class OccPy:
 
     @contextmanager
     def _timed(self, label, level=logging.INFO):
-        """Replaces the hand-rolled tic/toc pairs in the original."""
         tic = time.perf_counter()
         try:
             yield
@@ -917,10 +880,9 @@ class OccPy:
             matches = self.senspos.loc[self.senspos['ScanPos'] == scan_id]
 
             if matches.empty:
-                raise ValueError(
-                    f"No sensor position found for scan ID '{scan_id}' (file '{scan_name}'). "
-                    f"Please check str_idxs_ScanPosID and the scan position file."
-                )
+                self.logger.warning(f"No sensor position found for scan ID '{scan_id}' (file '{scan_name}'). This scan will be skipped.")
+                continue
+
             if len(matches) > 1:
                 raise ValueError(
                     f"Multiple sensor positions found for scan ID '{scan_id}' (file '{scan_name}'). "
@@ -938,6 +900,12 @@ class OccPy:
                 'sensor_z': matches['sensor_z'].values[0],
             })
 
+        if len(links) == 0:
+            raise ValueError(
+                f"No sensor position found for any of the {len(laz_files)} LAS/LAZ files in "
+                f"{self.laz_in}. Please check str_idxs_ScanPosID and the scan position file."
+            )
+
         self.scans_linked = links
 
         self.logger.info(f"Linked {len(links)} TLS LAZ files to scan positions.")
@@ -950,7 +918,7 @@ class OccPy:
         The header field ``number_of_points_by_return`` answers this for free
         when it is trustworthy; otherwise the points are scanned, keeping only
         the return-number fields, with an early exit as soon as a second return
-        appears. See ``occpy.pulses.detect_return_mode``.
+        appears. See ``occpy.pulse_util.detect_return_mode``.
 
         For a directory of LAZ files only the first file is probed. Multi-station
         TLS acquisitions write one file per scan position with identical sensor
@@ -964,7 +932,7 @@ class OccPy:
         Parameters
         ----------
         jobs: list of ScanJob, optional
-            Scan jobs to probe. BUilt from the config when omitted.
+            Scan jobs to probe. Built from the config when omitted.
 
         Returns
         ----------
@@ -1039,7 +1007,7 @@ class OccPy:
         if not self.single_return and detected_single:
             self.logger.warning(
                 "single_return is set to False, but the data contains only single returns. "
-                "The result is unaffected, but setting single_return=True avoids the converting "
+                "The result is unaffected, but setting single_return=True avoids converting "
                 "the point cloud into a pulse dataset and is considerably faster."
             )
 

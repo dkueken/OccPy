@@ -226,7 +226,7 @@ def scan_return_mode(path: str, points_per_iter: int, progress: bool = True) -> 
 def detect_return_mode(path: str, points_per_iter: int, progress: bool = True) -> ReturnModeResult:
     """
     detect whether input file is single return or multi-return data. We check header first
-    and fall back to the actual point cloud if header cannot be trused
+    and fall back to the actual point cloud if header cannot be trusted
     Parameters
     ----------
     path: str
@@ -242,7 +242,7 @@ def detect_return_mode(path: str, points_per_iter: int, progress: bool = True) -
 
     """
 
-    """Header first, point scan only if the header cannot be trusted."""
+    # Header first, point scan only if the header cannot be trusted.
     with laspy.open(path) as file:
         from_header = return_mode_from_header(file.header)
 
@@ -284,6 +284,8 @@ def normalise_chunk(points, source_name: str, require_gps_time: bool) -> Chunk:
         )
     else:
         gps_time = np.zeros(x.size, dtype=np.float64)
+
+    # TODO: we could pass mode here and not avoid gps_time, return_number, number_of_returns copies for single return as they are never used 
 
     return Chunk(
         x=x,

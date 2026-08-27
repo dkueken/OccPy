@@ -28,6 +28,8 @@ def normalize_occlusion_output(input_folder, PlotDim, vox_dim, dtm_file, dsm_fil
         directory to the output of the raytracing algorithm
     PlotDim : list
         Plot Dimensions defined as a list: (minX, minY, minZ, maxX, maxY, maxZ)
+    vox_dim : float
+        voxel size in meters
     dtm_file: str
         DTM file (.tif) of the area of interest. Currently, both dimensions and pixel size should match the output grids
     dsm_file: str, optional
@@ -67,6 +69,7 @@ def normalize_occlusion_output(input_folder, PlotDim, vox_dim, dtm_file, dsm_fil
 
     dtm_fname = os.path.basename(dtm_file)
 
+    # TODO: should we not do this anyways? as the extent could be different regardless of the pixels size?
     if pix_size != vox_dim:
         dtm.crop2extent(
             extent=extent_voxgrid,
