@@ -451,6 +451,11 @@ class OccPy:
                 f"{traced_seconds:.2f} seconds."
             )
 
+        if mode is TraceMode.DEFERRED:
+            # In deferred mode, run whole scan at once
+            self.logger.info(f"Tracing all stored pulses for {job.name} in deferred mode.")
+            self._trace_pulse_dataset(f"deferred pulses for {job.name}", clear_after=True)
+
         return mode
 
     def _iter_chunks(self, job, position=None, total_scans=None):
@@ -548,9 +553,12 @@ class OccPy:
 
     def _finalize(self, mode):
         """
-        Run what is left in dataset.
-        If deffered mode, this is full pulse dataset.
-        Otherwise, if set, incomplete pulses are cleaned up and traced.
+        Trace what is left once every scan has been read.
+
+        Complete pulses are already flushed per scan (per chunk in streaming mode,
+        at the scan boundary in deferred mode), so only the incomplete pulses are
+        left here. Those accumulate across all scans on the C++ side and are
+        repaired and traced once, at the end, if cleanup_incomplete_pulses is set.
 
         Parameters
         ----------
@@ -563,10 +571,6 @@ class OccPy:
                     "cleanup_incomplete_pulses has no effect for single-return data; skipping."
                 )
             return
-
-        if mode is TraceMode.DEFERRED:
-            self.logger.info("Tracing the full accumulated pulse dataset.")
-            self._trace_pulse_dataset("deferred pulses", clear_after=True)
 
         if self.cleanup_incomplete_pulses:
             # Incomplete pulses arise when data has been filtered, actively or
