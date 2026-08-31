@@ -443,9 +443,6 @@ def plot_terrain_models(dtm, dsm, plot_dim, out_dir=None, fig_prop=None):
                         label_size_ticks=6,     # font size for tick-labels
                         label_size_tiny=4,      # font size for other labels (e.g. legend labels)
                         out_format='png')       # output format of figure file
-    show_plots: bool, default False
-            Whether output figures should be shown [will pause the execution until figure is closed] or not.
-
     Returns
     -------
     matplotlib.figure.Figure
