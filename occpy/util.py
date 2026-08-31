@@ -11,7 +11,7 @@ from rasterio.fill import fillnodata
 import OSToolBox as ost
 
 from raytr import PyRaytracer
-from occpy.TerrainModel import TerrainModel
+from occpy.terrainmodel import TerrainModel
 
 # raytracing helpers
 def normalize_occlusion_grids(nhit_grid, nmiss_grid, nocc_grid, classification_grid, PlotDim, vox_dim, dtm_file, output_folder=None, dsm_file=None, lower_threshold=0, output_voxels=False):
@@ -446,7 +446,7 @@ def read_sensorpos_file(path2senspos, delimiter=" ", hdr_scanpos_id='', hdr_x=''
 
     return senspos
 
-def filterPointsIntersectingBox(laz_in, laz_out, min_bound, max_bound,sensor_pos=None, traj_in=None, points_per_iter=100000):
+def filter_points_intersecting_box(laz_in, laz_out, min_bound, max_bound,sensor_pos=None, traj_in=None, points_per_iter=100000):
     """
     Filter points from a LAS/LAZ file whose pulses intersect a defined 3D bounding box.
 
@@ -583,13 +583,13 @@ def prepare_ply(vox_dim, PlotDim, data):
         Array of triangular face indices with shape (M, 3).
     """
 
-    data = array3Dto2D(data, vox_dim, PlotDim)
+    data = array_3d_to_2d(data, vox_dim, PlotDim)
     # Generate mesh data
     verts, faces = generate_mesh_data(data, vox_dim, PlotDim)
 
     return verts, faces
 
-def array3Dto2D(data, vox_dim, PlotDim):
+def array_3d_to_2d(data, vox_dim, PlotDim):
     """
     Convert a 3D voxel grid into a 2D array of voxel center coordinates and values.
 

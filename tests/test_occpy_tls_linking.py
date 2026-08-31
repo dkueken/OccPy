@@ -51,7 +51,7 @@ def load_tls_settings(data_path, out_dir, str_idxs=None):
 
 
 def _init_tls_occpy(settings):
-    from occpy.OccPy import OccPy
+    from occpy.occpy import OccPy
 
     test = OccPy(config=settings)
     test.define_sensor_pos(
@@ -66,22 +66,22 @@ def _init_tls_occpy(settings):
     return test
 
 
-def test_link_positions_to_laz_files_tls_wrong_indices(tmp_path):
+def test_link_scan_positions_tls_wrong_indices(tmp_path):
     data_path = get_tls_demo_data_path()
     settings = load_tls_settings(data_path=data_path, out_dir=tmp_path / "TLS_wrong", str_idxs=[7, 9])
 
     test = _init_tls_occpy(settings)
 
     with pytest.raises(ValueError, match="No sensor position found"):
-        test.link_positions_to_laz_files()
+        test.link_scan_positions()
 
 
-def test_link_positions_to_laz_files_tls_correct_indices(tmp_path):
+def test_link_scan_positions_tls_correct_indices(tmp_path):
     data_path = get_tls_demo_data_path()
     settings = load_tls_settings(data_path=data_path, out_dir=tmp_path / "TLS_ok")
 
     test = _init_tls_occpy(settings)
-    links = test.link_positions_to_laz_files()
+    links = test.link_scan_positions()
 
     assert not links.empty
     assert {"laz_file", "scan_name", "scan_id", "sensor_x", "sensor_y", "sensor_z"}.issubset(links.columns)

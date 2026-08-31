@@ -100,7 +100,7 @@ def _write_elevation_geotiff(elevation, plot_dim, vox_dim, out_file, crs=None):
     ) as dst:
         dst.write(elevation.astype("float32"), 1)
 
-def get_dtm_from_nhit_grid(nhit_grid, config, out_file, smoothing_sigma=None):
+def nhit_to_dtm(nhit_grid, config, out_file, smoothing_sigma=None):
     """
     Generate a DTM GeoTIFF from an Nhit grid by taking, for each (x, y) column,
     the height of the lowest voxel with at least one hit (i.e. the ground return).
@@ -139,7 +139,7 @@ def get_dtm_from_nhit_grid(nhit_grid, config, out_file, smoothing_sigma=None):
     _write_elevation_geotiff(dtm, plot_dim, vox_dim, out_file, crs=config.get("crs"))
     return dtm
 
-def get_dsm_from_nhit_grid(nhit_grid, config, out_file, smoothing_sigma=None):
+def nhit_to_dsm(nhit_grid, config, out_file, smoothing_sigma=None):
     """
     Generate a canopy-surface GeoTIFF from an Nhit grid by taking, for each (x, y)
     column, the height of the highest voxel with at least one hit.

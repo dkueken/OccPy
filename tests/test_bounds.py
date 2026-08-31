@@ -1,5 +1,5 @@
 import numpy as np
-from occpy.OccPy import OccPy
+from occpy.occpy import OccPy
 
 def test_grid_definition(tmp_path):
     """
@@ -36,10 +36,10 @@ def test_grid_definition(tmp_path):
     }
     test = OccPy(config=cfg)
 
-    extent = test.getGridDimensions()
+    extent = test.get_grid_dimensions()
     np.testing.assert_array_equal(extent, expected_extent)
 
-    origin = test.getGridOrigin()
+    origin = test.get_grid_origin()
     np.testing.assert_array_equal(origin, expected_origin)
 
 
@@ -62,11 +62,11 @@ def test_non_integer_bounds_preserve_origin_and_extend_max(tmp_path):
     np.testing.assert_allclose(test.plot_dim, [0.25, 1.75, -0.1, 1.15, 2.95, 1.1])
 
     # origin stays exactly at provided min bound
-    origin = test.getGridOrigin()
+    origin = test.get_grid_origin()
     np.testing.assert_allclose(origin, [0.25, 1.75, -0.1])
 
     # extents now map to integer voxel counts
-    extent = test.getGridDimensions()
+    extent = test.get_grid_dimensions()
     np.testing.assert_array_equal(extent, [3, 4, 4])
 
 
@@ -88,9 +88,9 @@ def test_non_integer_bounds_already_divisible_unchanged(tmp_path):
     # no extension needed, dimensions remain unchanged
     np.testing.assert_allclose(test.plot_dim, cfg["plot_dim"])
 
-    origin = test.getGridOrigin()
+    origin = test.get_grid_origin()
     np.testing.assert_allclose(origin, [0.125, -0.75, 0.5])
 
-    extent = test.getGridDimensions()
+    extent = test.get_grid_dimensions()
     np.testing.assert_array_equal(extent, [4, 4, 4])
 

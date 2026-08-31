@@ -252,7 +252,7 @@ class OccPy:
             self.senspos = read_sensorpos_file(path2senspos=path2file, delimiter=delimiter, hdr_scanpos_id=hdr_scanpos_id, hdr_x=hdr_x, hdr_y=hdr_y, hdr_z=hdr_z, sens_pos_id_offset=sens_pos_id_offset)
         self.sens_pos_initialized = True
 
-    def define_sensor_pos_singlePos(self, scan_pos_id, x, y, z):    # TODO: ugly workaround for the case where a single laz file from a single TLS position should be run
+    def define_sensor_pos_single(self, scan_pos_id, x, y, z):    # TODO: ugly workaround for the case where a single laz file from a single TLS position should be run
         """
         defines the scanner position of a single TLS scan position. This is currently just a work-around where we have
         the case of a single laz file and a single position without a text file defining e.g. multiple scan positions.
@@ -297,7 +297,7 @@ class OccPy:
         if not self.sens_pos_initialized:
             raise ValueError(
                 "Sensor positions not defined. Please call define_sensor_pos or "
-                "define_sensor_pos_singlePos before running ray tracing."
+                "define_sensor_pos_single before running ray tracing."
             )
 
         started = time.perf_counter()
@@ -338,7 +338,7 @@ class OccPy:
                     "please run OccPy once per acquisition."
                 )
             if self.scans_linked is None:
-                self.link_positions_to_laz_files()
+                self.link_scan_positions()
 
             return [
                 ScanJob(
@@ -668,12 +668,12 @@ class OccPy:
         summary cannot disagree.
         """
         getters = {
-            "total_pulses_in_dataset": self.getTotalNumPulses,
-            "traversed_pulses": self.getNumTraversedPulses,
-            "registered_hits": self.getNumRegisteredHits,
-            "echoes_outside_grid": self.getNumEchoesOutside,
-            "missing_returns": self.getNumMissingReturns,
-            "pulses_not_intersecting_grid": self.getNumNonIntersectPulses,
+            "total_pulses_in_dataset": self.get_total_num_pulses,
+            "traversed_pulses": self.get_num_traversed_pulses,
+            "registered_hits": self.get_num_registered_hits,
+            "echoes_outside_grid": self.get_num_echoes_outside,
+            "missing_returns": self.get_num_missing_returns,
+            "pulses_not_intersecting_grid": self.get_num_non_intersecting_pulses,
         }
         stats = {}
         for name, getter in getters.items():
@@ -843,7 +843,7 @@ class OccPy:
             self.logger.info("Elapsed Time: " + str(toc - tic) + " seconds")
 
 
-    def link_positions_to_laz_files(self):
+    def link_scan_positions(self):
         """
         Link TLS LAS/LAZ files from a directory input to scanner positions before processing.
 
@@ -858,10 +858,10 @@ class OccPy:
         """
 
         if self.is_mobile:
-            raise ValueError("link_positions_to_laz_files is only valid for TLS (is_mobile=False).")
+            raise ValueError("link_scan_positions is only valid for TLS (is_mobile=False).")
 
         if not os.path.isdir(self.laz_in):
-            raise ValueError("link_positions_to_laz_files requires laz_in to be a directory containing TLS LAS/LAZ files.")
+            raise ValueError("link_scan_positions requires laz_in to be a directory containing TLS LAS/LAZ files.")
 
         if not self.sens_pos_initialized:
             raise ValueError("Sensor positions not defined. Please call define_sensor_pos first.")
@@ -1032,13 +1032,13 @@ class OccPy:
             self.logger.warning("No CHM was defined. To define CHM ")
         return self.chm
 
-    def clean_up_RayTr(self):
+    def clean_up_raytracer(self):
         """
         Free up memory after raytracing.
         """
         del self.RayTr
 
-    def getGridDimensions(self):
+    def get_grid_dimensions(self):
         """
         Get the grid dimensions
         Returns
@@ -1052,7 +1052,7 @@ class OccPy:
 
         return gridDim
 
-    def getGridOrigin(self):
+    def get_grid_origin(self):
         """
         Get the grid origin
         Returns
@@ -1064,7 +1064,7 @@ class OccPy:
         origin = np.asarray(self.RayTr.getGridOrigin(), dtype=np.float64)
         return origin
 
-    def getNumTraversedPulses(self):
+    def get_num_traversed_pulses(self):
         """
         Get the number of traversed pulses
         Returns
@@ -1075,7 +1075,7 @@ class OccPy:
         """
         return np.int32(self.RayTr.get_num_traversed_pulses())
 
-    def getTotalNumPulses(self):
+    def get_total_num_pulses(self):
         """
         Get the total number of pulses loaded into the pulse dataset on the c++ side
         Returns
@@ -1086,7 +1086,7 @@ class OccPy:
         """
         return np.int32(self.RayTr.get_total_pulses_in_dataset())
 
-    def getNumRegisteredHits(self):
+    def get_num_registered_hits(self):
         """
         Get the number of registered hits
         Returns
@@ -1097,7 +1097,7 @@ class OccPy:
         """
         return np.int32(self.RayTr.get_num_registered_hits())
 
-    def getNumEchoesOutside(self):
+    def get_num_echoes_outside(self):
         """
         Get the number of echoes registered outside the voxel grid
         Returns
@@ -1108,7 +1108,7 @@ class OccPy:
         """
         return np.int32(self.RayTr.get_num_echoes_outside())
 
-    def getNumMissingReturns(self):
+    def get_num_missing_returns(self):
         """
         Get the number of missing returns. Missing returns can occur, if the laser returns do not fall into an exact line
         that is defined by the pulse origin and the last return. If the laser return falls outside of the voxel which is
@@ -1121,7 +1121,7 @@ class OccPy:
         """
         return np.int32(self.RayTr.get_num_missing_returns())
 
-    def getNumNonIntersectPulses(self):
+    def get_num_non_intersecting_pulses(self):
         """
         Get the number of pulses that do not intersect the defined voxel grid
         Returns

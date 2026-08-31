@@ -3,7 +3,7 @@ from pathlib import Path
 
 import laspy
 import numpy as np
-from occpy.OccPy import OccPy
+from occpy.occpy import OccPy
 
 
 def _create_synthetic_single_sensor_laz(laz_path: Path) -> dict[str, np.ndarray]:
@@ -117,7 +117,7 @@ def test_occpy_single_sensor_synthetic_baseline(tmp_path: Path) -> None:
         "single_return": True,
     }
     occpy = OccPy(config=cfg)
-    occpy.define_sensor_pos_singlePos(
+    occpy.define_sensor_pos_single(
         scan_pos_id=1,
         x=float(synthetic["sensor"][0]),
         y=float(synthetic["sensor"][1]),

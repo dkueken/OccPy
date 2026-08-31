@@ -9,10 +9,10 @@ import numpy as np
 import pytest
 import rasterio
 
-from occpy.TerrainModel import (
+from occpy.terrainmodel import (
     NODATA_VALUE,
-    get_dsm_from_nhit_grid,
-    get_dtm_from_nhit_grid,
+    nhit_to_dsm,
+    nhit_to_dtm,
 )
 
 
@@ -39,8 +39,8 @@ def test_get_dtm_and_chm_from_nhit_grid_raster_properties(tmp_path: Path) -> Non
     dtm_file = tmp_path / "dtm.tif"
     dsm_file = tmp_path / "dsm.tif"
 
-    dtm = get_dtm_from_nhit_grid(nhit, config, str(dtm_file))
-    dsm = get_dsm_from_nhit_grid(nhit, config, str(dsm_file))
+    dtm = nhit_to_dtm(nhit, config, str(dtm_file))
+    dsm = nhit_to_dsm(nhit, config, str(dsm_file))
 
     # Ground is flat at z_idx=1 -> voxel-center elevation 1.5 everywhere.
     np.testing.assert_allclose(dtm, 1.5)
@@ -68,7 +68,7 @@ def test_get_dtm_and_chm_from_nhit_grid_raster_properties(tmp_path: Path) -> Non
             assert band[1, 1] == 4.5
 
 
-def test_get_dtm_from_nhit_grid_fills_nodata(tmp_path: Path) -> None:
+def test_nhit_to_dtm_fills_nodata(tmp_path: Path) -> None:
     nx, ny, nz = 2, 2, 4
     vox_dim = 1.0
     config = {"plot_dim": [0, 0, 0, nx * vox_dim, ny * vox_dim, nz * vox_dim], "vox_dim": vox_dim}
@@ -77,7 +77,7 @@ def test_get_dtm_from_nhit_grid_fills_nodata(tmp_path: Path) -> None:
     nhit[0, 0, 1] = 1  # only one column has any hit at all
 
     dtm_file = tmp_path / "dtm_sparse.tif"
-    dtm = get_dtm_from_nhit_grid(nhit, config, str(dtm_file))
+    dtm = nhit_to_dtm(nhit, config, str(dtm_file))
 
     assert (dtm == NODATA_VALUE).sum() == 3
     assert (dtm == 1.5).sum() == 1
@@ -88,7 +88,7 @@ def test_get_dtm_from_nhit_grid_fills_nodata(tmp_path: Path) -> None:
         assert (band == NODATA_VALUE).sum() == 3
 
 
-def test_get_dtm_from_nhit_grid_smoothing_sigma_reduces_spike_noise(tmp_path: Path) -> None:
+def test_nhit_to_dtm_smoothing_sigma_reduces_spike_noise(tmp_path: Path) -> None:
     """A flat ground plane with a single spurious low outlier in the center
     column should, once smoothed, land close to its (flat) neighbors instead
     of the raw, deep pit."""
@@ -102,10 +102,10 @@ def test_get_dtm_from_nhit_grid_smoothing_sigma_reduces_spike_noise(tmp_path: Pa
     nhit[4, 4, 2] = 0
     nhit[4, 4, 0] = 1  # spurious outlier hit near the very bottom in one column
 
-    dtm_raw = get_dtm_from_nhit_grid(nhit, config, str(tmp_path / "dtm_raw.tif"))
+    dtm_raw = nhit_to_dtm(nhit, config, str(tmp_path / "dtm_raw.tif"))
     assert dtm_raw[4, 4] == 0.5  # unsmoothed: full depth of the spurious pit
 
-    dtm_smooth = get_dtm_from_nhit_grid(
+    dtm_smooth = nhit_to_dtm(
         nhit, config, str(tmp_path / "dtm_smooth.tif"), smoothing_sigma=1.0
     )
 
@@ -143,8 +143,8 @@ def test_dtm_and_dsm_from_nhit_grid_normalize_occlusion_output(tmp_path: Path) -
 
     dtm_file = tmp_path / "dtm.tif"
     dsm_file = tmp_path / "dsm.tif"
-    get_dtm_from_nhit_grid(nhit, config, str(dtm_file))
-    get_dsm_from_nhit_grid(nhit, config, str(dsm_file))
+    nhit_to_dtm(nhit, config, str(dtm_file))
+    nhit_to_dsm(nhit, config, str(dsm_file))
 
     Nhit_norm, Nmiss_norm, Nocc_norm, Classification_norm, chm = normalize_occlusion_output(
         input_folder=str(input_folder),
@@ -176,8 +176,8 @@ def test_plot_terrain_models_runs_and_saves_figure(tmp_path: Path) -> None:
     nhit, config = _make_synthetic_nhit_grid()
     plot_dim = config["plot_dim"]
 
-    dtm = get_dtm_from_nhit_grid(nhit, config, str(tmp_path / "dtm.tif"))
-    dsm = get_dsm_from_nhit_grid(nhit, config, str(tmp_path / "dsm.tif"))
+    dtm = nhit_to_dtm(nhit, config, str(tmp_path / "dtm.tif"))
+    dsm = nhit_to_dsm(nhit, config, str(tmp_path / "dsm.tif"))
 
     fig = plot_terrain_models(dtm, dsm, plot_dim, out_dir=str(tmp_path))
 

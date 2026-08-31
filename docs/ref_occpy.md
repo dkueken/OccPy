@@ -1,4 +1,4 @@
-::: occpy.OccPy
+::: occpy.occpy
     handler: python
     options:
         show_source: true

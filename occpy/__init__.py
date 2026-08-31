@@ -1,3 +1,3 @@
-from .OccPy import OccPy
-from .OccPyRIEGL import OccPyRIEGL
-from .TerrainModel import TerrainModel
+from .occpy import OccPy
+from .occpyRIEGL import OccPyRIEGL
+from .terrainmodel import TerrainModel

@@ -418,7 +418,7 @@ class OccPyRIEGL:
 
         return df_filtered_lower
 
-    def test_colinearity(self, point_df, n_points=None):
+    def check_collinearity(self, point_df, n_points=None):
         """
         Check geometric collinearity between pulse origin, beam direction, and return point.
 
@@ -507,7 +507,7 @@ class OccPyRIEGL:
                 # n_tested = len(point_df) # TODO: adapt
                 n_tested = 100000
                 self.logger.debug(f"Testing collinearity for {n_tested} points")
-                n = self.test_colinearity(point_df, n_points=n_tested)
+                n = self.check_collinearity(point_df, n_points=n_tested)
                 if n > 0:
                     self.logger.warning(f"Collinearity test for {scan} returned {n} non-colinear points out of {n_tested} tested")
 

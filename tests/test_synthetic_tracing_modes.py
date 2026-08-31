@@ -4,7 +4,7 @@ from pathlib import Path
 
 import laspy
 import numpy as np
-from occpy.OccPy import OccPy
+from occpy.occpy import OccPy
 from occpy.pulse_util import TraceMode
 
 
@@ -108,7 +108,7 @@ def _run_occpy(laz_path, out_dir, extra_cfg=None):
     if extra_cfg:
         cfg.update(extra_cfg)
     occpy = OccPy(config=cfg)
-    occpy.define_sensor_pos_singlePos(scan_pos_id=1, x=5.5, y=5.5, z=0.5)
+    occpy.define_sensor_pos_single(scan_pos_id=1, x=5.5, y=5.5, z=0.5)
     occpy.do_raytracing()
     return occpy
 

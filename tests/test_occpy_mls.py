@@ -3,7 +3,7 @@ import json
 import os
 import pooch
 from pathlib import Path
-from occpy.OccPy import OccPy
+from occpy.occpy import OccPy
 
 def find_project_root(markers=('README.md', '.gitignore', 'environment.yml', 'setup.py')):
     try:
