@@ -72,7 +72,7 @@ Alternatively, a dictionary with all necessary input variables can be passed. We
 
 First we import OccPy into your python (or jupyter) script:
 ```python
-from occpy.OccPy import OccPy  # this loads the OccPy class with the core functionality
+from occpy.occpy import OccPy  # this loads the OccPy class with the core functionality
 from occpy.util import normalize_occlusion_output   # within occpy.util multiple additional utility functions can be loaded, e.g. to normalize occlusion output
 ```
 Afterwards we initiate an OccPy object for voxel traversal using the configured settings file:

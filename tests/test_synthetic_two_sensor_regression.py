@@ -6,7 +6,7 @@ import json
 import numpy as np
 import pytest
 
-from occpy.OccPy import OccPy
+from occpy.occpy import OccPy
 
 
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "two_sensor_case"

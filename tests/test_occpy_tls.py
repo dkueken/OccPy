@@ -18,7 +18,7 @@ def find_project_root(markers=('README.md', '.gitignore', 'environment.yml', 'se
     return current  # fallback if nothing found
 
 def test_occpy_run_tls(tmp_path):
-    from occpy.OccPy import OccPy
+    from occpy.occpy import OccPy
 
     # Download test data
     p = pooch.create(

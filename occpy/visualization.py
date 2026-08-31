@@ -15,6 +15,7 @@ from matplotlib.colors import LogNorm
 from matplotlib.colors import to_rgb
 import seaborn as sns
 
+from occpy.terrainmodel import NODATA_VALUE
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 # --- fig_prop handling ------------------------------------------------------------------------------------------------
@@ -30,6 +31,7 @@ _BASE_FIG_PROP = dict(
 # per-function defaults: start from the shared base and override fig_size
 TRANSECT_FIG_PROP_DEFAULTS = dict(_BASE_FIG_PROP, fig_size=(3.14, 2.25))
 PROFILE_FIG_PROP_DEFAULTS = dict(_BASE_FIG_PROP, fig_size=(1.75, 3.2))
+TERRAIN_FIG_PROP_DEFAULTS = dict(_BASE_FIG_PROP, fig_size=(9, 3))
 
 def check_fig_prop(fig_prop=None, defaults=None, warn_missing=True):
     """Ensure a fig_prop dictionary contains all required keys.
@@ -71,11 +73,26 @@ def check_fig_prop(fig_prop=None, defaults=None, warn_missing=True):
 
 
 
-def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, out_dir, start_ind=None, end_ind=None, axis=0, chm=None, vertBuffer=0, fig_prop=None, show_plots=False):
+def plot_transect(Nhit, Classification, plot_dim, vox_dim, out_dir, mode="binary", OcclFrac=None,
+                  start_ind=None, end_ind=None, axis=0, chm=None, vertBuffer=0,
+                  nhit_max=100000, nhit_min=1, fig_prop=None, show_plots=False):
     """
-    get_Occl_TransectFigure creates a matplotlib figure of a defined transect through the occlusion mapping output grid
-    TODO: this function should be implemented in a more generic way!
+    Plot a transect through the occlusion mapping output grid.
 
+    The transect is taken along ``axis`` between ``start_ind`` and ``end_ind``, and
+    rendered as a grey log-scaled hit count with an occlusion layer on top.
+
+    Two rendering modes are available, differing in how the occlusion layer is derived
+    and scaled:
+
+    * ``"binary"`` (default) -- occlusion is the fraction of voxels classified as
+      occluded (Classification == 3) along the projected axis, colour-scaled over a
+      fixed 1-50 % range with fixed hit-count limits (``nhit_min``, ``nhit_max``).
+      Comparable across plots and datasets.
+    * ``"fraction"`` -- for ``axis=1`` the occlusion layer is instead the mean of the
+      supplied ``OcclFrac`` grid over voxels exceeding 0.8, and the colour scale is
+      stretched to the 50th-99th percentile of the slice with the hit-count range taken
+      from the data. Adapts to each plot, so not comparable between figures.
 
     Parameters
     ----------
@@ -83,18 +100,21 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
         3D numpy array with number of hits in each grid cell (voxel)
     Classification: np.ndarray
         3D numpy array with voxel Classification (Observed with hit = 1, Observed & empty = 2, Occluded = 3, Unobserved = 4)
-    OcclFrac: np.ndarray
-        3D numpy array with Occlusion fraction
     plot_dim: np.ndarray
         plot dimension of the input grid, as in [minX, minY, minZ, maxX, maxY, maxZ]
     vox_dim: float
         voxel dimensions in meters (cubic voxel are assumed)
     out_dir: str
         path to output directory
+    mode: str ['binary', 'fraction'] [default: 'binary']
+        how the occlusion layer is derived and colour-scaled, see above.
+    OcclFrac: np.ndarray [default: None]
+        3D numpy array with occlusion fraction. Only used by mode='fraction' with axis=1,
+        and required in that case.
     start_ind: int [default: None]
         voxel index of where the transect should start. If None [default] start_ind = 0
     end_ind: int [default: None]
-        voxel index of where the transect should end. If None [defaulte] end_ind = Nhit.shape[axis]
+        voxel index of where the transect should end. If None [default] end_ind = Nhit.shape[axis]
     axis: int [0, 1, 2]
         axis index, either 0 (X-Axis), 1 (Y-Axis) or 2 (Z-Axis)
     chm: np.ndarray [default=None]
@@ -102,6 +122,10 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
     vertBuffer: float [default=0]
         optional vertical buffer added to the figure, if axis=0 or axis=1. This adds a padding above the canopy, so legend
         entries are not overlapping the actual transect.
+    nhit_max: int [default: 100000]
+        upper bound of the hit-count colour scale. Only used by mode='binary'.
+    nhit_min: int [default: 1]
+        lower bound of the hit-count colour scale. Only used by mode='binary'.
     fig_prop: dict [default=None]
         python dictionary with figure properties. If fig_prop = None [default], the following settings will be defined:
         fig_prop = dict(fig_size=(3.14, 2.25),  # figure size in inch
@@ -109,11 +133,17 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
                         label_size_ticks=6,     # font size for tick-labels
                         label_size_tiny=4,      # font size for other labels (e.g. legend labels)
                         out_format='png')       # output format of figure file
-
     show_plots: bool [default=False]
         Whether output figures should be shown [will pause the execution until figure is closed] or not.
 
     """
+    if mode not in ("binary", "fraction"):
+        raise ValueError(f"mode must be 'binary' or 'fraction', got {mode!r}.")
+
+    binary = mode == "binary"
+
+    if not binary and axis == 1 and OcclFrac is None:
+        raise ValueError("mode='fraction' with axis=1 requires the OcclFrac grid.")
 
     fig_prop = check_fig_prop(fig_prop, defaults=TRANSECT_FIG_PROP_DEFAULTS)
 
@@ -134,22 +164,23 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
             chm_slice_ref = np.max(chm[:, start_ind:end_ind], axis=1)
     elif axis == 1:  # get XZ, project axis Y
         Nhit_Slice = np.sum(Nhit[:, start_ind:end_ind, :], axis=axis)
-        # OcclFrac_Slice = np.sum(Classification[:, start_ind:end_ind, :] == 3, axis=axis) / (
-        #         end_ind - start_ind)
-        OcclFrac = OcclFrac[:, start_ind:end_ind, :]
-        mask = (OcclFrac >= 0.8)
+        if binary:
+            OcclFrac_Slice = np.sum(Classification[:, start_ind:end_ind, :] == 3, axis=axis) / (end_ind - start_ind)
+        else:
+            # mean occlusion fraction over the strongly occluded voxels only
+            OcclFrac_sub = OcclFrac[:, start_ind:end_ind, :]
+            mask = (OcclFrac_sub >= 0.8)
 
-        # sum only where mask is True
-        sum_vals = np.sum(np.where(mask, OcclFrac, 0), axis=axis)
+            # sum only where mask is True
+            sum_vals = np.sum(np.where(mask, OcclFrac_sub, 0), axis=axis)
 
-        # count matching values along the axis
-        count_vals = np.sum(mask, axis=axis)
+            # count matching values along the axis
+            count_vals = np.sum(mask, axis=axis)
 
-        # Safe division: avoid divide by zero and assign default where count == 0
-        with np.errstate(divide='ignore', invalid='ignore'):
-            OcclFrac_Slice = np.divide(sum_vals, count_vals)
-            OcclFrac_Slice[count_vals == 0] = 0
-
+            # Safe division: avoid divide by zero and assign default where count == 0
+            with np.errstate(divide='ignore', invalid='ignore'):
+                OcclFrac_Slice = np.divide(sum_vals, count_vals)
+                OcclFrac_Slice[count_vals == 0] = 0
         if chm is not None:
             # chm is [ny, nx] so to get XZ we project axis 0
             chm_slice_ref = np.max(chm[start_ind:end_ind, :], axis=0)
@@ -157,8 +188,6 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
         Nhit_Slice = np.sum(Nhit[:, :, start_ind:end_ind], axis=axis)
         OcclFrac_Slice = np.sum(Classification[:, :, start_ind:end_ind] == 3, axis=axis) / (
                 end_ind - start_ind)
-
-    #NHits_Slice_log = np.log10(Nhit_Slice, where=(Nhit_Slice != 0))
 
     # we need to rotate the slice for visualization purposes
     OcclFrac_Slice = np.rot90(OcclFrac_Slice)
@@ -200,17 +229,25 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
     plt.yticks(fontsize=fig_prop['label_size_ticks'])
     plt.xticks(fontsize=fig_prop['label_size_ticks'])
 
-    reds_cmap = plt.get_cmap(name='inferno_r')
+    reds_cmap = plt.get_cmap(name='plasma_r' if binary else 'inferno_r')
     reds_cmap.set_under('k', alpha=0)
     grey_cmap = plt.get_cmap(name='Grays_r')
     grey_cmap.set_under('k', alpha=0)
+
     # plot raster data
+    if binary:
+        # fixed limits, so figures stay comparable between plots and datasets
+        hit_vmin, hit_vmax = nhit_min, nhit_max
+        occl_vmin, occl_vmax = 1, 50
+    else:
+        # limits stretched to this particular slice
+        hit_vmin, hit_vmax = 1, np.amax(NHit_Slice)
+        occl_vmin, occl_vmax = np.percentile(OcclFrac_Slice * 100, [50, 99])
 
-    p50, p99 = np.percentile(OcclFrac_Slice*100, [50, 99])
-
-    im1 = ax.imshow(NHit_Slice, cmap=grey_cmap, norm=LogNorm(vmin=1, vmax=np.amax(NHit_Slice)), interpolation='none',
+    im1 = ax.imshow(NHit_Slice, cmap=grey_cmap, norm=LogNorm(vmin=hit_vmin, vmax=hit_vmax), interpolation='none',
                     extent=extent, alpha=1, aspect='auto')
-    im2 = ax.imshow(OcclFrac_Slice * 100, cmap=reds_cmap, vmin=p50, vmax=p99, clim=[p50, p99], interpolation='none',
+    im2 = ax.imshow(OcclFrac_Slice * 100, cmap=reds_cmap, vmin=occl_vmin, vmax=occl_vmax,
+                    clim=[occl_vmin, occl_vmax], interpolation='none',
                     alpha=0.75, aspect='auto',
                     extent=extent)
 
@@ -222,7 +259,6 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
     slot_height = 0.05
     y_pos_axes = 0.98
 
-
     if x_axis_vect is not None:
         if chm is not None:
             chm_ref_plot = ax.plot(x_axis_vect, chm_slice_ref, label="ULS CHM")
@@ -233,9 +269,7 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
             legend = legend_ax.legend(handles=[chm_ref_plot[0]], loc='center', frameon=True, ncol=1, fontsize=fig_prop['label_size_ticks'])
             legend.get_frame().set_alpha(1)
 
-
     # define colorbars with position and dimension
-    start_pos = 0
     cax1 = ax.inset_axes([margin, y_pos_axes, slot_width, slot_height])
     cb1 = plt.colorbar(im1, cax=cax1, orientation='horizontal')
     cb1.ax.tick_params(labelsize=fig_prop['label_size_tiny'])
@@ -246,195 +280,7 @@ def get_Occl_TransectFigure(Nhit, Classification, OcclFrac, plot_dim, vox_dim, o
     cb1.set_ticks(ticks)
     cb1.set_ticklabels([str(t) for t in ticks])
 
-
     # Second colorbar for Occlusion
-    start_pos = 2 * (slot_width + gap)
-    cax2 = ax.inset_axes([2 * (slot_width + gap) + margin, y_pos_axes, slot_width, slot_height])
-    cb2 = plt.colorbar(im2, cax=cax2, orientation='horizontal')
-    cb2.set_label("Occlusion [%]", size=fig_prop['label_size_ticks'])
-    cb2.ax.tick_params(labelsize=fig_prop['label_size_tiny'])
-
-
-    # tight layout
-    plt.tight_layout()
-
-    # save figure
-    if axis == 0:
-        plt.savefig(
-            os.path.join(out_dir, f"Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels.{fig_prop['out_format']}"),
-            dpi=300, format=fig_prop['out_format'])
-    elif axis == 1:
-        plt.savefig(
-            os.path.join(out_dir, f"Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels.{fig_prop['out_format']}"),
-            dpi=300, format=fig_prop['out_format'])
-    else:
-        plt.savefig(
-            os.path.join(out_dir, f"Occlusion_Slice_XY_{start_ind}_{end_ind}_voxels.{fig_prop['out_format']}"),
-            dpi=300, format=fig_prop['out_format'])
-
-    if show_plots:
-        plt.show(block=True)
-    else:
-        plt.close()
-
-def get_Occl_TransectFigure_BinaryOcclusion(Nhit, Classification, plot_dim, vox_dim, out_dir, start_ind=None, end_ind=None, axis=0, chm=None, vertBuffer=0, nhit_max=100000, nhit_min=1, fig_prop=None, show_plots=False):
-    """
-        get_Occl_TransectFigure_BinaryOcclusion creates a matplotlib figure of a defined transect through the occlusion mapping output grid
-        TODO: this function should be implemented in a more generic way and potentially be integrated into get_Occl_TransectFigure()
-
-
-        Parameters
-        ----------
-        Nhit: np.ndarray
-            3D numpy array with number of hits in each grid cell (voxel)
-        Classification: np.ndarray
-            3D numpy array with voxel Classification (Observed with hit = 1, Observed & empty = 2, Occluded = 3, Unobserved = 4)
-        plot_dim: np.ndarray
-            plot dimension of the input grid, as in [minX, minY, minZ, maxX, maxY, maxZ]
-        vox_dim: float
-            voxel dimensions in meters (cubic voxel are assumed)
-        out_dir: str
-            path to output directory
-        start_ind: int [default: None]
-            voxel index of where the transect should start. If None [default] start_ind = 0
-        end_ind: int [default: None]
-            voxel index of where the transect should end. If None [defaulte] end_ind = Nhit.shape[axis]
-        axis: int [0, 1, 2]
-            axis index, either 0 (X-Axis), 1 (Y-Axis) or 2 (Z-Axis)
-        chm: np.ndarray [default=None]
-            2D canopy height model raster. TODO: check and implement behavior if chm is not provided.
-        vertBuffer: float [default=0]
-            optional vertical buffer added to the figure, if axis=0 or axis=1. This adds a padding above the canopy, so legend
-            entries are not overlapping the actual transect.
-        fig_prop: dict [default=None]
-            python dictionary with figure properties. If fig_prop = None [default], the following settings will be defined:
-            fig_prop = dict(fig_size=(3.14, 2.25),  # figure size in inch
-                            label_size=8,           # font size for labels (e.g. x, y, z-axis labels=
-                            label_size_ticks=6,     # font size for tick-labels
-                            label_size_tiny=4,      # font size for other labels (e.g. legend labels)
-                            out_format='png')       # output format of figure file
-        show_plots: bool [default=False]
-            Whether output figures should be shown [will pause the execution until figure is closed] or not.
-
-        """
-    fig_prop = check_fig_prop(fig_prop, defaults=TRANSECT_FIG_PROP_DEFAULTS)
-
-    if start_ind is None:
-        start_ind = 0
-    if end_ind is None:
-        end_ind = Nhit.shape[axis]
-
-    grid_dim = (int((plot_dim[3] - plot_dim[0]) / vox_dim), int((plot_dim[4] - plot_dim[1]) / vox_dim), int((plot_dim[5] - plot_dim[2]) / vox_dim))
-
-    chm_slice_ref = None
-    if axis == 0:  # get YZ, project axis X
-        Nhit_Slice = np.sum(Nhit[start_ind:end_ind, :, :], axis=axis)
-        OcclFrac_Slice = np.sum(Classification[start_ind:end_ind, :, :] == 3, axis=axis) / (
-                    end_ind - start_ind)
-        if chm is not None:
-            # chm is [ny, nx] so to get YZ we project axis 1
-            chm_slice_ref = np.max(chm[:, start_ind:end_ind], axis=1)
-    elif axis == 1:  # get XZ, project axis Y
-        Nhit_Slice = np.sum(Nhit[:, start_ind:end_ind, :], axis=axis)
-        OcclFrac_Slice = np.sum(Classification[:, start_ind:end_ind, :] == 3, axis=axis) / (end_ind - start_ind)
-        if chm is not None:
-            # chm is [ny, nx] so to get XZ we project axis 0
-            chm_slice_ref = np.max(chm[start_ind:end_ind, :], axis=0)
-    else:  # get a slice of Z-Axis
-        Nhit_Slice = np.sum(Nhit[:, :, start_ind:end_ind], axis=axis)
-        OcclFrac_Slice = np.sum(Classification[:, :, start_ind:end_ind] == 3, axis=axis) / (
-                end_ind - start_ind)
-
-    #NHits_Slice_log = np.log10(Nhit_Slice, where=(Nhit_Slice != 0))
-
-    # we need to rotate the slice for visualization purposes
-    OcclFrac_Slice = np.rot90(OcclFrac_Slice)
-    NHit_Slice = np.rot90(Nhit_Slice)
-
-    fig = plt.figure(figsize=fig_prop['fig_size'])
-    ax = fig.add_subplot(1, 1, 1)
-    x_axis_vect = None
-    if axis == 0:
-        ax.set_xlabel(f"Y [m]", fontsize=fig_prop['label_size'])
-        ax.set_ylabel(f"Height a.g. [m]", fontsize=fig_prop['label_size'])
-        extent = [plot_dim[1]-plot_dim[1], plot_dim[4]-plot_dim[1], 0, OcclFrac_Slice.shape[0] * vox_dim]
-        if vertBuffer != 0:
-            extent_buf = extent.copy()
-            extent_buf[3] = extent_buf[3] + vertBuffer
-            ax.axis(extent_buf)
-        else:
-            ax.axis(extent)
-        x_axis_vect = np.linspace(start=plot_dim[1]-plot_dim[1], stop=plot_dim[4]-plot_dim[1], num=grid_dim[1])
-
-    elif axis == 1:
-        ax.set_xlabel(f"X [m]", fontsize=fig_prop['label_size'])
-        ax.set_ylabel(f"Height a.g. [m]", fontsize=fig_prop['label_size'])
-        extent = [plot_dim[0]-plot_dim[0], plot_dim[3]-plot_dim[0], 0, OcclFrac_Slice.shape[0] * vox_dim]
-        if vertBuffer!=0:
-            extent_buf = extent.copy()
-            extent_buf[3] = extent_buf[3] + vertBuffer
-            ax.axis(extent_buf)
-        else:
-            ax.axis(extent)
-        x_axis_vect = np.linspace(start=plot_dim[0]-plot_dim[0], stop=plot_dim[3]-plot_dim[0], num=grid_dim[0])
-    else:
-        ax.set_xlabel(f"X [m]", fontsize=fig_prop['label_size'])
-        ax.set_ylabel(f"Y [m]", fontsize=fig_prop['label_size'])
-        extent = [plot_dim[0]-plot_dim[0], plot_dim[3]-plot_dim[0], plot_dim[1]-plot_dim[1], plot_dim[4]-plot_dim[1]]
-        ax.axis(extent)
-
-    # define tick label size
-    plt.yticks(fontsize=fig_prop['label_size_ticks'])
-    plt.xticks(fontsize=fig_prop['label_size_ticks'])
-
-    reds_cmap = plt.get_cmap(name='plasma_r')
-    reds_cmap.set_under('k', alpha=0)
-    grey_cmap = plt.get_cmap(name='Grays_r')
-    grey_cmap.set_under('k', alpha=0)
-    # plot raster data
-
-
-    im1 = ax.imshow(NHit_Slice, cmap=grey_cmap, norm=LogNorm(vmin=nhit_min, vmax=nhit_max), interpolation='none',
-                    extent=extent, alpha=1, aspect='auto')
-    im2 = ax.imshow(OcclFrac_Slice * 100, cmap=reds_cmap, vmin=1, vmax=50, clim=[1, 50], interpolation='none',
-                    alpha=0.75, aspect='auto',
-                    extent=extent)
-
-    # Define equally spaced horizontal slots for two colorbars and one legend
-    n_slots = 3
-    slot_width = 0.28
-    margin = 0.05
-    gap = (1 - 2*margin - n_slots * slot_width) / (n_slots - 1)
-    slot_height = 0.05
-    y_pos_axes = 0.98
-
-
-    if x_axis_vect is not None:
-        if chm is not None:
-            chm_ref_plot = ax.plot(x_axis_vect, chm_slice_ref, label="ULS CHM")
-            # chm_comp_plot = ax.plot(x_axis_vect, chm_slice_comp, label="Comp CHM", linestyle='--') #TODO: implement that!
-
-            legend_ax = ax.inset_axes([slot_width + gap + margin, y_pos_axes, slot_width, slot_height])
-            legend_ax.axis("off")
-            legend = legend_ax.legend(handles=[chm_ref_plot[0]], loc='center', frameon=True, ncol=1, fontsize=fig_prop['label_size_ticks'])
-            legend.get_frame().set_alpha(1)
-
-
-    # define colorbars with position and dimension
-    start_pos = 0
-    cax1 = ax.inset_axes([margin, y_pos_axes, slot_width, slot_height])
-    cb1 = plt.colorbar(im1, cax=cax1, orientation='horizontal')
-    cb1.ax.tick_params(labelsize=fig_prop['label_size_tiny'])
-    cb1.set_label("Nr. Hits", size=fig_prop['label_size_ticks'])
-
-    # Change ticks to actual values
-    ticks = [10, 100, 1000]
-    cb1.set_ticks(ticks)
-    cb1.set_ticklabels([str(t) for t in ticks])
-
-
-    # Second colorbar for Occlusion
-    start_pos = 2 * (slot_width + gap)
     cax2 = ax.inset_axes([2 * (slot_width + gap) + margin, y_pos_axes, slot_width, slot_height])
     cb2 = plt.colorbar(im2, cax=cax2, orientation='horizontal')
     cb2.set_label("Occlusion [%]", size=fig_prop['label_size_ticks'])
@@ -444,18 +290,11 @@ def get_Occl_TransectFigure_BinaryOcclusion(Nhit, Classification, plot_dim, vox_
     plt.tight_layout()
 
     # save figure
-    if axis == 0:
-        plt.savefig(
-            os.path.join(out_dir, f"Occlusion_Slice_YZ_{start_ind}_{end_ind}_voxels_binary.{fig_prop['out_format']}"),
-            dpi=300, format=fig_prop['out_format'])
-    elif axis == 1:
-        plt.savefig(
-            os.path.join(out_dir, f"Occlusion_Slice_XZ_{start_ind}_{end_ind}_voxels_binary.{fig_prop['out_format']}"),
-            dpi=300, format=fig_prop['out_format'])
-    else:
-        plt.savefig(
-            os.path.join(out_dir, f"Occlusion_Slice_XY_{start_ind}_{end_ind}_voxels_binary.{fig_prop['out_format']}"),
-            dpi=300, format=fig_prop['out_format'])
+    plane = {0: "YZ", 1: "XZ", 2: "XY"}[axis]
+    suffix = "_binary" if binary else ""
+    plt.savefig(
+        os.path.join(out_dir, f"Occlusion_Slice_{plane}_{start_ind}_{end_ind}_voxels{suffix}.{fig_prop['out_format']}"),
+        dpi=300, format=fig_prop['out_format'])
 
     if show_plots:
         plt.show(block=True)
@@ -480,8 +319,8 @@ def darken_color(color, amount=0.6):
     r, g, b = to_rgb(color)
     return (r * amount, g * amount, b * amount)
 
-def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_thresh=0, vertBuffer=0, max_percentage=100, fig_prop=None, show_plots=False):
-    """get_Occlusion_ProfileFigure produces a profile figure of Occluded, filled, and empty voxels
+def plot_profile(Classification, plot_dim, vox_dim, out_dir, low_thresh=0, vertBuffer=0, max_percentage=100, fig_prop=None, show_plots=False):
+    """plot_profile produces a profile figure of Occluded, filled, and empty voxels
 
     Parameters
     ----------
@@ -497,7 +336,7 @@ def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_
         cut-off for lower part of the grid to exclude e.g. high occlusion towards the ground
     vertBuffer: float, default 0
         vertical buffer to add ontop of highest canopy point. e.g. needed to align Y-Axis with transect figure made with
-        get_Occl_TransectFigure
+        plot_transect
     max_percentage: float, default 100
         maximum volume percentage to be shown on x-Axis
     fig_prop: dict, default None
@@ -575,6 +414,74 @@ def get_Occlusion_ProfileFigure(Classification, plot_dim, vox_dim, out_dir, low_
     else:
         plt.close()
 
+def plot_terrain_models(dtm, dsm, plot_dim, out_dir=None, fig_prop=None):
+    """
+    Debug figure showing the DTM, DSM and derived CHM (DSM - DTM) side by side.
+
+    Intended to be called right after occpy.terrainmodel.nhit_to_dtm and
+    nhit_to_dsm, to visually check the extracted terrain models for
+    spike/pit noise (e.g. before/after tuning their 'smoothing_sigma' option) prior
+    to running occpy.util.normalize_occlusion_output.
+
+    Parameters
+    ----------
+    dtm : np.ndarray
+        2D DTM array, shape (ny, nx), north-up (row 0 = maxY), as returned by
+        nhit_to_dtm. Cells equal to occpy.terrainmodel.NODATA_VALUE are
+        shown as blank.
+    dsm : np.ndarray
+        2D DSM array, shape (ny, nx), same convention as `dtm`, as returned by
+        nhit_to_dsm.
+    plot_dim: np.ndarray
+        plot dimension of the input grid, as in [minX, minY, minZ, maxX, maxY, maxZ]
+    out_dir: str, default None
+        directory for figure output. If None, the figure is not saved to disk.
+    fig_prop: dict, default None
+        python dictionary with figure properties. If fig_prop = None [default], the following settings will be defined:
+        fig_prop = dict(fig_size=(9, 3),        # figure size in inch
+                        label_size=8,           # font size for labels (e.g. x, y, z-axis labels=
+                        label_size_ticks=6,     # font size for tick-labels
+                        label_size_tiny=4,      # font size for other labels (e.g. legend labels)
+                        out_format='png')       # output format of figure file
+    show_plots: bool, default False
+            Whether output figures should be shown [will pause the execution until figure is closed] or not.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The created figure.
+    """
+
+    fig_prop = check_fig_prop(fig_prop, defaults=TERRAIN_FIG_PROP_DEFAULTS)
+
+    dtm = np.where(dtm == NODATA_VALUE, np.nan, dtm)
+    dsm = np.where(dsm == NODATA_VALUE, np.nan, dsm)
+    chm = dsm - dtm
+
+    extent = [plot_dim[0], plot_dim[3], plot_dim[1], plot_dim[4]]
+
+    fig, axes = plt.subplots(ncols=3, figsize=fig_prop['fig_size'], sharex=True, sharey=True)
+    for ax, data, title, cmap in zip(
+            axes,
+            [dtm, dsm, chm],
+            ["DTM", "DSM", "CHM (DSM - DTM)"],
+            ["terrain", "terrain", "viridis"]):
+        im = ax.imshow(data, cmap=cmap, extent=extent, origin="upper", aspect="equal")
+        ax.set_title(title, fontsize=fig_prop['label_size'])
+        ax.set_xlabel("X [m]", fontsize=fig_prop['label_size'])
+        ax.tick_params(labelsize=fig_prop['label_size_ticks'])
+        cb = plt.colorbar(im, ax=ax, orientation='horizontal', fraction=0.046, pad=0.15)
+        cb.ax.tick_params(labelsize=fig_prop['label_size_tiny'])
+        cb.set_label("Height [m]", size=fig_prop['label_size_ticks'])
+
+    axes[0].set_ylabel("Y [m]", fontsize=fig_prop['label_size'])
+    plt.tight_layout()
+
+    if out_dir is not None:
+        plt.savefig(os.path.join(out_dir, f"TerrainModels_debug.{fig_prop['out_format']}"), dpi=300, format=fig_prop['out_format'])
+
+    return fig
+
 def interactive_figure(output_dir, axis=0):
     """
     Create an interactive slice viewer for voxel grids with occlusion overlay.
@@ -598,7 +505,7 @@ def interactive_figure(output_dir, axis=0):
         Axis orthogonal to the slicing plane (0, 1, or 2).
     """
 
-    raise ValueError("Not working yet. Use get_Occl_TransectFigure instead for now.")
+    raise ValueError("Not working yet. Use plot_transect instead for now.")
 
     classification_arr = np.load(os.path.join(output_dir, "Classification.npy"))
     nhit_arr = np.load(os.path.join(output_dir, "Nhit.npy"))
@@ -787,7 +694,7 @@ def plot_riegl_grid(data : pd.DataFrame, max_scanline, max_scanline_idx, image2=
     if out_path is not None:
         fig.savefig(out_path)
 
-def vis_pv_static_bounds(occmap_file, 
+def plot_pyvista_static(occmap_file, 
                        min_bound_voxel, 
                        max_bound_voxel, 
                        config_file,
@@ -931,7 +838,7 @@ def vis_pv_static_bounds(occmap_file,
     else:
         plotter.show()
 
-def vis_pv_rotating(occmap_file, 
+def plot_pyvista_rotating(occmap_file, 
                 min_bound_voxel, 
                 max_bound_voxel, 
                 config_file,
@@ -1102,7 +1009,7 @@ def vis_pv_rotating(occmap_file,
 
     plotter.close()
 
-def vis_pv_interactive(occmap_file, 
+def plot_pyvista_interactive(occmap_file, 
                        min_bound_voxel, 
                        max_bound_voxel, 
                        config_file,

@@ -50,19 +50,6 @@ void Raytracer::defineGrid(vector<double> minBound, vector<double> maxBound, int
 
 }
 
-static inline void loadbar(unsigned int x, unsigned int n, unsigned int w = 50)
-{
-    if ( (x != n) && (x % (n/100+1) != 0) ) return;
-
-    float ratio  =  x/(float)n;
-    int   c      =  ratio * w;
-
-    cout << std::setw(3) << (int)(ratio*100) << "% [";
-    for (int x=0; x<c; x++) cout << "=";
-    for (int x=c; x<w; x++) cout << " ";
-    cout << "]\r" << flush;
-}
-
 void Raytracer::addPointData(vector<double> X, vector<double> Y, vector<double> Z,
                              vector<double> sensor_x, vector<double> sensor_y, vector<double> sensor_z,
                              vector<double> gps_time, vector<int> return_number, vector<int> number_of_returns){
@@ -227,9 +214,6 @@ void Raytracer::doRaytracing()
         pulsecount++;
 
         bool isfound = false;
-
-        //update progressbar
-        loadbar(pulsecount, total_pulses2iterate, 20);
 
         //init several necessary variables befor starting
         int flag = 0;               //flag whether pulse crosses voxel grid or not
@@ -634,9 +618,6 @@ void Raytracer::doRaytracing_singleReturnPulses(vector<double> X, vector<double>
         pulsecount++;
 
         bool isfound = false;
-
-        //update progressbar
-        // loadbar(pulsecount, (int)gps_time.size(), 20);
 
         //init several necessary variables befor starting
         int flag = 0;               //flag whether pulse crosses voxel grid or not
@@ -1125,9 +1106,6 @@ void Raytracer::doRaytracingEmptyPulses(){
 
     for (map<double,boost::shared_ptr<Pulse> >::iterator it = this->emptypulsedataset.begin(); it != this->emptypulsedataset.end(); ++it) {
         pulsecount++;
-
-        //update progressbar
-        loadbar(pulsecount, total_pulses2iterate, 20);
 
         //init several necessary variables befor starting
         int flag = 0;               //flag whether pulse crosses voxel grid or not

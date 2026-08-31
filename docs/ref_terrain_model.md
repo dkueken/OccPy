@@ -1,4 +1,4 @@
-::: occpy.TerrainModel
+::: occpy.terrainmodel
     handler: python
     options:
         show_source: true

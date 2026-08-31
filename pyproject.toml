@@ -1,6 +1,6 @@
 [project]
 name = "occpy_ls"
-version = "0.2.0rc5"
+version = "0.3.0"
 authors = [
   { name="Daniel Kukenbrink", email="daniel.kuekenbrink@wsl.ch" },
   { name="Wout Cherlet", email="wout.cherlet@ugent.be" },

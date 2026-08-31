@@ -1,4 +1,4 @@
-::: occpy.OccPyRIEGL
+::: occpy.occpyRIEGL
     handler: python
     options:
         show_source: true
